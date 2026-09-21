@@ -2,6 +2,7 @@ import importlib.util
 import json
 from pathlib import Path
 import tempfile
+import subprocess
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -100,6 +101,37 @@ class ReleaseTests(unittest.TestCase):
         draft = {'id': 42, 'tag_name': 'test-kit-v0.1', 'draft': True}
         with patch.object(release, 'api', side_effect=[None, [draft]]):
             self.assertEqual(release.release_info('test-kit-v0.1'), draft)
+
+    def test_new_build_commits_and_retries_without_duplicate_version(self):
+        checkout = self.root / 'publishing'
+        checkout.mkdir()
+        for args in [['init', '-b', 'main'], ['config', 'user.name', 'Test'], ['config', 'user.email', 'test@example.invalid'], ['remote', 'add', 'origin', 'https://github.com/syupei/Matrix-AI.git']]:
+            subprocess.run(['git', *args], cwd=checkout, check=True, capture_output=True)
+        (checkout / 'README.md').write_text('目前推荐 **previous**，old link\n')
+        (checkout / 'releases.json').write_text(json.dumps({'latest': None, 'releases': []}))
+        (checkout / 'SHA256SUMS').write_text('')
+        subprocess.run(['git', 'add', '.'], cwd=checkout, check=True)
+        subprocess.run(['git', 'commit', '-m', 'test baseline'], cwd=checkout, check=True, capture_output=True)
+        notes = self.root / 'notes.md'
+        notes.write_text('New verified version')
+        real_git = release.git
+
+        def local_git(*args, **kwargs):
+            if args[0] == 'push':
+                return subprocess.CompletedProcess(args, 0, '', '')
+            return real_git(*args, **kwargs)
+
+        with patch.object(release, 'ROOT', checkout), patch.object(release, 'CATALOG', checkout / 'releases.json'), patch.object(release, 'git', side_effect=local_git), patch.object(release, 'publish') as publish:
+            release.build_and_publish(self.source, notes, True)
+            first = real_git('rev-parse', 'HEAD').stdout
+            release.build_and_publish(self.source, notes, True)
+            self.assertEqual(first, real_git('rev-parse', 'HEAD').stdout)
+            self.assertEqual(publish.call_count, 2)
+            self.assertEqual(real_git('status', '--porcelain').stdout, '')
+        catalog = json.loads((checkout / 'releases.json').read_text())
+        self.assertEqual(len(catalog['releases']), 1)
+        self.assertEqual(catalog['latest'], self.source.name)
+        self.assertIn(self.source.name, (checkout / 'README.md').read_text())
 
 
 if __name__ == '__main__':

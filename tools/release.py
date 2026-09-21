@@ -21,8 +21,8 @@ def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def command(args, *, cwd=ROOT, check=True):
-    result = subprocess.run(args, cwd=cwd, text=True, capture_output=True)
+def command(args, *, cwd=None, check=True):
+    result = subprocess.run(args, cwd=ROOT if cwd is None else cwd, text=True, capture_output=True)
     if check and result.returncode:
         raise RuntimeError(f'{args[0]} failed: {result.stderr.strip() or result.stdout.strip()}')
     return result
@@ -150,6 +150,7 @@ def release_info(tag):
 
 
 def publish(entry, asset_dir):
+    asset_dir = Path(asset_dir).resolve()
     tag = entry['tag']
     assets = entry['assets']
     for asset in assets:
@@ -187,6 +188,9 @@ def publish(entry, asset_dir):
             raise ValueError('Uploaded asset verification failed')
     if remote['draft']:
         command(['gh', 'release', 'edit', tag, '--repo', REPO, '--draft=false', '--latest=' + str(bool(entry.get('latest'))).lower()])
+        remote = api(f"repos/{REPO}/releases/{remote['id']}")
+        if remote['draft']:
+            raise RuntimeError('Release remains draft; retry the same command')
     print('PUBLISHED ' + remote['html_url'], flush=True)
 
 
@@ -237,7 +241,7 @@ def build_and_publish(source, notes, latest=False):
         checksum.write_text(''.join(f"{a['sha256']}  {a['name']}\n" for e in catalog['releases'] for a in e['assets']))
     copy_snapshot(source, ROOT / entry['source'], expected)
     allowed = [entry['source'], entry['notes'], 'releases.json', 'SHA256SUMS', 'README.md']
-    pending = [line[3:] for line in git('status', '--porcelain').stdout.splitlines()]
+    pending = [line[3:] for line in git('status', '--porcelain', '--untracked-files=all').stdout.splitlines()]
     if any(not any(path == p or path.startswith(p + '/') for p in allowed) for path in pending):
         raise ValueError('Unrelated changes in publishing checkout; leave them uncommitted')
     if pending:
