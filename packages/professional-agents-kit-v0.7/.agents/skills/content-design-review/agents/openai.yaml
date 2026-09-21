@@ -1,0 +1,4 @@
+interface:
+  display_name: "内容设计与审读"
+  short_description: "按项目受众与语境撰写、精简并核对正文和界面文案，保留事实与接力证据"
+  default_prompt: "使用 $content-design-review 核对当前范围的实际文案，沿用已有表达要求，修正后回读并交付证据。"

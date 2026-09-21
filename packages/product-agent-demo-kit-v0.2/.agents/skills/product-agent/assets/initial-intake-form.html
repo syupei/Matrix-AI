@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>产品方向 · 基础澄清表</title>
+<style>
+:root{color-scheme:light;--ink:#213238;--muted:#52656b;--line:#cad9d9;--accent:#176c61}
+*{box-sizing:border-box}body{margin:0;background:#f2f6f4;color:var(--ink);font:16px/1.65 system-ui,-apple-system,"PingFang SC",sans-serif}
+main{max-width:920px;margin:40px auto;padding:0 24px 64px}header{margin-bottom:30px}.eyebrow{font-size:13px;letter-spacing:.12em;color:var(--accent);font-weight:700}h1{font-size:32px;line-height:1.3;margin:12px 0}h2{font-size:21px;margin:32px 0 16px}p{margin:8px 0}.muted,.help{color:var(--muted)}.help{font-size:14px;margin:6px 0 14px}.notice{padding:14px 18px;border-left:3px solid var(--accent);background:#e7efeb}
+fieldset{min-width:0;margin:0 0 22px;padding:18px 22px 22px;border:1px solid var(--line);border-radius:12px;background:white}legend{padding:0 8px;font-weight:700}legend small{font-size:12px;color:var(--accent);margin-right:8px}.choices{display:flex;flex-wrap:wrap;gap:8px}.choice{display:flex;align-items:flex-start;gap:7px;border:1px solid var(--line);border-radius:7px;padding:8px 12px;cursor:pointer}.choice:has(input:checked){border-color:var(--accent);background:#edf6f1}.choice input{margin-top:7px;accent-color:var(--accent)}.field-label{display:block;font-size:14px;margin-top:14px}textarea,input[type=text]{font:inherit;width:100%;padding:10px 12px;border:1px solid #a8bcbc;border-radius:7px;background:#fff;color:var(--ink)}textarea{min-height:86px;resize:vertical}.field-label+textarea,.field-label+input{margin-top:6px}input:focus-visible,textarea:focus-visible,button:focus-visible{outline:3px solid #68a596;outline-offset:2px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}button{border:1px solid var(--accent);border-radius:8px;padding:11px 18px;background:var(--accent);color:white;font:inherit;cursor:pointer}button.secondary{background:white;color:var(--accent)}#status{min-height:28px;color:var(--accent)}#preview{min-height:280px;font-size:14px}.output{border-top:1px solid var(--line);margin-top:32px;padding-top:12px}[hidden]{display:none!important}@media(max-width:560px){main{margin:24px auto;padding:0 16px 40px}h1{font-size:27px}fieldset{padding:14px}legend{font-size:16px}.choice{padding:8px 10px}.choices{gap:6px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+<div class="eyebrow">PRODUCT AGENT · 首轮澄清</div>
+<h1>先把产品方向说清楚</h1>
+<p class="muted">先确认用途、使用条件与体验期望，减少后期因方向不同而返工。</p>
+<p class="notice">不需要现在想清所有细节。可以填写“待定”或“请建议”，也可以暂留空。这里没有预选答案；留空不代表没有偏好。</p>
+<p class="help">本表在本地运行，不上传或自动保存。填写后请导出回答并提供给产品 Agent；关闭页面前请先导出。提交回答不等于批准后续完整产品方案。</p>
+</header>
+<form id="intake" autocomplete="off">
+<h2>一、产品意图与基础信息</h2>
+<fieldset data-id="I01" data-title="产品用途与目标">
+<legend><small>I01</small>为什么要做这个产品？</legend>
+<p class="help">希望解决什么问题，让用户获得什么结果？不清楚时可填写“请帮我澄清”。</p>
+<label class="field-label" for="purpose">用途、问题与期待结果</label><textarea id="purpose" data-label="用途与目标" placeholder="用自己的话描述即可"></textarea>
+</fieldset>
+<fieldset data-id="I02" data-title="核心任务">
+<legend><small>I02</small>最重要的使用任务是什么？</legend>
+<p class="help">写下最重要的 1–3 件事，以及用户什么时候会用到。还不知道可以填写“请建议”。</p>
+<label class="field-label" for="tasks">核心任务与场景</label><textarea id="tasks" data-label="核心任务" placeholder="用户在什么情况下，希望完成什么"></textarea>
+</fieldset>
+<fieldset data-id="I03" data-title="主要用户与管理角色">
+<legend><small>I03</small>谁会使用，谁来管理？</legend>
+<p class="help">可以多选，并补充主要角色；这些分类只是起点。</p>
+<div class="choices" data-group="audience"></div>
+<label class="field-label" for="roles">具体用户、主要使用者与管理者</label><textarea id="roles" data-label="具体角色" placeholder="例如主要使用者、内容维护者；不知道可写待定"></textarea>
+</fieldset>
+<fieldset data-id="I04" data-title="使用端与平台">
+<legend><small>I04</small>希望通过什么端使用？</legend>
+<p class="help">可以多选。PC 网页和安装式客户端分开选择；选择多个端不代表第一版全部实现。</p>
+<div class="choices" data-group="platform"></div>
+<div id="app-detail" hidden><label class="field-label" for="app-os">APP 需要支持哪些系统？</label><input id="app-os" type="text" data-label="APP 系统" placeholder="iOS / Android / 两者 / 待定" disabled></div>
+<div id="mini-detail" hidden><label class="field-label" for="mini-platform">小程序属于哪个平台？</label><input id="mini-platform" type="text" data-label="小程序平台" placeholder="微信 / 支付宝 / 其他 / 待定" disabled></div>
+<label class="field-label" for="platform-other">其他终端或补充说明</label><input id="platform-other" type="text" data-label="平台补充" placeholder="例如嵌入现有产品；也可填写希望 Agent 比较的方向">
+</fieldset>
+<fieldset data-id="I05" data-title="首发优先级与跨端需要">
+<legend><small>I05</small>第一版优先做哪些端？</legend>
+<p class="help">多端时写清顺序，是否需要换端继续同一任务。只有一个端可填“同上”，尚未决定可填“待建议”。</p>
+<label class="field-label" for="priority">首发范围、优先级与跨端需要</label><textarea id="priority" data-label="首发与跨端" placeholder="先做什么，什么可以以后再做"></textarea>
+</fieldset>
+<fieldset data-id="I06" data-title="用户特征">
+<legend><small>I06</small>有哪些影响使用的用户特征？</legend>
+<p class="help">只记录设计需要的信息；年龄不自动代表操作能力。可以多选，补充哪些已知、哪些只是猜测。</p>
+<div class="choices" data-group="traits"></div>
+<label class="field-label" for="traits-note">具体特征或支持需求</label><textarea id="traits-note" data-label="用户特征补充" placeholder="例如数字熟练程度、语言、阅读或操作需求及其依据"></textarea>
+</fieldset>
+<fieldset data-id="I07" data-title="使用情境">
+<legend><small>I07</small>通常在什么环境下使用？</legend>
+<div class="choices" data-group="context"></div>
+<label class="field-label" for="context-note">使用频率、主要设备、语言地区或特别条件</label><textarea id="context-note" data-label="情境补充" placeholder="例如偶尔使用还是每天高频使用；目前未知可写待定"></textarea>
+</fieldset>
+<fieldset data-id="I08" data-title="首期边界与约束">
+<legend><small>I08</small>第一版有哪些必须有、明确不要或必须遵守的条件？</legend>
+<p class="help">如有既有系统、内容公开范围、时间窗口或其他限制，可在这里说明。不清楚可填“待梳理”，没有明确限制可如实填写。</p>
+<label class="field-label" for="constraints">范围、约束及原因</label><textarea id="constraints" data-label="范围约束" placeholder="区分必须遵守的条件与可以讨论的倾向"></textarea>
+</fieldset>
+<h2>二、文案与视觉期望</h2>
+<p class="help">提前表达期望，后续再结合用户和任务细化。无需现在决定全部文案或具体色号。</p>
+<fieldset data-id="I09" data-title="文案语气">
+<legend><small>I09</small>希望产品如何对用户说话？</legend>
+<div class="choices" data-group="tone"></div>
+<label class="field-label" for="tone-note">喜欢或不喜欢的表达方式</label><input id="tone-note" type="text" data-label="文案补充" placeholder="例如不希望使用俏皮话；可补充其他语气">
+</fieldset>
+<fieldset data-id="I10" data-title="视觉风格与产品气质">
+<legend><small>I10</small>希望整体呈现怎样的气质？</legend>
+<p class="help">可选最接近的方向并补充。风格期望不代替清晰、可用与任务效率。</p>
+<div class="choices" data-group="style"></div>
+<label class="field-label" for="style-note">需要体现或避免的感觉</label><input id="style-note" type="text" data-label="风格补充" placeholder="例如希望稳重，但不要过于严肃">
+</fieldset>
+<fieldset data-id="I11" data-title="品牌与颜色期望">
+<legend><small>I11</small>有必须使用或避免的品牌、颜色吗？</legend>
+<div class="choices" data-group="color"></div>
+<label class="field-label" for="color-note">期望或禁用的颜色、品牌规范位置（色号选填）</label><textarea id="color-note" data-label="颜色与品牌补充" placeholder="说明是必须遵守的规范还是可协商偏好；无需提供尚未决定的色板"></textarea>
+</fieldset>
+<fieldset data-id="I12" data-title="喜欢与不喜欢的参考">
+<legend><small>I12</small>有喜欢或不喜欢的参考吗？ <span class="muted">选填</span></legend>
+<p class="help">可提供链接、资料位置或描述，并说明具体喜欢什么、避免什么。参考不意味着照抄。</p>
+<label class="field-label" for="references">参考与理由</label><textarea id="references" data-label="参考" placeholder="没有可留空，或填写“无参考”"></textarea>
+</fieldset>
+</form>
+<section class="output" aria-labelledby="output-heading">
+<h2 id="output-heading">整理并交给产品 Agent</h2>
+<p>生成预览后检查回答，再导出 Markdown 或 JSON。将文件放入当前项目并告诉 Agent 文件位置，或复制预览文字发送给它。</p>
+<div class="actions"><button id="make-preview" type="button">生成回答预览</button><button id="download-md" type="button" class="secondary">导出 Markdown</button><button id="download-json" type="button" class="secondary">导出 JSON</button></div>
+<p id="status" role="status" aria-live="polite"></p>
+<label class="field-label" for="preview">回答预览（只读，可复制；请在上方字段修改）</label><textarea id="preview" readonly placeholder="生成后会在这里显示，未回答的项目会明确标记"></textarea>
+</section>
+</main>
+<script>
+'use strict';
+const groups={
+ audience:{label:'用户类别',options:['消费者','企业外部客户','员工或团队','社区成员','学生、家长或教师','其他','暂未确定'],exclusive:['暂未确定']},
+ platform:{label:'使用端',options:['手机 APP','小程序','PC 浏览器网页','PC 安装式客户端','手机网页 H5','其他','请建议'],exclusive:['请建议']},
+ traits:{label:'用户特征',options:['数字操作不熟练','一般熟练','专业高频使用','中老年用户','儿童青少年','不同语言用户','感知或操作支持需求','暂不了解'],exclusive:['暂不了解']},
+ context:{label:'使用环境',options:['桌前办公','移动中','家庭','现场或公共场所','弱网','其他','待定'],exclusive:['待定']},
+ tone:{label:'文案语气',options:['清晰直接','专业正式','亲切自然','轻松活泼','跟随现有品牌','无偏好','请建议'],exclusive:['无偏好','请建议']},
+ style:{label:'产品气质',options:['简洁克制','专业稳重','温暖友好','活泼有趣','信息紧凑高效','跟随现有品牌','无偏好','请建议'],exclusive:['无偏好','请建议']},
+ color:{label:'颜色要求性质',options:['有明确规范','只有偏好','无偏好','请建议'],single:true}
+};
+for(const [name,spec] of Object.entries(groups)){
+ const box=document.querySelector('[data-group="'+name+'"]');
+ for(const [i,value] of spec.options.entries()){
+  const label=document.createElement('label');label.className='choice';
+  const input=document.createElement('input');input.type=spec.single?'radio':'checkbox';input.name=name;input.value=value;input.id=name+'-'+i;input.dataset.label=spec.label;
+  label.append(input,document.createTextNode(value));box.append(label);
+  input.addEventListener('change',()=>{
+   if(input.checked && spec.exclusive){
+    for(const other of box.querySelectorAll('input')){
+     if(other!==input && (spec.exclusive.includes(value)||spec.exclusive.includes(other.value)))other.checked=false;
+    }
+   }
+   if(name==='platform')updatePlatformDetails();
+  });
+ }
+}
+function updatePlatformDetails(){
+ const selected=Array.from(document.querySelectorAll('input[name="platform"]:checked'),i=>i.value);
+ for(const [id,option] of [['app-detail','手机 APP'],['mini-detail','小程序']]){
+  const node=document.getElementById(id);node.hidden=!selected.includes(option);node.querySelector('input').disabled=node.hidden;
+ }
+}
+function collectAnswers(){
+ const items=Array.from(document.querySelectorAll('fieldset[data-id]'),fieldset=>{
+  const answers=[];
+  for(const input of fieldset.querySelectorAll('input,textarea')){
+   if(input.disabled)continue;
+   if((input.type==='checkbox'||input.type==='radio')&&!input.checked)continue;
+   if(input.value.trim())answers.push({label:input.dataset.label,value:input.value.trim()});
+  }
+  return {id:fieldset.dataset.id,title:fieldset.dataset.title,status:answers.length?'已填写的用户输入':'未回答',answers};
+ });
+ return {form_version:'0.2',exported_at:new Date().toISOString(),record_type:'首轮基础澄清输入',notice:'回答是输入，不代表批准后续完整方案；未回答不等于无偏好。',items};
+}
+function asMarkdown(data){
+ const lines=['# 首轮基础澄清回答','','- 表单版本：'+data.form_version,'- 导出时间：'+data.exported_at,'- 记录类型：用户输入；不代表完整产品方案已确认','- 未回答与无偏好不同；请保留用户表述，再梳理约束、偏好和待决事项。',''];
+ for(const item of data.items){
+  lines.push('## '+item.id+' '+item.title,'','状态：'+item.status,'');
+  for(const answer of item.answers)lines.push(answer.label+'：',...answer.value.split('\n').map(line=>'> '+line),'');
+ }
+ return lines.join('\n');
+}
+function preview(data){
+ document.getElementById('preview').value=asMarkdown(data);
+ const count=data.items.filter(i=>i.answers.length).length;
+ document.getElementById('status').textContent='已整理 '+count+' / 12 项；其余保留为未回答。请检查后交给产品 Agent。';
+}
+function download(format){
+ const data=collectAnswers();preview(data);
+ const text=format==='md'?asMarkdown(data):JSON.stringify(data,null,2);
+ const url=URL.createObjectURL(new Blob([text],{type:format==='md'?'text/markdown;charset=utf-8':'application/json;charset=utf-8'}));
+ const a=document.createElement('a');a.href=url;a.download='首轮基础澄清回答.'+format;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+document.getElementById('make-preview').addEventListener('click',()=>preview(collectAnswers()));
+document.getElementById('download-md').addEventListener('click',()=>download('md'));
+document.getElementById('download-json').addEventListener('click',()=>download('json'));
+document.getElementById('intake').addEventListener('submit',e=>e.preventDefault());
+</script>
+</body>
+</html>

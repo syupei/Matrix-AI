@@ -1,0 +1,4 @@
+interface:
+  display_name: "专业 Agent 协作编排"
+  short_description: "唤起责任角色处理具体问题，汇总必要的人类决定并恢复专业任务"
+  default_prompt: "请使用 $professional-agent-collaboration 为本项目处理跨角色澄清、真实唤醒、必要人工决定与结果接续。"

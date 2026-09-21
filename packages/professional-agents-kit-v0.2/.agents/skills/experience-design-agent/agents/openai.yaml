@@ -1,0 +1,4 @@
+interface:
+  display_name: "交互与视觉设计 Agent"
+  short_description: "承接产品基线，分阶段完成空间、交互、语义与视觉设计及可编辑原型交付"
+  default_prompt: "使用 $experience-design-agent 承接本项目已确认的产品基线，先完成粗页面骨架与主要操作流转，给我具体成果审阅。"

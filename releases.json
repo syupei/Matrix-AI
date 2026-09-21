@@ -1,0 +1,322 @@
+{
+  "repository": "syupei/Matrix-AI",
+  "latest": "professional-agents-kit-v0.7",
+  "releases": [
+    {
+      "tag": "product-agent-demo-kit-v0.1",
+      "title": "product-agent-demo-kit-v0.1",
+      "source": "packages/product-agent-demo-kit-v0.1",
+      "notes": "release-notes/product-agent-demo-kit-v0.1.md",
+      "latest": false,
+      "archive_origin": "reconstructed-from-verified-manifest",
+      "files": 22,
+      "assets": [
+        {
+          "name": "product-agent-demo-kit-v0.1.zip",
+          "sha256": "9f793878491d981d566d255d5f4b7860f47cda6cf5b9d663296f256fd9a9d5f3",
+          "bytes": 1159577
+        }
+      ]
+    },
+    {
+      "tag": "product-agent-demo-kit-v0.2",
+      "title": "product-agent-demo-kit-v0.2",
+      "source": "packages/product-agent-demo-kit-v0.2",
+      "notes": "release-notes/product-agent-demo-kit-v0.2.md",
+      "latest": false,
+      "archive_origin": "original",
+      "files": 24,
+      "assets": [
+        {
+          "name": "product-agent-demo-kit-v0.2.zip",
+          "sha256": "00ce5f9a1bb2bbc0e4f4910b1a16392950494ea8942b920a82b936535334911a",
+          "bytes": 1173234
+        }
+      ]
+    },
+    {
+      "tag": "product-agent-demo-kit-v0.3",
+      "title": "product-agent-demo-kit-v0.3",
+      "source": "packages/product-agent-demo-kit-v0.3",
+      "notes": "release-notes/product-agent-demo-kit-v0.3.md",
+      "latest": false,
+      "archive_origin": "original",
+      "files": 25,
+      "assets": [
+        {
+          "name": "product-agent-demo-kit-v0.3.zip",
+          "sha256": "3f658d67d0b101e9b3c2b8e82f8122916d50d162e9e240beacbd0a5c7eb86f8b",
+          "bytes": 1181169
+        }
+      ]
+    },
+    {
+      "tag": "product-agent-demo-kit-v0.4",
+      "title": "product-agent-demo-kit-v0.4",
+      "source": "packages/product-agent-demo-kit-v0.4",
+      "notes": "release-notes/product-agent-demo-kit-v0.4.md",
+      "latest": false,
+      "archive_origin": "reconstructed-from-verified-manifest",
+      "files": 26,
+      "assets": [
+        {
+          "name": "product-agent-demo-kit-v0.4.zip",
+          "sha256": "2785e0e44d1a77e8134f6b7db1116aa0b204daf15dc61f0333cdff42a30b22a1",
+          "bytes": 1188820
+        }
+      ]
+    },
+    {
+      "tag": "product-agent-demo-kit-v0.5",
+      "title": "product-agent-demo-kit-v0.5",
+      "source": "packages/product-agent-demo-kit-v0.5",
+      "notes": "release-notes/product-agent-demo-kit-v0.5.md",
+      "latest": false,
+      "archive_origin": "original",
+      "files": 27,
+      "assets": [
+        {
+          "name": "product-agent-demo-kit-v0.5.zip",
+          "sha256": "baa2d82b3915644fbe3f5412353078b924eda821e60bca5da34eecfe0a94d73e",
+          "bytes": 1196986
+        }
+      ]
+    },
+    {
+      "tag": "product-agent-demo-kit-v0.6",
+      "title": "product-agent-demo-kit-v0.6",
+      "source": "packages/product-agent-demo-kit-v0.6",
+      "notes": "release-notes/product-agent-demo-kit-v0.6.md",
+      "latest": false,
+      "archive_origin": "original",
+      "files": 27,
+      "assets": [
+        {
+          "name": "product-agent-demo-kit-v0.6.zip",
+          "sha256": "136a94f3a3542fe37dc7f0dbf8933c4f13a57969cba7cb05f2c9e1495285e74b",
+          "bytes": 1201419
+        }
+      ]
+    },
+    {
+      "tag": "product-agent-demo-kit-v0.7",
+      "title": "product-agent-demo-kit-v0.7",
+      "source": "packages/product-agent-demo-kit-v0.7",
+      "notes": "release-notes/product-agent-demo-kit-v0.7.md",
+      "latest": false,
+      "archive_origin": "original",
+      "files": 28,
+      "assets": [
+        {
+          "name": "product-agent-demo-kit-v0.7.zip",
+          "sha256": "2e30fd725deb85935cee9a2cade91f1a0ae8d4259189a00630df93643ed8df1a",
+          "bytes": 1212736
+        }
+      ]
+    },
+    {
+      "tag": "product-agent-demo-kit-v0.8",
+      "title": "product-agent-demo-kit-v0.8",
+      "source": "packages/product-agent-demo-kit-v0.8",
+      "notes": "release-notes/product-agent-demo-kit-v0.8.md",
+      "latest": false,
+      "archive_origin": "original",
+      "files": 32,
+      "assets": [
+        {
+          "name": "product-agent-demo-kit-v0.8.zip",
+          "sha256": "336dc9573d6fa3f86fae6b3ac9696a36e177b95bd472c9a7cf51450426a5cfb5",
+          "bytes": 1229813
+        }
+      ]
+    },
+    {
+      "tag": "product-design-agent-kit-v0.1",
+      "title": "product-design-agent-kit-v0.1",
+      "source": "packages/product-design-agent-kit-v0.1",
+      "notes": "release-notes/product-design-agent-kit-v0.1.md",
+      "latest": false,
+      "archive_origin": "original",
+      "files": 53,
+      "assets": [
+        {
+          "name": "product-design-agent-kit-v0.1.zip",
+          "sha256": "d3b0d6d456c922da32977003d42aad749667786d3fb60c1217f6e728ec9b22ba",
+          "bytes": 2377587
+        },
+        {
+          "name": "product-design-agent-kit-v0.zip",
+          "sha256": "86df06cf7bdbf482b8b89c6baaf8c88028b6cf49cdabb09280c09dfa64d7c020",
+          "bytes": 2377480,
+          "role": "original-misnamed-archive"
+        }
+      ]
+    },
+    {
+      "tag": "product-design-agent-kit-v0.2",
+      "title": "product-design-agent-kit-v0.2",
+      "source": "packages/product-design-agent-kit-v0.2",
+      "notes": "release-notes/product-design-agent-kit-v0.2.md",
+      "latest": false,
+      "archive_origin": "original",
+      "files": 55,
+      "assets": [
+        {
+          "name": "product-design-agent-kit-v0.2.zip",
+          "sha256": "ddcf2084fa12df5c17c31ecfb59287e6d4eba2f329b48b4eec54c77ab0b775f5",
+          "bytes": 2390964
+        }
+      ]
+    },
+    {
+      "tag": "product-design-agent-kit-v0.3",
+      "title": "product-design-agent-kit-v0.3",
+      "source": "packages/product-design-agent-kit-v0.3",
+      "notes": "release-notes/product-design-agent-kit-v0.3.md",
+      "latest": false,
+      "archive_origin": "original",
+      "files": 58,
+      "assets": [
+        {
+          "name": "product-design-agent-kit-v0.3.zip",
+          "sha256": "6e5fcb0faf925eca296a00213071ca415035c5ac8ead6bb047d6d5c6a1527e0b",
+          "bytes": 2402743
+        }
+      ]
+    },
+    {
+      "tag": "engineering-intake-agent-kit-v0.1",
+      "title": "engineering-intake-agent-kit-v0.1",
+      "source": "packages/engineering-intake-agent-kit-v0.1",
+      "notes": "release-notes/engineering-intake-agent-kit-v0.1.md",
+      "latest": false,
+      "archive_origin": "original",
+      "files": 19,
+      "assets": [
+        {
+          "name": "engineering-intake-agent-kit-v0.1.zip",
+          "sha256": "cd0ada070c3600e1a185149cc410d920565767ff73f441a1c00932772262749e",
+          "bytes": 47760
+        }
+      ]
+    },
+    {
+      "tag": "agent-collaboration-kit-v0.1",
+      "title": "agent-collaboration-kit-v0.1",
+      "source": "packages/agent-collaboration-kit-v0.1",
+      "notes": "release-notes/agent-collaboration-kit-v0.1.md",
+      "latest": false,
+      "archive_origin": "original",
+      "files": 17,
+      "assets": [
+        {
+          "name": "agent-collaboration-kit-v0.1.zip",
+          "sha256": "864546b4f15cf9bb34ba55797cae8b707576cf7777d082ee3da9d5f52b0487b1",
+          "bytes": 49857
+        }
+      ]
+    },
+    {
+      "tag": "pm-agent-test-kit-v0.1",
+      "title": "pm-agent-test-kit-v0.1",
+      "source": "packages/pm-agent-test-kit-v0.1",
+      "notes": "release-notes/pm-agent-test-kit-v0.1.md",
+      "latest": false,
+      "archive_origin": "original",
+      "files": 81,
+      "assets": [
+        {
+          "name": "pm-agent-test-kit-v0.1.zip",
+          "sha256": "1c4a1a9a953b6b9202e23e6d01848db00c2e1fcf980cc356868d7ad262da82a1",
+          "bytes": 2480184
+        }
+      ]
+    },
+    {
+      "tag": "professional-agents-kit-v0.2",
+      "title": "professional-agents-kit-v0.2",
+      "source": "packages/professional-agents-kit-v0.2",
+      "notes": "release-notes/professional-agents-kit-v0.2.md",
+      "latest": false,
+      "archive_origin": "original",
+      "files": 83,
+      "assets": [
+        {
+          "name": "professional-agents-kit-v0.2.zip",
+          "sha256": "f97283842f9ba90c9f0da80d37ef201b63c49a75c0a036799bc86ca323e1dc67",
+          "bytes": 2495382
+        }
+      ]
+    },
+    {
+      "tag": "professional-agents-kit-v0.3",
+      "title": "professional-agents-kit-v0.3",
+      "source": "packages/professional-agents-kit-v0.3",
+      "notes": "release-notes/professional-agents-kit-v0.3.md",
+      "latest": false,
+      "archive_origin": "original",
+      "files": 87,
+      "assets": [
+        {
+          "name": "professional-agents-kit-v0.3.zip",
+          "sha256": "650b862bc261599c4d30b1d1b39fd58503781d2fdc230268fecec33e23012df3",
+          "bytes": 2517398
+        }
+      ]
+    },
+    {
+      "tag": "professional-agents-kit-v0.5",
+      "title": "professional-agents-kit-v0.5",
+      "source": "packages/professional-agents-kit-v0.5",
+      "notes": "release-notes/professional-agents-kit-v0.5.md",
+      "latest": false,
+      "archive_origin": "reconstructed-from-verified-manifest",
+      "files": 92,
+      "assets": [
+        {
+          "name": "professional-agents-kit-v0.5.zip",
+          "sha256": "3114a68a3968dc9b2d915675ded8277ab86ac96c9b6706a79849f9005898b6bd",
+          "bytes": 2539252
+        }
+      ]
+    },
+    {
+      "tag": "professional-agents-kit-v0.6",
+      "title": "professional-agents-kit-v0.6",
+      "source": "packages/professional-agents-kit-v0.6",
+      "notes": "release-notes/professional-agents-kit-v0.6.md",
+      "latest": false,
+      "archive_origin": "original",
+      "files": 93,
+      "assets": [
+        {
+          "name": "professional-agents-kit-v0.6.zip",
+          "sha256": "05dd09bacf5eb2776bbdce13ea2c5dcc787bed554e8c9e5356f05bba2c0cc0cd",
+          "bytes": 2547941
+        }
+      ]
+    },
+    {
+      "tag": "professional-agents-kit-v0.7",
+      "title": "professional-agents-kit-v0.7",
+      "source": "packages/professional-agents-kit-v0.7",
+      "notes": "release-notes/professional-agents-kit-v0.7.md",
+      "latest": true,
+      "archive_origin": "original",
+      "files": 101,
+      "assets": [
+        {
+          "name": "professional-agents-kit-v0.7.zip",
+          "sha256": "f473356e256cc37ce7dd9e5ce17dbaf4b44d658b43a6dd6d713a08084d9de672",
+          "bytes": 2567883
+        }
+      ]
+    }
+  ],
+  "unreleased": [
+    "archive/unreleased/professional-agents-kit-v0.4"
+  ],
+  "unavailable": [
+    "product-design-agent-kit-v0.4"
+  ]
+}

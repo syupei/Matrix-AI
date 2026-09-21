@@ -1,0 +1,18 @@
+{
+  "VALIDATION.md": "8365b1157549ae73d26aae1bdabe389c1ccfbcaa31d15a17a7877a9abb3273e8",
+  "README.md": "2d5ec4563723af1e3c79bfaacd6933e019d9f904cf5a7765cb029f691982a772",
+  "install.py": "10f1e7623a92b15cd11e2ef9556b4976a1be87012d604276f5ce5d98f82704a3",
+  "test_install.py": "6261bfcf8dc73a306ea81a5fccc2374e0165a07772347b07c421ae10d6b3fb3f",
+  "collaboration/FEEDBACK-PROTOCOL.md": "90b9eb071725c98efbcd0716785ff51bded4095e1e36923a8583eb5873465961",
+  "collaboration/PROFESSIONAL-REVIEW.md": "7c7cbefac69e5c32a7f4f51b1a39835e54864c1071fdee7db2d60f58c3ef3f9e",
+  "collaboration/ROLE-CONFIG-TEMPLATE.md": "751f127eddc20185f435fc09cdb4cdff6b66e6a458cc01eea412015d2836839e",
+  "collaboration/CONTRACT.md": "cc592e68c5612e9c16762693044622381fedd4146f44630ff8e05ae61cc253c8",
+  "collaboration/RUNTIME.md": "5f088c34f80991ce943bc8b60bc67723bbc119700ca021399e419e9ed2e62dd6",
+  "collaboration/REQUEST-RESPONSE-TEMPLATE.md": "62acf4c65875a1c260d9108c4aebdcde0815c20303728f3d3ccfeb2732f139db",
+  ".agents/skills/professional-agent-collaboration/SKILL.md": "909dc16866d08b4b3f7eadc07ca57364200bfc9591a6dec14d2da2f29730e21b",
+  ".agents/skills/professional-agent-collaboration/references/ledger.md": "b69635686fd4d27bb47f5fb0fbdf4fc0f0048ae1ab8efa2e4fc3f1b94b34c45d",
+  ".agents/skills/professional-agent-collaboration/references/native-adapters.md": "e46d2323eeac3ec382769c086b06eb80dcfb1c003ae1bdf4e23335fe2407a199",
+  ".agents/skills/professional-agent-collaboration/agents/openai.yaml": "a3a4240708fa2934a1678e073b150557eeaf73a0a325a6987082c902e1a7c079",
+  ".agents/skills/professional-agent-collaboration/scripts/test_coordination.py": "a01a47a2d84d86b9d8e9188335df249ac39675ac2fdf085f260b3d141995ba46",
+  ".agents/skills/professional-agent-collaboration/scripts/coordination.py": "719c9e6e582a1236268518aa935ab324fd1791220f5990537817bc4b98770768"
+}
