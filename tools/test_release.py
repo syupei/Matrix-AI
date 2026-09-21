@@ -96,6 +96,11 @@ class ReleaseTests(unittest.TestCase):
                 release.publish(entry, self.root)
             cmd.assert_not_called()
 
+    def test_draft_lookup_prevents_duplicate_creation(self):
+        draft = {'id': 42, 'tag_name': 'test-kit-v0.1', 'draft': True}
+        with patch.object(release, 'api', side_effect=[None, [draft]]):
+            self.assertEqual(release.release_info('test-kit-v0.1'), draft)
+
 
 if __name__ == '__main__':
     unittest.main()

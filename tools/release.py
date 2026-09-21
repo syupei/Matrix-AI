@@ -132,6 +132,23 @@ def api(endpoint):
     return json.loads(result.stdout)
 
 
+def release_info(tag):
+    found = api(f'repos/{REPO}/releases/tags/{tag}')
+    if found is not None:
+        return found
+    # GitHub's tag endpoint omits drafts; find a partially uploaded release
+    # before attempting creation so an interrupted publish is resumable.
+    page = 1
+    while True:
+        releases = api(f'repos/{REPO}/releases?per_page=100&page={page}')
+        for item in releases:
+            if item['tag_name'] == tag:
+                return item
+        if len(releases) < 100:
+            return None
+        page += 1
+
+
 def publish(entry, asset_dir):
     tag = entry['tag']
     assets = entry['assets']
@@ -139,11 +156,12 @@ def publish(entry, asset_dir):
         local = Path(asset_dir) / asset['name']
         if not local.is_file() or sha(local) != asset['sha256']:
             raise ValueError('Local release asset changed: ' + asset['name'])
-    base = f'repos/{REPO}/releases/tags/{tag}'
-    remote = api(base)
+    remote = release_info(tag)
     if remote is None:
         command(['gh', 'release', 'create', tag, '--repo', REPO, '--verify-tag', '--draft', '--title', entry['title'], '--notes-file', str(ROOT / entry['notes'])])
-        remote = api(base)
+        remote = release_info(tag)
+    if remote is None:
+        raise RuntimeError('Created release is not yet visible; retry the same command')
     by_name = {a['name']: a for a in remote['assets']}
     for asset in assets:
         local = Path(asset_dir) / asset['name']
@@ -162,7 +180,7 @@ def publish(entry, asset_dir):
                         raise ValueError('Remote download differs: ' + asset['name'])
         else:
             command(['gh', 'release', 'upload', tag, str(local), '--repo', REPO])
-    remote = api(base)
+    remote = api(f"repos/{REPO}/releases/{remote['id']}")
     for asset in assets:
         match = next(a for a in remote['assets'] if a['name'] == asset['name'])
         if match['size'] != (Path(asset_dir) / asset['name']).stat().st_size or (match.get('digest') and match['digest'] != 'sha256:' + asset['sha256']):
@@ -209,12 +227,16 @@ def build_and_publish(source, notes, latest=False):
             for item in catalog['releases']:
                 item['latest'] = False
             catalog['latest'] = source.name
+            readme = ROOT / 'README.md'
+            text = readme.read_text()
+            text = re.sub(r'目前推荐 \*\*[^\n]+', f'目前推荐 **{source.name}**，使用说明见 [START](packages/{source.name}/START.md)。安装不等于启动 Agent 或批准业务成果；具体能力、限制及实际验证以各版说明为准。', text, count=1)
+            readme.write_text(text)
         catalog['releases'].append(entry)
         CATALOG.write_text(json.dumps(catalog, ensure_ascii=False, indent=2) + '\n')
         checksum = ROOT / 'SHA256SUMS'
         checksum.write_text(''.join(f"{a['sha256']}  {a['name']}\n" for e in catalog['releases'] for a in e['assets']))
     copy_snapshot(source, ROOT / entry['source'], expected)
-    allowed = [entry['source'], entry['notes'], 'releases.json', 'SHA256SUMS']
+    allowed = [entry['source'], entry['notes'], 'releases.json', 'SHA256SUMS', 'README.md']
     pending = [line[3:] for line in git('status', '--porcelain').stdout.splitlines()]
     if any(not any(path == p or path.startswith(p + '/') for p in allowed) for path in pending):
         raise ValueError('Unrelated changes in publishing checkout; leave them uncommitted')
