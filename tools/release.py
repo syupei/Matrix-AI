@@ -198,6 +198,23 @@ def git(*args, check=True):
     return command(['git', *args], check=check)
 
 
+def pending_paths():
+    # NUL records preserve Unicode, spaces, quotes and newlines without Git's
+    # human-readable quoting. Renames/copies include a second source path.
+    records = iter(git('status', '--porcelain', '-z', '--untracked-files=all').stdout.split('\0'))
+    paths = []
+    for record in records:
+        if not record:
+            continue
+        paths.append(record[3:])
+        if 'R' in record[:2] or 'C' in record[:2]:
+            source = next(records, '')
+            if not source:
+                raise ValueError('Incomplete Git rename/copy status')
+            paths.append(source)
+    return paths
+
+
 def build_and_publish(source, notes, latest=False):
     source = Path(source).resolve()
     if not re.fullmatch(r'[a-z0-9-]+-v\d+(?:\.\d+)+', source.name):
@@ -241,7 +258,7 @@ def build_and_publish(source, notes, latest=False):
         checksum.write_text(''.join(f"{a['sha256']}  {a['name']}\n" for e in catalog['releases'] for a in e['assets']))
     copy_snapshot(source, ROOT / entry['source'], expected)
     allowed = [entry['source'], entry['notes'], 'releases.json', 'SHA256SUMS', 'README.md']
-    pending = [line[3:] for line in git('status', '--porcelain', '--untracked-files=all').stdout.splitlines()]
+    pending = pending_paths()
     if any(not any(path == p or path.startswith(p + '/') for p in allowed) for path in pending):
         raise ValueError('Unrelated changes in publishing checkout; leave them uncommitted')
     if pending:

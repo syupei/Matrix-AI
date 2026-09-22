@@ -103,6 +103,10 @@ class ReleaseTests(unittest.TestCase):
             self.assertEqual(release.release_info('test-kit-v0.1'), draft)
 
     def test_new_build_commits_and_retries_without_duplicate_version(self):
+        name = '中文 source "quoted"\nnotes.md'
+        (self.source / name).write_text('Unicode and quoted paths must publish')
+        self.expected[name] = release.sha(self.source / name)
+        (self.source / 'MANIFEST.json').write_text(json.dumps({'files': self.expected}))
         checkout = self.root / 'publishing'
         checkout.mkdir()
         for args in [['init', '-b', 'main'], ['config', 'user.name', 'Test'], ['config', 'user.email', 'test@example.invalid'], ['remote', 'add', 'origin', 'https://github.com/syupei/Matrix-AI.git']]:
@@ -132,6 +136,11 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(len(catalog['releases']), 1)
         self.assertEqual(catalog['latest'], self.source.name)
         self.assertIn(self.source.name, (checkout / 'README.md').read_text())
+
+    def test_rename_status_includes_original_path_for_scope_check(self):
+        result = subprocess.CompletedProcess([], 0, 'R  packages/new name\0private/old name\0', '')
+        with patch.object(release, 'git', return_value=result):
+            self.assertEqual(release.pending_paths(), ['packages/new name', 'private/old name'])
 
 
 if __name__ == '__main__':
