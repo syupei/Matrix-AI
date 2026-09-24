@@ -4,7 +4,7 @@
 
 [最新完整包及下载](https://github.com/syupei/Matrix-AI/releases/latest) · [全部历史版本](https://github.com/syupei/Matrix-AI/releases) · [版本目录](releases.json) · [下载包 SHA256](SHA256SUMS)
 
-目前推荐 **professional-agents-kit-v0.9**，使用说明见 [START](packages/professional-agents-kit-v0.9/START.md)。安装不等于启动 Agent 或批准业务成果；具体能力、限制及实际验证以各版说明为准。
+目前推荐 **professional-agents-kit-v0.10**，使用说明见 [START](packages/professional-agents-kit-v0.10/START.md)。安装不等于启动 Agent 或批准业务成果；具体能力、限制及实际验证以各版说明为准。
 
 ## 历史档案
 

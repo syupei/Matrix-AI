@@ -1,6 +1,6 @@
 {
   "repository": "syupei/Matrix-AI",
-  "latest": "professional-agents-kit-v0.9",
+  "latest": "professional-agents-kit-v0.10",
   "releases": [
     {
       "tag": "product-agent-demo-kit-v0.1",
@@ -332,13 +332,28 @@
       "title": "professional-agents-kit-v0.9",
       "source": "packages/professional-agents-kit-v0.9",
       "notes": "release-notes/professional-agents-kit-v0.9.md",
-      "latest": true,
+      "latest": false,
       "archive_origin": "build",
       "assets": [
         {
           "name": "professional-agents-kit-v0.9.zip",
           "sha256": "14be2aefc8ed6b5aacb82c99964ab0d766fec234487d1e851b9a9ce922e28557",
           "bytes": 2577822
+        }
+      ]
+    },
+    {
+      "tag": "professional-agents-kit-v0.10",
+      "title": "professional-agents-kit-v0.10",
+      "source": "packages/professional-agents-kit-v0.10",
+      "notes": "release-notes/professional-agents-kit-v0.10.md",
+      "latest": true,
+      "archive_origin": "build",
+      "assets": [
+        {
+          "name": "professional-agents-kit-v0.10.zip",
+          "sha256": "d3aa4175b9bba9312a102cac5795e32ee4daa6f1cb55d0638e9f6619709fc7f6",
+          "bytes": 2581392
         }
       ]
     }

@@ -1,0 +1,408 @@
+{
+  ".agents/skills/experience-design-agent/SKILL.md": [
+    "10bc485558a2b921596f7dd73f39807f016a63aa67df4348d5f079db7e4bf627",
+    "5797c65aa1cf8ce4f65a0fdce6f0b6cf57cbac87612c1ebb7b2ce3b821f045df",
+    "74ae3a705867877ddf823b169b2b61e530bba99154a333200543df1bac8defff",
+    "92ee11563507c59e50d57bc8d1b8299d05f0c35fbe3cf0ffee89a7230ea52855",
+    "a06a7a69a0e29ae1d4c9990ccefb5298da79c3c6441ddb770fb5530bfa596401",
+    "d39fe12a4f60fa978906ab175662323e939bd1f6ebf50eea7d95cae12dce4487",
+    "d441a053c8e88474558c80f710b97b0dc8741e903f3f30bb048cbc712d31904d",
+    "e26c8a3a4336d6912ff27b0fa3489ef4fda41ebdc9894c1dfe294c40c2965ba8",
+    "b87f1882552b311271485905a819b0761beafd0881ec0153689a908f9b330d63",
+    "294ac93fcf9a47b6e1b8b0f7d28bf788fe6dddf3cdd6708c94d601eb3a7f9e08"
+  ],
+  ".agents/skills/experience-design-agent/references/collaboration.md": [
+    "7b4edcb896ebd38db1f73ba2cbe3e8f810529c7ef8217cc58fd502726f2574b8"
+  ],
+  ".agents/skills/experience-design-agent/references/capability-index.md": [
+    "b44a5128493ac4d091678d470439909ffde52113ee06b4e3285f171a2029f231"
+  ],
+  ".agents/skills/experience-design-agent/references/external-inputs.md": [
+    "0f94e4bd18c443210b80a4335629a2eb6d264d2126a6fda75327908869298d96",
+    "49bc0ee9601bce33d17c809a74566f6162d39397932006166d2a2f0adc0d86b1",
+    "953e8dee63b6e1c1162db85a990a61ff83e34f9071a7fc47307cd51cbc12c81f"
+  ],
+  ".agents/skills/experience-design-agent/references/review-and-state.md": [
+    "99a8f8c0e04c930d6d8f41d4f1ffb2238e1be95004e55d709637175135cf6939",
+    "c108f383c73a5bf437099c6db1be7e4fc745c409ddbf556b85fbe2cd5c70eea7",
+    "dac720881079688819cd10ea2122c878ceedad379e8c917bcb8cfd20d2cedaa8"
+  ],
+  ".agents/skills/experience-design-agent/references/quality-samples-and-media.md": [
+    "8c6f047c282b49b0be6473def9ad6c77db394d54bf1d514c6442f61767e0aa83",
+    "9349b564ee2afe8eadd09f9b79770f32761a8e671b20bc3dd3974eee80764560",
+    "961edb30e2dd5cdc2be23b0970fc48c37d557e744f4a4beced5fbae83480e1f0",
+    "a76aacc4b1e894e67ec850839fbc5339562497fa5f1899e1c442679bf4c5ce83"
+  ],
+  ".agents/skills/experience-design-agent/references/workflow.md": [
+    "192a35facd470304d8a61e9da274d87262dcd653cba1d9855817b72f817d8dc3",
+    "272079607cf1eb310ca2797cfedb2df1783e978c2b3b7579dd88884b4bd275d4",
+    "6b0cdefe1ad3faaaf75e69b2b62790e12df101ab1626661d0cb6f9740ac62733",
+    "7eb0350d15e8d33cde7e2bf9ad4eb51efb335a753d89415f3ea0aa3e609f7eea",
+    "84ac63a685c75f5b0918e1aa05b31eed99e0252571314911e65dce19abb8e488",
+    "c9c4ce580fa8666c5fe2c0b0ffe8b8c92b7bcf1c042429df156ddc1eac8cbc5c",
+    "6ec5085b42047faa5347f6d940a9b3f19eedebcd1f3e4464f78fe159b739d438"
+  ],
+  ".agents/skills/experience-design-agent/references/quality-and-handoff.md": [
+    "0f5109e1d9bcf7bc3fa1de08122b6585dc2999de02c9f1b77117a14b392bd60d",
+    "321b6c9efc092aa5d1cefd1e62b20bcce3d2e15c1a743d45d160543bda91b667",
+    "470b5a310bada884a2736145bcec72fb2da149244c699bfcecd055caa18a75ad",
+    "6288200a3df419f652da8a9909f0686f1a38380b11ea780730a165444bc0d8a7",
+    "739b18bc764746e09b3c3c2e34f210adb60d53df89916ccf359cb3e4af233c24"
+  ],
+  ".agents/skills/experience-design-agent/references/tool-execution.md": [
+    "0b945cb614d5c5ed1b864733097e25a3b6c9443b38438edc089d14d49fc11391",
+    "2638c7c6e99763b0313bc490375e927a402333a2fee5f6533b9d89973b8b8684",
+    "612becac739b0a76af879064dc366d10cce389fd9e679309a090bc559b65481d",
+    "f72ad0252ddba93af0f3ff91b61eb9e5bff29a252bc71291a9690d6ff1918339"
+  ],
+  ".agents/skills/experience-design-agent/references/standards/P5-interaction.md": [
+    "9f54a8361998e65d39607195711d6856f68339eaabdb2fe9cf3b94a34399fb73"
+  ],
+  ".agents/skills/experience-design-agent/references/standards/P6-process.md": [
+    "8cb5ac15b4c085981af9861ec79c9ac015a91784bb5985d99d793fbb3c731cb0"
+  ],
+  ".agents/skills/experience-design-agent/references/standards/00-foundation.md": [
+    "30313c5d2c20eb4b73ad8fc76ab0eb0dded1fec6ea56056f67de530ac6459ad0"
+  ],
+  ".agents/skills/experience-design-agent/references/standards/P3-semantics.md": [
+    "3e91602868d7a647d8d08b4f3319d03b969b94717a7bd49aaa4fb1f267767e26"
+  ],
+  ".agents/skills/experience-design-agent/references/standards/P2-cognition.md": [
+    "1257711df64b06ba3bcead4178961a14a379d7c39849da458ccf2f3871220b45"
+  ],
+  ".agents/skills/experience-design-agent/references/standards/P1-product-logic.md": [
+    "1e29c5ce0abb1dbab03ec5c919fe825f5443739e18e7a1d809dc870671db91ab"
+  ],
+  ".agents/skills/experience-design-agent/references/standards/P4-structure.md": [
+    "6c6ed0b13f05491f0f3717b1c5367a30a507c6d2a4a182ae68c725b31623ae7f"
+  ],
+  ".agents/skills/experience-design-agent/references/standards/P7-perception.md": [
+    "b9bc058e16ac4fce0ec0b8ffad221b8d644203fa94ecacddee1b19c632d06542"
+  ],
+  ".agents/skills/experience-design-agent/agents/openai.yaml": [
+    "a175a44a449cab04aa46321553cfad944c105edd997aeca3a9f99a96938dc915"
+  ],
+  ".agents/skills/experience-design-agent/sources/《产品领域专家能力要求模型》项目背景与模型形成说明.pdf": [
+    "fa7889767e510cb03423005ce5f1050239d77142e1567f16cdf69fe193946983"
+  ],
+  ".agents/skills/experience-design-agent/sources/SOURCE-NOTES.md": [
+    "26744d33d931dbdb20b50126fdfae37aac36dd567eaa496c0fe87a66a963e7a5",
+    "2e0452ceb400c9094cb0c59076adef6ee217df60663fd550cec2cdfa27c759f5",
+    "72025a30954d014f9cea5598be8f416fe750f02f7c31ec67dd1e852113c94fbf",
+    "d69a9566e3d636e03956e54f84009cc2f850f6fa0a7039f23a8b670291906300",
+    "dcbb1989237d3809a9233ae6afe6f97f3a1fa12fc90862515b18ed259f3d7aef",
+    "fdbd4e117ae20889a9315938977f265d9967466db7904565462d86795ccf4b0c"
+  ],
+  ".agents/skills/experience-design-agent/sources/产品领域专家能力要求模型_完整版_最新.md": [
+    "a20d8eaac40a858af8fdd847834febcc3b5fb2b5372dd7b0bc319d9a67a3dde4"
+  ],
+  ".agents/skills/experience-design-agent/assets/design-workspace-template.md": [
+    "0c705f37d61fb46c8d6d6e720efab57873a9dd8ac23237ab1dc2e2477f56358d",
+    "69d18c02c33e70498d3ee9a5bdf1af84e44af7f14afaa69a5c2153522f79c197",
+    "aeafefee55ac265212dccd7e2a5af3adf19c4ec81f36175969aee5c80c0aff2f",
+    "b956d005b0df68202926108477edffd59557ef9c00191f45c8b16c661f5263f6",
+    "c14d45b59e6fd6faf7daa6f7656f242053dd1675c8cb36ffa90267500c52b239",
+    "c18551ef7c32de6fa30ffb4ed3f7262feb7078c944a2f804366989637b2c6c27",
+    "cde0cf733dcb14583bc18be38cf7ea715cad5ebf092d183ce05713509285990d",
+    "938d7d63ea96b7100bc683fbc40cbaf0429d19e0cac437fb77dcc72df0b46a5e",
+    "51d3e00c67193d2e474e0c36a5375b525871b27540d2934ed4ed8bc679d7e214"
+  ],
+  ".agents/skills/product-agent/SKILL.md": [
+    "03f2853d78ac511288952ffc6667761082d01b81253e25c6fe3026e900ae06a7",
+    "045cd698771b8828d376f4c939fba468201b41c11fdff4e8ec842169d2c6c4d4",
+    "135888c75cd3164a3ac36ecb52581766cb8d438bf4441f52b2b5146e162693d3",
+    "23de1c0b42e1d34d8d08f5f3327e6dd7b62653ae3ab36537a58142921812d091",
+    "2fdcde6cb60670b0b60b6e00b377ad0c4038c0c610c2f9686369ae1bdf34dc68",
+    "3eb2fb4e94f2276e5ed39991b43e5e34a363c1acf046881a9bc27a1f7ce4f0be",
+    "8fa5992160c1076de3404fe3e584cdf1f8de6cae25fd6da62c0eec409ed46185",
+    "922ce29f88f04480ccfa4ec30f3fbd98362c0bc1a9d471a5cd3896457d60b509",
+    "cfe940f5de36aa50887022f9dbe0eb0e2acc524252bcb64651fcc48864e7c05a"
+  ],
+  ".agents/skills/product-agent/references/capability-index.md": [
+    "9412cafab1239d080fc3aa373912825344e5d3fb56bf1e293b1bbf8a59526437"
+  ],
+  ".agents/skills/product-agent/references/principles.md": [
+    "ae8a33cbc6716ccb5b91d62ab2be566c29a866f269286bd92be97931ac992dbc"
+  ],
+  ".agents/skills/product-agent/references/initial-intake.md": [
+    "e678cc7dc3ef4d45ffb2d0295cead4fca9a3e821f271ff038d3894a387a72cfa",
+    "fccc0073a4eabbe84e09f77c6a58b9b333980c4550576b0412d9ceff0772c637"
+  ],
+  ".agents/skills/product-agent/references/stage-and-collaboration.md": [
+    "b809d694daa4cafec88f7af8f40299932ba9eef920664813c11a7edab404bf63",
+    "c939dbf223b86c645fc444f327e756c54d92f767bbf6471cedad7ba1d4c46b76"
+  ],
+  ".agents/skills/product-agent/references/review-interaction.md": [
+    "50256698ecc7f82521a76ea3abed98a2d3c93b04e06db33b2c49d91589d6f50d",
+    "f755e5a41feee6a03640c1591acb55b0a90a82674e08968476e6bef2cd0cd446"
+  ],
+  ".agents/skills/product-agent/references/workflow.md": [
+    "7c684fbaa37f0bdf1bd9c83f3bf9899e1b1f71d4daeceb01ae8863d1934d480b",
+    "84665522113cc858f66b97eae2e73bfbcc70bdcff31e8f0c52654a731f936412",
+    "cd67eeb96b0f0c95f6a81aab50e9fff9b7cc2e29e521d6880e91ada89883696f",
+    "591160aafd996c234894d921387aee3eb10eb44bf7c736746198fe2e4617ef41",
+    "250b4ee8df485a5234b346793d3c37f98022994b99027eeca74b9e4dce3c881b"
+  ],
+  ".agents/skills/product-agent/references/model-completeness.md": [
+    "0f2fc125fe59250b2870791a0fd8f0aaee999bc8e631f62bfeaf0e24530b1ef0"
+  ],
+  ".agents/skills/product-agent/references/intake-decisions-and-styles.md": [
+    "209158d67543169593028f844bfb5754c338f37dceda32a93696592f82b8d738"
+  ],
+  ".agents/skills/product-agent/references/deliverables-and-recipients.md": [
+    "06e5911810457e67699ae12c4ef27700faae2b12271954fa617fadfb5cc9def7",
+    "3a255178c864457df1e716fccd61f4c10ae7340166331a6485726d51cb57867c",
+    "af817e138b8fc6320c984f4612dbd9d141777cd94c128e84d4d6850f00392ccd",
+    "f99677fe40fdd2f737d4b16cbb9cd5edd226b6d6e725ac8fcd224d298a220e51",
+    "16001ccf4814cc04994a2c468a1bf24e1d4ef0a3f9c526dc9c8fe1b939c43572",
+    "719f1b118c8f3783485692af1d62709c7f47a2216a12b37dfae70e85d0a73323"
+  ],
+  ".agents/skills/product-agent/references/product-collaboration.md": [
+    "b445d5d8228010e6ca5d805c89d78e3ff2cd6a9a06cb01d181379758d9463f8a",
+    "ddcb4be0dac12ec2c33ac034af9fe153ca77c0efc7eb4ab6932c8c8b2b657b9e"
+  ],
+  ".agents/skills/product-agent/references/review-and-handoff.md": [
+    "351b0f447ec5f4686d120ed654368bb71e09aba39d48044828b3b09ef979a442",
+    "7c2be72eda2f1a7cf847486ccacd324ed39b5f583855bf33bd4c15508e8ce47d",
+    "b6ccc7a92221c23248a968753b70be38274822f01c3e27baf995ed0d7ab7825d",
+    "416f41d1b99fca9a3c98d83cafb7a572aecc1ec222bc4548e50f896c7bac81fc"
+  ],
+  ".agents/skills/product-agent/references/standards/P5-interaction.md": [
+    "9f54a8361998e65d39607195711d6856f68339eaabdb2fe9cf3b94a34399fb73"
+  ],
+  ".agents/skills/product-agent/references/standards/P6-process.md": [
+    "8cb5ac15b4c085981af9861ec79c9ac015a91784bb5985d99d793fbb3c731cb0"
+  ],
+  ".agents/skills/product-agent/references/standards/00-foundation.md": [
+    "30313c5d2c20eb4b73ad8fc76ab0eb0dded1fec6ea56056f67de530ac6459ad0"
+  ],
+  ".agents/skills/product-agent/references/standards/P3-semantics.md": [
+    "3e91602868d7a647d8d08b4f3319d03b969b94717a7bd49aaa4fb1f267767e26"
+  ],
+  ".agents/skills/product-agent/references/standards/P2-cognition.md": [
+    "1257711df64b06ba3bcead4178961a14a379d7c39849da458ccf2f3871220b45"
+  ],
+  ".agents/skills/product-agent/references/standards/P1-product-logic.md": [
+    "1e29c5ce0abb1dbab03ec5c919fe825f5443739e18e7a1d809dc870671db91ab"
+  ],
+  ".agents/skills/product-agent/references/standards/P4-structure.md": [
+    "6c6ed0b13f05491f0f3717b1c5367a30a507c6d2a4a182ae68c725b31623ae7f"
+  ],
+  ".agents/skills/product-agent/references/standards/P7-perception.md": [
+    "b9bc058e16ac4fce0ec0b8ffad221b8d644203fa94ecacddee1b19c632d06542"
+  ],
+  ".agents/skills/product-agent/sources/《产品领域专家能力要求模型》项目背景与模型形成说明.pdf": [
+    "fa7889767e510cb03423005ce5f1050239d77142e1567f16cdf69fe193946983"
+  ],
+  ".agents/skills/product-agent/sources/SOURCE-NOTES.md": [
+    "4e897f3f7b055ab5ec013ee027809ef851fc2d02ebc4a4b724efd7528f7a560e",
+    "8fec2da032c0555c38baed2eb143a770155e75c2a06a8e69b92f13cca18a1256",
+    "b469a6215396d9b9f685a125e3b7b860ffb1f195f5c4a4e476d153cff211adb2",
+    "bce79c463a9332affbecc0f75f19938ea511328d41104ac88b770a262932bc90",
+    "c92147c9813e7955d0b32b065296151ab301288b9220e2e0a639b4e5147f0cca"
+  ],
+  ".agents/skills/product-agent/sources/产品领域专家能力要求模型_完整版_最新.md": [
+    "a20d8eaac40a858af8fdd847834febcc3b5fb2b5372dd7b0bc319d9a67a3dde4"
+  ],
+  ".agents/skills/product-agent/assets/initial-intake-form.html": [
+    "5fe489b83a55ae1bf3f6f9655157408810d51ddcf1959399e2b144b92a3317b7"
+  ],
+  ".agents/skills/product-agent/assets/product-workspace-template.md": [
+    "355209551b399891717687b0bb40fdc37a77fe99fe08756f02b6442d8a5f0b5c",
+    "51cc510f20359a93119b3550b26f5370b1f7df7b4ab6244a51e621895e8bedfc",
+    "586ac84897fc011ab934e7adf1ffaba59f8d0278d6c43d35e70332594cdc68b5",
+    "6797c87ebb56de10cef082e5b29112fd2c7cf8d0c216ade1be37872870f965a2",
+    "e5268120d4990d120bca2e771f1d3d432020d9bcba682fd4a56d77a7785a9528",
+    "47e013256adf7e52e7fd32602c25518a4edba8c68b22472250e9f9f366f912d4",
+    "a87b81b6d767d270cf4657d34fc214fa72c3f14636121d71f1fe80801d077fd8"
+  ],
+  ".agents/skills/engineering-intake-agent/SKILL.md": [
+    "28a8c16826d3cc25bcef05d7499fb198aad5826805fb8dc35eb5ca47b810849b",
+    "42843000b778cfbce3f28be81e4aa690dcc397484c8f1c13f64e36064f6fe023",
+    "4a3fe4c5f75659960f3f142ab6af4018cafdbd4bd5f6abd2f755f10c0fec165a",
+    "847c46f34fa38fa76afc8dd24dedf9fd9c0cf210b820430b190e2eef7c25104b",
+    "c77ddfe333a557c47b67404a6c480425ac21a645d97f4d99181ceced4192f8ef",
+    "e1487534fdeaf23559325d29e476e7973afd0004cee7770ae61c48f349f606c9",
+    "f53c5574d1558f8cee3b2f83c5cfd69879c94aeec9d891377cd7d37518a2d4f4"
+  ],
+  ".agents/skills/engineering-intake-agent/references/collaboration.md": [
+    "73f2ad7a98c0b4867bb10be003bddcec02db86d64be4382705e526721b7ef442"
+  ],
+  ".agents/skills/engineering-intake-agent/references/input-and-clarification.md": [
+    "8d9aaf7b914462154e42b7474ace6675570157322286d1393e29716d53bf17d2",
+    "ebbaf18642e78a25636917f908fe419034fbfd0ff65b64e222c183c3fd50348a",
+    "ebfe7a172516b09ab35a40fa82eef17856ab632d3aff66ded505ae1f62d364cd"
+  ],
+  ".agents/skills/engineering-intake-agent/references/workflow.md": [
+    "f8746944acc435fec8b663a360e5f45b690e91faa90b14f298cd7dd331089748"
+  ],
+  ".agents/skills/engineering-intake-agent/references/engineering-model.md": [
+    "546d46b1d2634f0534d4d2473208ac2c21d7b9fd941114787d46798fe24af955"
+  ],
+  ".agents/skills/engineering-intake-agent/references/review-and-handoff.md": [
+    "26423782190e94ed2cb192b24f57dfb4f6f506f792514c9490463b2b09c809a7",
+    "a23e61a083e2a3c72acc3617ea400c244b12dc82ec18daa39a2b6f82ad708a15",
+    "cfd43348ff7c01f94fe174f17b84283460c11df0a3aea2c9abc7193e730120fe"
+  ],
+  ".agents/skills/engineering-intake-agent/agents/openai.yaml": [
+    "750a52d4ca6a64fb3ce16e89ee97161b2af69c2d849cc4023165834577b2f00d"
+  ],
+  ".agents/skills/engineering-intake-agent/assets/engineering-workspace-template.md": [
+    "8b342f422d640796d868cc380d257dfe804ca8f3b8e03d4b9112a9bdf49bb994",
+    "93ac4f06ebcc67a017207d4f3dfa9232339471e90d0933484b68784d31023695",
+    "ecea957d522601b06e0267b0910af6a063d21f518dbaf9005a71eb0c4e64c739"
+  ],
+  ".agents/skills/professional-agent-collaboration/SKILL.md": [
+    "2697e8ccbdbd704a7f51e78b077c73a3e38a254b64b2e755213272ac4cf583ac",
+    "4ec618f370b6da921212157fb8a908411af43961fbfba31015b50598c745cc95",
+    "613e737067cef6069c3cb0c1e34aea926e42d6aaae8de316227c3f7181bd7e97",
+    "909dc16866d08b4b3f7eadc07ca57364200bfc9591a6dec14d2da2f29730e21b",
+    "cb43f8a73c1530ba9967d86c7619a5b21f6ea5ab59c0683bdfa6f98f4c35bcd8",
+    "dabf00f1e95998ab573b7867098f8fc8d0756840d23e465438c04e0114c3f31d",
+    "efb7dacc1adb0f13ebd99ae69e796d80c699eae0fe071f37a5b4688a45d87b5f"
+  ],
+  ".agents/skills/professional-agent-collaboration/references/ledger.md": [
+    "b69635686fd4d27bb47f5fb0fbdf4fc0f0048ae1ab8efa2e4fc3f1b94b34c45d"
+  ],
+  ".agents/skills/professional-agent-collaboration/references/native-adapters.md": [
+    "e46d2323eeac3ec382769c086b06eb80dcfb1c003ae1bdf4e23335fe2407a199"
+  ],
+  ".agents/skills/professional-agent-collaboration/agents/openai.yaml": [
+    "a3a4240708fa2934a1678e073b150557eeaf73a0a325a6987082c902e1a7c079"
+  ],
+  ".agents/skills/professional-agent-collaboration/scripts/test_coordination.py": [
+    "a01a47a2d84d86b9d8e9188335df249ac39675ac2fdf085f260b3d141995ba46"
+  ],
+  ".agents/skills/professional-agent-collaboration/scripts/coordination.py": [
+    "719c9e6e582a1236268518aa935ab324fd1791220f5990537817bc4b98770768"
+  ],
+  "collaboration/FEEDBACK-PROTOCOL.md": [
+    "90b9eb071725c98efbcd0716785ff51bded4095e1e36923a8583eb5873465961"
+  ],
+  "collaboration/PROFESSIONAL-REVIEW.md": [
+    "7c7cbefac69e5c32a7f4f51b1a39835e54864c1071fdee7db2d60f58c3ef3f9e",
+    "bbc5011cb5c7342110eda7876a9348309b064c7e1456777369ca9c3f435e0555",
+    "f8a39cf73be7f0508ce2cc61506164da573ac3a762a8e50458e24c74655f0b23"
+  ],
+  "collaboration/PM-REPORTING.md": [
+    "3f1b614b78ad96692a929d5b56d53093ddce8d98162823ae8778cb52e2d2bf03",
+    "d61d9b4a00dfeb88ad331da2c81d1cd61684ceb895c3e542c242fce5f5ebbfb5"
+  ],
+  "collaboration/ROLE-CONFIG-TEMPLATE.md": [
+    "08d6392b6711c3e0dcecc2ed8e5590b39fa7603833581991fa4df3b4e4ba598e",
+    "3580648ae8aed8d03f34f67c6721a4d4e9c8b983853af740d01e5a1a2a331357",
+    "abcb68c9bd82f6fdced3dcc428c2f1063fa395cde5ba2bdcecfceb88abd45db1",
+    "b7fafb4ba5003d0770883d7773edd3f2c667f0801611a3cf774742def5f9818e"
+  ],
+  "collaboration/CONTRACT.md": [
+    "5b831fb17f50d940fb6ae4d23c9a2c8ee2ca18f7c5c1acd1c6ebb7bb53fcb5c3",
+    "cc592e68c5612e9c16762693044622381fedd4146f44630ff8e05ae61cc253c8"
+  ],
+  "collaboration/ENGINEERING-INTAKE-ROLE.md": [
+    "08aa89253bc3beeda598a4a7aacf01ab053335895cb55752969b71231db44ce6",
+    "9db22588fae921245771c89a0a900637aefa76a1dd51592b72a77b6f28486c19",
+    "e7c412e4112ca5360ac4a089207c5888862efdfeb03e1c7a1e3e0e362c821e55"
+  ],
+  "collaboration/RUNTIME.md": [
+    "5ef5ec9d87b1b6c810411ab7546e9e923c5515beaf9910883ecab3207f2fec07",
+    "5f088c34f80991ce943bc8b60bc67723bbc119700ca021399e419e9ed2e62dd6"
+  ],
+  "collaboration/REQUEST-RESPONSE-TEMPLATE.md": [
+    "62acf4c65875a1c260d9108c4aebdcde0815c20303728f3d3ccfeb2732f139db"
+  ],
+  ".agents/skills/project-management-agent/SKILL.md": [
+    "12d0f8a331b3e75a4dc81464f7b5817a26f670a9ed4e1d697e64f01e56e7e891",
+    "17535dc7c16898cbeb5ed554e481649ffcad753968f1eabb7df62ad4ef8afbbb",
+    "1edcb20743e61430a415da3f48f97b92fba24349d8d8e400feee1336f87ede92",
+    "3f8919c18e2d3f72fcdd7160dba2d5ac48013245a4eefb14f9d5e6344ea13d67",
+    "464f0c214235e5f8ae90af834e9171552586c94245fecb517af8499c02e5e98f",
+    "866d95013ec666ee49fb8ef937517aab5c331d6af1448b5f6c5350e281e57382"
+  ],
+  ".agents/skills/project-management-agent/references/workflow.md": [
+    "018021ef02e249be6cd9c1cc0eda3eae8854bf285f43ea7a8998a3aaa64fe2e3",
+    "0aabbdf42d8f9076f5c83b6846dc1fa00e806c052c84eea42973f5b5cf89ab52",
+    "2a9a5eae485f981d4602229220181d2bad3ce044241f10832748e87823ba5a59",
+    "b8db363c4b45f67f23744a70fc51451ea7707ede996f83fd9ec6d441ed6c7c03"
+  ],
+  ".agents/skills/project-management-agent/references/task-runtime.md": [
+    "464f8a21668482d147a2bb6a1e575f09bc83dd5428436e81d3311a6a0edbf106"
+  ],
+  ".agents/skills/project-management-agent/agents/openai.yaml": [
+    "41bb0e2a6ea071e76269b535b1d677cb13b779bcdbfce1212f8141f9ce8c4886"
+  ],
+  ".agents/skills/project-management-agent/scripts/pm_tasks.py": [
+    "53c75aaafe0ef5f2ba2919e7d1c96d0cbb4a3ee2aab49cec10842a004dc61eeb"
+  ],
+  "collaboration/COPY-QUALITY.md": [
+    "1606cc31bd7b5652c196c3da9c90ac3a36d88b3d5ccf22d2703cdfc499c701a3",
+    "392ea9b51fe617d283d44476ad7455229b8e0a3ed4e263a164e7e9fd8d4768f6",
+    "ee0f0759337b257e66262e2358b20b252c32316415509b2a039677004dbc3b75"
+  ],
+  ".agents/skills/product-agent/references/structured-handoff.md": [
+    "a3a68ef66a5794bfee70bbd5db81956d5d246b08eb0043ba9e54b7ed2c6dffbd"
+  ],
+  ".agents/skills/product-agent/scripts/product_contract.py": [
+    "132f98b8ca29796aebd5e3b894681bf5035214e6af889b2e40f2a992601eb435"
+  ],
+  "collaboration/STRUCTURED-HANDOFF.md": [
+    "68d142cd7e8fe5f5d5c3c62294ec1298a3aa301333711e815c0645a62d9d61d7"
+  ],
+  ".agents/skills/content-design-review/SKILL.md": [
+    "5bf58a364c6310973a4d97e37f4d03cca6bd998f842629f18e0705be7414f168",
+    "b053a5a92f91f27b1a3f732d64f073c0e4ba490e5a004cad27fe5e23d191157c",
+    "d3506febaebd5fafc337728a0cb177db7c7d3dc5a15d4f952f286cb0d6da39de",
+    "ea6134ddc5f21dad0c055fc46967d3503a82bb8c85b97001a5c7e952d68ea8b9"
+  ],
+  ".agents/skills/content-design-review/agents/openai.yaml": [
+    "87e8b1bbf54527771ee51720983570956b96c943af5a135884cae98ae49026d8"
+  ],
+  ".agents/skills/content-design-review/references/context-cases.md": [
+    "0b560704b43f03274c0f8013c1583edba63e0b1dcb2546e1041498a12b336d9e",
+    "fbbef5142917168cb8bbd91386863108499256b4c978c9f3eef09e656c720d07"
+  ],
+  ".agents/skills/content-design-review/references/review-and-handoff.md": [
+    "16cb6fd360b481bd0f26dbd07a489c9adad4b38d8bea8326d0c72348536a856a",
+    "1ababc62959e232e97a27251d166a01c18195fc273b74b7727b4b5de2383e05c"
+  ],
+  ".agents/skills/experience-design-agent/references/interaction-craft.md": [
+    "057c524e384df87ad70d088906f46c870ba84722632ddf5005d5071d284a045f",
+    "05bf2ec1a42cf8d663ec528d145f2dddccd3011e1d985f2c7940caebb1e593d0"
+  ],
+  "collaboration/USER-INTERACTION.md": [
+    "bb6d7146f0aec1803e81e419669cdf56470dceef0ceca5ac7dc20ef5d4de5519"
+  ],
+  ".agents/skills/content-design-review/GUIDANCE-INDEX.md": [
+    "bf5f60451a8a27c16dba87c485e31a6e679391afa05029676fa46aa9b6488761",
+    "4bd25afdba642c8b12938482f6487faea4d46b6c884626f66034c5eac45fa26c"
+  ],
+  ".agents/skills/engineering-intake-agent/GUIDANCE-INDEX.md": [
+    "40ba70d8d3a276e69d21148f8d9bd0b9c915a4d461a3bd7a16656a61467e26a3"
+  ],
+  ".agents/skills/experience-design-agent/GUIDANCE-INDEX.md": [
+    "838a1ed263ee9ad443dad2d6ce5bfdcaed8595a4d66f96c0aa5a99e6e326ed56",
+    "3cab26d510acb8107963992b214d6abcff8b990c052a72ff962ccc332006da6c"
+  ],
+  ".agents/skills/experience-design-agent/references/default-interaction.md": [
+    "e63c74f55edc714d7b5fa5d660ef3b95034f6b45f67d413fc07b609bb9973957"
+  ],
+  ".agents/skills/product-agent/GUIDANCE-INDEX.md": [
+    "9bda3fade7b43e09458372179bdec2c30b90e18f20f4106ffe9605f73f41e365",
+    "64a53dcc1be9dbde8e0cdf227b294dc6e7f575cf456583e040b7e4ab05acfcb1",
+    "fe82f17037f714c9983401d6919f37c01a1ff823ae4e937adca1362e9568e4ec"
+  ],
+  ".agents/skills/professional-agent-collaboration/GUIDANCE-INDEX.md": [
+    "d14c1cee87ed778a8602280cb2f00a2483a31226ffcc765b9d7fce45547139e4"
+  ],
+  ".agents/skills/project-management-agent/GUIDANCE-INDEX.md": [
+    "be04f1669d3a79db78fabe908eb11e1c1a0fc0f379f17be611cdcb2b240bd380"
+  ],
+  "collaboration/GUIDANCE-RESOLUTION.md": [
+    "5adf0019b0f31943dd1ba81139e9acee81078ef1f98f5ba287bfa69e10c6e5e5"
+  ],
+  ".agents/skills/product-agent/references/naming.md": [
+    "5ac0fda8762e402e1fe9e928430848f04cabd30c92f583bdee43c57515264a60"
+  ],
+  ".agents/skills/product-agent/references/task-views.md": [
+    "3db968508855850a3f37b1a64949ebb4b4dc0242743823f726dc102406e01ebf"
+  ]
+}

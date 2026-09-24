@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>产品方向 · 基础澄清表</title>
+<style>
+:root{color-scheme:light;--ink:#213238;--muted:#52656b;--line:#cad9d9;--accent:#176c61}
+*{box-sizing:border-box}body{margin:0;background:#f2f6f4;color:var(--ink);font:16px/1.65 system-ui,-apple-system,"PingFang SC",sans-serif}
+main{max-width:920px;margin:40px auto;padding:0 24px 64px}header{margin-bottom:30px}.eyebrow{font-size:13px;letter-spacing:.12em;color:var(--accent);font-weight:700}h1{font-size:32px;line-height:1.3;margin:12px 0}h2{font-size:21px;margin:32px 0 16px}p{margin:8px 0}.muted,.help{color:var(--muted)}.help{font-size:14px;margin:6px 0 14px}.notice{padding:14px 18px;border-left:3px solid var(--accent);background:#e7efeb}
+fieldset{min-width:0;margin:0 0 22px;padding:18px 22px 22px;border:1px solid var(--line);border-radius:12px;background:white}legend{padding:0 8px;font-weight:700}legend small{font-size:12px;color:var(--accent);margin-right:8px}.choices{display:flex;flex-wrap:wrap;gap:8px}.choice{display:flex;align-items:flex-start;gap:7px;border:1px solid var(--line);border-radius:7px;padding:8px 12px;cursor:pointer}.choice:has(input:checked){border-color:var(--accent);background:#edf6f1}.choice input{margin-top:7px;accent-color:var(--accent)}.field-label{display:block;font-size:14px;margin-top:14px}textarea,input[type=text]{font:inherit;width:100%;padding:10px 12px;border:1px solid #a8bcbc;border-radius:7px;background:#fff;color:var(--ink)}textarea{min-height:86px;resize:vertical}.field-label+textarea,.field-label+input{margin-top:6px}input:focus-visible,textarea:focus-visible,button:focus-visible{outline:3px solid #68a596;outline-offset:2px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}button{border:1px solid var(--accent);border-radius:8px;padding:11px 18px;background:var(--accent);color:white;font:inherit;cursor:pointer}button.secondary{background:white;color:var(--accent)}#status{min-height:28px;color:var(--accent)}#preview{min-height:280px;font-size:14px}.importance{font-size:13px;padding:8px 12px;background:#f0f5f3;border-radius:6px;margin-bottom:14px}.importance strong{display:block;color:#176c61}.importance.core strong{color:#9d3c22}#warnings{padding-left:22px;color:#87452c}.output{border-top:1px solid var(--line);margin-top:32px;padding-top:12px}[hidden]{display:none!important}@media(max-width:560px){main{margin:24px auto;padding:0 16px 40px}h1{font-size:27px}fieldset{padding:14px}legend{font-size:16px}.choice{padding:8px 10px}.choices{gap:6px}}
+details{margin:20px 0;border-top:1px solid var(--line);padding-top:16px}summary{cursor:pointer;font-weight:700;padding:10px 0}summary:focus-visible{outline:3px solid #68a596;outline-offset:2px}
+</style>
+</head>
+<body>
+<main>
+<header>
+<div class="eyebrow">PRODUCT AGENT · 首轮澄清</div>
+<h1>先把产品方向说清楚</h1>
+<p class="muted">先把目的、主要用户和核心任务说清楚，再看主流程与模块，最后逐步展开细节。</p>
+<p class="notice">不需要现在想清所有细节。核心事实需要你明确，暂不清楚可写“帮我梳理”。可选偏好可选“AI 帮你选”或自定义。可只填写当前已知内容。详细选项默认收起，没有预选答案；留空不代表没有偏好。</p>
+<p class="help">本表在本地运行，不上传或自动保存。填写后请导出回答并提供给产品 Agent；关闭页面前请先导出。提交回答不等于批准后续完整产品方案。</p>
+</header>
+<form id="intake" autocomplete="off">
+<h2>先说整体方向</h2>
+<p class="help">先说明目的、核心任务、主要用户和首期边界。Agent 会据此提出主流程和模块总览，再和你逐块细化；已有答案无需重填。</p>
+<fieldset data-id="I01" data-title="产品用途与目标">
+<legend><small>I01</small>为什么要做这个产品？</legend>
+<p class="help">希望解决什么问题，让用户获得什么结果？不清楚时可填写“请帮我梳理”；AI 会协助提出选项，由你明确方向。</p>
+<label class="field-label" for="purpose">用途、问题与期待结果</label><textarea id="purpose" data-label="用途与目标" placeholder="用自己的话描述即可"></textarea>
+</fieldset>
+<fieldset data-id="I02" data-title="核心任务">
+<legend><small>I02</small>最重要的使用任务是什么？</legend>
+<p class="help">写下最重要的 1–3 件事，以及用户什么时候会用到。还不知道可以填写“请帮我梳理”，再确认主要任务。</p>
+<label class="field-label" for="tasks">核心任务与场景</label><textarea id="tasks" data-label="核心任务" placeholder="用户在什么情况下，希望完成什么"></textarea>
+<label class="field-label" for="flow-note">主流程或模块建议的补充（已有建议时再填）</label><textarea id="flow-note" data-label="主流程与模块核对意见" placeholder="Agent 会先根据需求提出总览；你无需自行列全模块。这里可指出遗漏或不同理解。"></textarea>
+</fieldset>
+<fieldset data-id="I03" data-title="主要用户与管理角色">
+<legend><small>I03</small>主要给谁使用？</legend>
+<p class="help">可以多选，并补充主要角色；这些分类只是起点。</p>
+<div class="choices" data-group="audience"></div>
+<label class="field-label" for="roles">主要用户与已知责任角色</label><textarea id="roles" data-label="具体角色" placeholder="例如主要使用者；管理细则可后续梳理"></textarea>
+</fieldset>
+<fieldset data-id="I08" data-title="首期边界与约束">
+<legend><small>I08</small>第一版有哪些必须有、明确不要或必须遵守的条件？</legend>
+<p class="help">如有既有系统、内容公开范围、时间窗口或其他限制，可在这里说明。不清楚可填“待梳理”，没有明确限制可如实填写。</p>
+<label class="field-label" for="constraints">范围、约束及原因</label><textarea id="constraints" data-label="范围约束" placeholder="区分必须遵守的条件与可以讨论的倾向"></textarea>
+<label class="field-label" for="early-context">其他已知方向（选填，后续会逐步补齐）</label><textarea id="early-context" data-label="早期方向补充（Agent 按 I04–I07、I09–I12 归类）" placeholder="例如使用端、用户特点、产品语言、文案或视觉风格，以及必须遵守的品牌规范。只写已经知道的，不必逐项想好。"></textarea>
+</fieldset>
+<details id="basic-details"><summary>展开基础信息：使用端、用户特点与情境</summary>
+<p class="help">可稍后随相关模块补充。若某项会改变当前方向，请现在说明；选择多端不代表首期全做。</p>
+<fieldset data-id="I04" data-title="使用端与平台">
+<legend><small>I04</small>希望通过什么端使用？</legend>
+<p class="help">可以多选。PC 网页和安装式客户端分开选择；选择多个端不代表第一版全部实现。</p>
+<div class="choices" data-group="platform"></div>
+<div id="app-detail" hidden><label class="field-label" for="app-os">APP 需要支持哪些系统？</label><input id="app-os" type="text" data-label="APP 系统" placeholder="iOS / Android / 两者 / 待定" disabled></div>
+<div id="mini-detail" hidden><label class="field-label" for="mini-platform">小程序属于哪个平台？</label><input id="mini-platform" type="text" data-label="小程序平台" placeholder="微信 / 支付宝 / 其他 / 待定" disabled></div>
+<label class="field-label" for="platform-other">其他终端或补充说明</label><input id="platform-other" type="text" data-label="平台补充" placeholder="例如嵌入现有产品；也可填写希望 Agent 比较的方向">
+</fieldset>
+<fieldset data-id="I05" data-title="首发优先级与跨端需要">
+<legend><small>I05</small>第一版优先做哪些端？</legend>
+<p class="help">多端时写清顺序，是否需要换端继续同一任务。只有一个端可填“同上”，尚未决定可填“请 AI 比较后由我确认”。</p>
+<label class="field-label" for="priority">首发范围、优先级与跨端需要</label><textarea id="priority" data-label="首发与跨端" placeholder="先做什么，什么可以以后再做"></textarea>
+</fieldset>
+<fieldset data-id="I06" data-title="用户特征">
+<legend><small>I06</small>有哪些影响使用的用户特征？</legend>
+<p class="help">只记录设计需要的信息；年龄不自动代表操作能力。可以多选，补充哪些已知、哪些只是猜测。</p>
+<div class="choices" data-group="traits"></div>
+<label class="field-label" for="traits-note">具体特征或支持需求</label><textarea id="traits-note" data-label="用户特征补充" placeholder="例如数字熟练程度、语言、阅读或操作需求及其依据"></textarea>
+</fieldset>
+<fieldset data-id="I07" data-title="使用情境">
+<legend><small>I07</small>通常在什么环境下使用？</legend>
+<div class="choices" data-group="context"></div>
+<label class="field-label" for="context-note">使用频率、主要设备或特别条件</label><textarea id="context-note" data-label="情境补充" placeholder="例如偶尔使用还是每天高频使用；目前未知可写待定"></textarea>
+<label class="field-label" for="product-language">产品界面 / 内容语言与地区（与文案语气分开）</label><input id="product-language" type="text" data-label="产品语言与地区" placeholder="例如简体中文、繁体中文、英语或多语言；未知可写待定">
+</fieldset>
+</details>
+<details id="style-details"><summary>展开表达与视觉：语气、风格、品牌与参考</summary>
+<p class="help">早期可先在“其他已知方向”写一句要求，需要细选时再展开。无需现在决定按钮措辞或色号。AI 帮你选只委托本项偏好，不替你确认品牌事实或批准整套方案。</p>
+<fieldset data-id="I09" data-title="文案语气">
+<legend><small>I09</small>希望产品如何对用户说话？</legend>
+<p class="help">选择一个主语气，可自由修改。严谨规范指主体、条件和后果表达精确，不代表经过法律审查。关键后果始终要说清楚。</p>
+<div class="choices" data-group="tone"></div>
+<label class="field-label" for="tone-note">自定义语气、品牌例文或需要调整的表达</label><input id="tone-note" type="text" data-label="文案补充" placeholder="例如轻松但不卖萌；选自定义时请写方向，跟随品牌时请给规范或例文">
+</fieldset>
+<fieldset data-id="I10" data-title="视觉风格与产品气质">
+<legend><small>I10</small>希望整体呈现怎样的气质？</legend>
+<p class="help">选一个主方向，可在下方混合或修改。文案和视觉独立选择；风格期望不代替清晰、可用与任务效率。</p>
+<div class="choices" data-group="style"></div>
+<label class="field-label" for="style-note">自定义风格、混合方向或需要避免的感觉</label><input id="style-note" type="text" data-label="风格补充" placeholder="例如日式清新，但提高信息密度；选自定义请写方向，跟随品牌请给规范位置">
+</fieldset>
+<fieldset data-id="I11" data-title="品牌与颜色期望">
+<legend><small>I11</small>有必须使用或避免的品牌、颜色吗？</legend>
+<p class="help">先说明是否存在必须遵守的规范，再选配色偏好。AI 帮选配色不代表可以忽略已有品牌规范。</p>
+<label class="field-label">既有强制规范（事实，不能由 AI 代选）</label>
+<div class="choices" data-group="brand"></div>
+<label class="field-label">配色偏好（可选）</label>
+<div class="choices" data-group="color"></div>
+<label class="field-label" for="color-note">期望或禁用的颜色、品牌规范位置（色号选填）</label><textarea id="color-note" data-label="颜色与品牌补充" placeholder="说明是必须遵守的规范还是可协商偏好；无需提供尚未决定的色板"></textarea>
+</fieldset>
+<fieldset data-id="I12" data-title="喜欢与不喜欢的参考">
+<legend><small>I12</small>有喜欢或不喜欢的参考吗？ <span class="muted">选填</span></legend>
+<p class="help">可提供链接、资料位置或描述，并说明具体喜欢什么、避免什么；也可请 AI 帮选参考方向。参考不意味着照抄。</p>
+<div class="choices" data-group="reference"></div>
+<label class="field-label" for="references">参考与理由</label><textarea id="references" data-label="参考" placeholder="没有可留空，或填写“无参考”"></textarea>
+</fieldset>
+</details>
+</form>
+<section class="output" aria-labelledby="output-heading">
+<h2 id="output-heading">整理并交给产品 Agent</h2>
+<p>生成预览后检查回答，再导出 Markdown 或 JSON。将文件放入当前项目并告诉 Agent 文件位置，或复制预览文字发送给它。</p>
+<div class="actions"><button id="make-preview" type="button">生成回答预览</button><button id="download-md" type="button" class="secondary">导出 Markdown</button><button id="download-json" type="button" class="secondary">导出 JSON</button></div>
+<p id="status" role="status" aria-live="polite"></p>
+<ul id="warnings" aria-live="polite"></ul>
+<label class="field-label" for="preview">回答预览（只读，可复制；请在上方字段修改）</label><textarea id="preview" readonly placeholder="生成后会在这里显示，未回答的项目会明确标记"></textarea>
+</section>
+</main>
+<script>
+'use strict';
+const requirements={
+ I01:{level:'必须确认 · 核心',reason:'用途决定产品是否在解决正确问题。',resolve_by:'S2 目标确认前',basis:['P1-1']},
+ I02:{level:'必须确认 · 核心',reason:'主要任务决定功能与首期范围。',resolve_by:'S2 范围确认前',basis:['P1-1','P5-1']},
+ I03:{level:'必须确认 · 核心',reason:'主要用户决定设计方向；管理角色在涉及内容或权限时补齐。',resolve_by:'S2 明确主用户；相关权限设计前补齐管理角色',basis:['P1-1','P1-4','P2-1']},
+ I04:{level:'条件必确认 · 关键',reason:'使用端影响空间、操作和路径；首期方向需确认，具体平台按影响细化。',resolve_by:'S2 首期方向确认及相关设计前',basis:['P4-3','P5-6']},
+ I05:{level:'条件必确认 · 关键',reason:'选择多端时必须明确优先级与跨端需要；单端可沿用上一题。',resolve_by:'S2 范围确认前',basis:['P1-7','P1-8','P6-7']},
+ I06:{level:'条件必确认 · 关键',reason:'存在影响理解、阅读或操作的特征时需澄清；不知道就记录待了解，不猜用户画像。',resolve_by:'受影响的流程或体验设计前',basis:['P2-1','P2-2','P7-6']},
+ I07:{level:'条件必确认 · 关键',reason:'设备、环境、频率和产品语言影响设计时需明确；对话语言不等于产品语言。',resolve_by:'受影响的流程或表达设计前',basis:['P2-1','P3-6','P7-6']},
+ I08:{level:'必须确认 · 核心',reason:'边界与已知约束决定能做什么；未知专业规则需要来源专家补充。',resolve_by:'S2 明确已知边界；具体规则在相关设计前',basis:['P1-2','P1-6','P1-7']},
+ I09:{level:'可选 · 偏好',reason:'可委托 AI 选语气；存在强制术语或禁用表达时必须补充。',resolve_by:'S5 体验要求审阅；强制表达在相关设计前',basis:['P3-5','P3-6']},
+ I10:{level:'可选 · 偏好',reason:'可委托 AI 选视觉方向；强制品牌呈现要求需提供依据。',resolve_by:'S5 体验要求审阅；强制规范在相关设计前',basis:['P7-1','P7-3','P7-7']},
+ I11:{level:'条件必确认 · 规范 / 可选 · 配色',reason:'已有强制品牌规范时必须提供；喜欢什么颜色可交给 AI 建议。',resolve_by:'应用品牌规范前；配色方向在 S5 审阅',basis:['P1-2','P7-3','P7-6']},
+ I12:{level:'可选 · 辅助',reason:'参考帮助表达偏好，没有参考也能继续。',resolve_by:'按需，不阻断产品工作',basis:['P7-7']}
+};
+const groups={
+ audience:{label:'用户类别',options:['消费者','企业外部客户','员工或团队','社区成员','学生、家长或教师','其他','暂未确定'],exclusive:['暂未确定']},
+ platform:{label:'使用端',options:['手机 APP','小程序','PC 浏览器网页','PC 安装式客户端','手机网页 H5','其他','请 AI 比较后由我确认'],exclusive:['请 AI 比较后由我确认']},
+ traits:{label:'用户特征',options:['数字操作不熟练','一般熟练','专业高频使用','中老年用户','儿童青少年','不同语言用户','感知或操作支持需求','暂不了解'],exclusive:['暂不了解']},
+ context:{label:'使用环境',options:['桌前办公','移动中','家庭','现场或公共场所','弱网','其他','待定'],exclusive:['待定']},
+ tone:{label:'文案语气',options:['调皮俏皮','轻松自然','温暖亲切','清晰直接','专业正式','严肃克制','严谨规范（条款式）','跟随现有品牌','自定义','AI 帮你选','无偏好','暂不决定'],single:true},
+ style:{label:'视觉风格',options:['日式清新','公务严肃','游戏炫酷','动漫可爱','极简现代','商务专业','温暖生活','科技未来','跟随现有品牌','自定义','AI 帮你选','无偏好','暂不决定'],single:true},
+ brand:{label:'既有强制品牌规范',options:['有强制规范','目前无已知强制规范','尚不清楚'],single:true},
+ color:{label:'配色偏好',options:['我有偏好（下方填写）','AI 帮你选','无偏好','暂不决定'],single:true},
+ reference:{label:'参考选择',options:['我来提供（下方填写）','AI 帮你选','无参考','暂不决定'],single:true}
+};
+for(const fieldset of document.querySelectorAll('fieldset[data-id]')){
+ const req=requirements[fieldset.dataset.id];
+ const box=document.createElement('div');box.className='importance'+(req.level==='必须确认 · 核心'?' core':'');
+ const strong=document.createElement('strong');strong.textContent=req.level;
+ const desc=document.createElement('span');desc.textContent=req.reason+' 解决时点：'+req.resolve_by+'。';
+ box.append(strong,desc);fieldset.querySelector('legend').after(box);
+}
+for(const [name,spec] of Object.entries(groups)){
+ const box=document.querySelector('[data-group="'+name+'"]');
+ for(const [i,value] of spec.options.entries()){
+  const label=document.createElement('label');label.className='choice';
+  const input=document.createElement('input');input.type=spec.single?'radio':'checkbox';input.name=name;input.value=value;input.id=name+'-'+i;input.dataset.label=spec.label;
+  label.append(input,document.createTextNode(value));box.append(label);
+  input.addEventListener('change',()=>{
+   if(input.checked && spec.exclusive){
+    for(const other of box.querySelectorAll('input')){
+     if(other!==input && (spec.exclusive.includes(value)||spec.exclusive.includes(other.value)))other.checked=false;
+    }
+   }
+   if(name==='platform')updatePlatformDetails();
+  });
+ }
+}
+function updatePlatformDetails(){
+ const selected=Array.from(document.querySelectorAll('input[name="platform"]:checked'),i=>i.value);
+ for(const [id,option] of [['app-detail','手机 APP'],['mini-detail','小程序']]){
+  const node=document.getElementById(id);node.hidden=!selected.includes(option);node.querySelector('input').disabled=node.hidden;
+ }
+}
+function collectAnswers(){
+ const items=Array.from(document.querySelectorAll('fieldset[data-id]'),fieldset=>{
+  const answers=[];
+  for(const input of fieldset.querySelectorAll('input,textarea')){
+   if(input.disabled)continue;
+   if((input.type==='checkbox'||input.type==='radio')&&!input.checked)continue;
+   if(input.value.trim())answers.push({label:input.dataset.label,value:input.value.trim()});
+  }
+  const delegation=answers.filter(a=>a.value==='AI 帮你选').map(a=>({field:a.label,scope:'仅本项偏好方向；AI 形成建议稿，在原定阶段审阅中展示，不含其他字段或完整方案批准'}));
+  return {id:fieldset.dataset.id,title:fieldset.dataset.title,requirement:requirements[fieldset.dataset.id],status:answers.length?'已填写输入，待产品 Agent 理解':'未回答',decision_status:'未由表单判断是否已澄清',delegation,answers};
+ });
+ return {form_version:'0.6',exported_at:new Date().toISOString(),record_type:'首轮基础澄清输入',notice:'回答是输入，不代表批准后续完整方案；未回答不等于无偏好；必需项未澄清会影响相关设计，草稿可先回传。',follow_up:collectWarnings(),items};
+}
+function asMarkdown(data){
+ const lines=['# 首轮基础澄清回答','','- 表单版本：'+data.form_version,'- 导出时间：'+data.exported_at,'- 记录类型：用户输入；不代表完整产品方案已确认','- 未回答与无偏好不同；请保留用户表述，再梳理约束、偏好和待决事项。',''];
+ for(const item of data.items){
+  lines.push('## '+item.id+' '+item.title,'','重要性：'+item.requirement.level,'原因：'+item.requirement.reason,'解决时点：'+item.requirement.resolve_by,'依据：'+item.requirement.basis.join('、'),'输入状态：'+item.status,'澄清状态：'+item.decision_status,'');
+  for(const d of item.delegation)lines.push('AI 委托（'+d.field+'）：'+d.scope,'');
+  for(const answer of item.answers)lines.push(answer.label+'：',...answer.value.split('\n').map(line=>'> '+line),'');
+ }
+ lines.push('## 待核对提示','',...data.follow_up.map(w=>'- '+w));
+ return lines.join('\n');
+}
+function collectWarnings(){
+ const warnings=[];
+ const selected=name=>document.querySelector('input[name="'+name+'"]:checked')?.value;
+ const val=id=>document.getElementById(id).value.trim();
+ for(const fs of document.querySelectorAll('fieldset[data-id]')){
+  if(requirements[fs.dataset.id].level!=='必须确认 · 核心')continue;
+  const hasAnswer=Array.from(fs.querySelectorAll('input,textarea')).some(i=>!i.disabled&&((i.type==='checkbox'||i.type==='radio')?i.checked:!!i.value.trim()));
+  if(!hasAnswer)warnings.push(fs.dataset.id+' 核心信息未回答，可先回传并请 Agent 协助澄清。');
+ }
+ for(const [group,note,id] of [['tone','tone-note','I09'],['style','style-note','I10']]){
+  if(['自定义','跟随现有品牌'].includes(selected(group))&&!val(note))warnings.push(id+' 已选'+selected(group)+'，请补充方向或品牌依据。');
+ }
+ if(selected('brand')==='有强制规范'&&!val('color-note'))warnings.push('I11 有强制规范但缺少规范位置或内容；AI 配色不能代替它。');
+ if(selected('brand')==='尚不清楚'||!selected('brand'))warnings.push('I11 既有规范待了解，在应用前补齐；未回答不代表没有规范，无需为回传草稿现在填完。');
+ if(selected('color')==='我有偏好（下方填写）'&&!val('color-note'))warnings.push('I11 请补充配色偏好。');
+ if(selected('reference')==='我来提供（下方填写）'&&!val('references'))warnings.push('I12 参考内容待补充。');
+ for(const [id,option,inputId] of [['I04','手机 APP','app-os'],['I04','小程序','mini-platform']]){
+  if(Array.from(document.querySelectorAll('input[name="platform"]:checked')).some(i=>i.value===option)&&!val(inputId))warnings.push(id+' '+option+'的具体平台待按影响补充。');
+ }
+ warnings.push('填写不等于已澄清。待定、未知、矛盾或仅分类标签的输入，仍由 Agent 判断并提出具体问题；可选偏好留空不阻断独立工作。');
+ return warnings;
+}
+function preview(data){
+ document.getElementById('preview').value=asMarkdown(data);
+ const count=data.items.filter(i=>i.answers.length).length;
+ document.getElementById('status').textContent='已整理 '+count+' / 12 项输入（不是完成进度）；可导出草稿，请 Agent 协助核对。';
+ const list=document.getElementById('warnings');list.replaceChildren();
+ for(const warning of data.follow_up){const li=document.createElement('li');li.textContent=warning;list.append(li);}
+}
+function download(format){
+ const data=collectAnswers();preview(data);
+ const text=format==='md'?asMarkdown(data):JSON.stringify(data,null,2);
+ const url=URL.createObjectURL(new Blob([text],{type:format==='md'?'text/markdown;charset=utf-8':'application/json;charset=utf-8'}));
+ const a=document.createElement('a');a.href=url;a.download='首轮基础澄清回答.'+format;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+document.getElementById('make-preview').addEventListener('click',()=>preview(collectAnswers()));
+document.getElementById('download-md').addEventListener('click',()=>download('md'));
+document.getElementById('download-json').addEventListener('click',()=>download('json'));
+document.getElementById('intake').addEventListener('submit',e=>e.preventDefault());
+</script>
+</body>
+</html>
