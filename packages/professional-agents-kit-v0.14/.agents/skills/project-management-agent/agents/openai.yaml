@@ -1,0 +1,4 @@
+interface:
+  display_name: "全流程项目管理 PM"
+  short_description: "组织顶层任务与专业接力，汇总分层进度、日志和人工核验，从当前有效阶段持续推进"
+  default_prompt: "请使用 $project-management-agent 接收我的需求或恢复当前项目，列出近期顶层计划并组织专业角色接续，保留已有成果和确认。"
