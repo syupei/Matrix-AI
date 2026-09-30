@@ -1,0 +1,4 @@
+interface:
+  display_name: "产品领域专家能力模型"
+  short_description: "七原则、七大能力与 48 项二级能力的原文，按问题查阅定义、边界与判据"
+  default_prompt: "使用 $product-capability-model 查找与当前问题相关的能力定义和判据，并注明能力编号与依据。"
