@@ -9,7 +9,7 @@ TOP={'START.md','BEHAVIOR-CHECKS.md','install.py','upgrade-bases.json'}
 # Consumer text must stay host-neutral and free of build history (the capability model is quoted source text).
 HOST_OR_HISTORY=re.compile(r'[Cc]odex|[Oo]pen[Aa][Ii]|[Cc]laude|[Aa]nthropic|functions\.|request_user_input|mcp__|~/|试验|来源项目|原项目|旧版|旧项目|此前版本|历史版本|本版新增|\bv0\.\d+|[A-Z]+-(?:DEC|Q)-\d{3}|COPY-00\d|STRUCT-00\d')
 TEXT_EXEMPT=('.agents/skills/product-capability-model/standards/',)
-RUNNERS={'codex exec':'turn.completed','claude -p':'result'}
+RUNNERS={'codex exec':'turn.completed','claude -p':'result','claude subagent':'result'}
 PRIVATE=re.compile(r'DFW(?:[-_ ]TEST)?|EC[-_ ](?:TEST|CHINA)|EAST[-_ ]CHINA|/Users/|[A-Z]:\\Users\\',re.I)
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def source_files():
