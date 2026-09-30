@@ -5,7 +5,11 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 SOURCE=ROOT/'src'
 ALLOWED=('.agents/skills/','collaboration/','shared/')
-TOP={'START.md','install.py','upgrade-bases.json'}
+TOP={'START.md','BEHAVIOR-CHECKS.md','install.py','upgrade-bases.json'}
+# Consumer text must stay host-neutral and free of build history (the capability model is quoted source text).
+HOST_OR_HISTORY=re.compile(r'[Cc]odex|[Oo]pen[Aa][Ii]|[Cc]laude|[Aa]nthropic|functions\.|request_user_input|mcp__|~/|试验|来源项目|原项目|旧版|旧项目|此前版本|历史版本|本版新增|\bv0\.\d+|[A-Z]+-(?:DEC|Q)-\d{3}|COPY-00\d|STRUCT-00\d')
+TEXT_EXEMPT=('.agents/skills/product-capability-model/standards/',)
+RUNNERS={'codex exec':'turn.completed','claude -p':'result'}
 PRIVATE=re.compile(r'DFW(?:[-_ ]TEST)?|EC[-_ ](?:TEST|CHINA)|EAST[-_ ]CHINA|/Users/|[A-Z]:\\Users\\',re.I)
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def source_files():
@@ -25,7 +29,10 @@ def check_sources():
  files=source_files();errors=[];links=0
  for rel in files:
   p=SOURCE/rel
-  if p.name=='SKILL.md' and len(p.read_text())>5000:errors.append('entry exceeds 5000 characters: '+rel)
+  if p.name=='SKILL.md' and len(p.read_text())>3500:errors.append('entry exceeds 3500 characters: '+rel)
+  if p.suffix in {'.md','.html'} and not rel.startswith(TEXT_EXEMPT):
+   text=p.read_text().replace('.claude/skills','.<host>/skills') if rel=='START.md' else p.read_text()
+   for m in HOST_OR_HISTORY.finditer(text):errors.append(f'host name or build history in consumer text: {rel}: {m.group(0)}')
   if p.suffix=='.md' and not rel.startswith('shared/'):
    for href in re.findall(r'\]\(([^)]+)\)',p.read_text()):
     path=href.split('#')[0]
@@ -50,6 +57,7 @@ def check_evidence(report,files):
  baseline_hash=fingerprint(json.loads(prior.read_text())['files'])
  if data.get('baseline_hash')!=baseline_hash:raise ValueError('wrong baseline source')
  if set(data.get('cases',{}))!=set(expected):raise ValueError('missing/extra behavior cases')
+ runners=set()
  for cid,criteria in expected.items():
   case=data['cases'][cid]
   if set(case['baseline'])!=criteria or set(case['candidate'])!=criteria:raise ValueError('incomplete criteria: '+cid)
@@ -67,15 +75,17 @@ def check_evidence(report,files):
    if str(run_path) not in paths:raise ValueError('run metadata missing from evidence')
    run=json.loads(run_path.read_text())
    source_hash=data['candidate_hash'] if side=='candidate' else baseline_hash
-   if run.get('runner')!='codex exec' or run.get('source_hash')!=source_hash or run.get('suite_hash')!=data['suite_hash']:raise ValueError('run environment/source mismatch')
+   if run.get('runner') not in RUNNERS or run.get('source_hash')!=source_hash or run.get('suite_hash')!=data['suite_hash']:raise ValueError('run environment/source mismatch')
+   runners.add(run['runner'])
    records=[r for r in run['cases'] if r['id']==cid]
    if len(records)!=1 or [t['user'] for t in records[0]['turns']]!=specs[cid]['turns']:raise ValueError('actual user turns incomplete')
    for turn in records[0]['turns']:
     reply=(run_path.parent/turn['reply']).resolve();events=(run_path.parent/turn['events']).resolve()
     if str(reply) not in paths or str(events) not in paths or sha(reply)!=turn['sha256']:raise ValueError('actual turn output missing')
     trace=[json.loads(line) for line in events.read_text().splitlines() if line.strip()]
-    if not any(e.get('type')=='turn.completed' for e in trace):raise ValueError('actual model turn did not complete')
+    if not any(e.get('type')==RUNNERS[run['runner']] and not e.get('is_error') for e in trace):raise ValueError('actual model turn did not complete')
 
+ if len(runners)!=1:raise ValueError('baseline and candidate must use the same runner')
  if not data.get('reviewer') or not data.get('limitations'):raise ValueError('review attribution and limits required')
  return data
 

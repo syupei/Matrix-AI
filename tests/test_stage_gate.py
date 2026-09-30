@@ -1,8 +1,12 @@
 import importlib.util,json,tempfile,unittest,hashlib,copy
 from pathlib import Path
-P=Path(__file__).resolve().parents[1]/'src/shared/stage_gate.py'
+P=Path(__file__).resolve().parents[1]/'src/collaboration/tools/stage_gate.py'
 s=importlib.util.spec_from_file_location('gate',P);g=importlib.util.module_from_spec(s);s.loader.exec_module(g)
 class GateTests(unittest.TestCase):
+ def test_digest_helper_matches_gate(self):
+  out=g.digests(self.root,['artifact.md'])
+  self.assertEqual(out['artifact_sha256'],g.artifact_digest(self.root,out['artifacts']))
+  with self.assertRaises(ValueError):g.digests(self.root,['../outside.md'])
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name)
   (self.root/'artifact.md').write_text('version 1');(self.root/'shown.md').write_text('visible review artifact v1');(self.root/'user.md').write_text('User confirms v1 and scope A')

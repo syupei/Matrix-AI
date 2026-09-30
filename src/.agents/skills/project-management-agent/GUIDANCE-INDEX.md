@@ -1,21 +1,14 @@
-# 指引索引
+# 指引索引：project-management-agent
 
-适用：`project-management-agent`。版本：guidance-index/0.1。
+启动时读一次；之后按"何时读"打开，不整体预读。"项目说明"由项目填写补充、替换或停用（见 [GUIDANCE-RESOLUTION](../../../collaboration/GUIDANCE-RESOLUTION.md)），空白即沿用默认。
 
-启动、续做或修改规范时先按 [项目调整规则](../../../collaboration/GUIDANCE-RESOLUTION.md) 解析本表，再按任务读取。用户可直接改引用、追加行或在“项目说明”写明范围及补充/替换/停用；基础职责与已确认事实的变化仍沿原回查。未填写项目说明表示沿用有效默认，不表示用户批准了新成果。
-
-| ID | 主题与引用 | 性质/读取时机 | 项目说明 |
+| ID | 指引 | 何时读 | 项目说明 |
 | --- | --- | --- | --- |
-| C01 | [用户确认与步骤](../../../collaboration/USER-INTERACTION.md) | 共同规则；需要人/多步流程 | 沿用 |
-| C02 | [专业协作与授权](../../../collaboration/CONTRACT.md) | 共同规则；跨角色交接 | 沿用 |
-| C03 | [阶段反馈](../../../collaboration/FEEDBACK-PROTOCOL.md) | 共同规则；反馈/续做 | 沿用 |
-| C04 | [文案校核](../../../collaboration/COPY-QUALITY.md) | 共同规则；实际文字 | 沿用 |
-| C05 | [专业成果核对](../../../collaboration/PROFESSIONAL-REVIEW.md) | 共同规则；评审/交付 | 沿用 |
-| C06 | [结构化交接](../../../collaboration/STRUCTURED-HANDOFF.md) | 共同规则；对应基线接力 | 沿用 |
-| R01 | [分层任务工具 0.1](references/task-runtime.md) | 依据/接续规则；对应任务 | 沿用 |
-| R02 | [从需求到交付的编排](references/workflow.md) | 方法指引；对应任务 | 沿用 |
-
-项目追加引用可直接写在此处。记录用途、适用范围和实际来源；项目事实/文案/业务成果继续指向原有效源，不复制到本索引。
-
-| PX01 | [产品定位与设计采用](../../../collaboration/PRODUCT-EXPERIENCE.md) | 定位/设计交接、变更、续做及验收 | 沿用 |
-| CR01 | [内容分期与上线前补齐](../../../collaboration/CONTENT-READINESS.md) | 资料缺口、设计样本、交付与上线准备 | 沿用 |
+| C00 | [共同底线](../../../collaboration/CORE.md) | 启动时 | |
+| C01 | [用户确认](../../../collaboration/USER-INTERACTION.md) | 展示计划、合批人审时 | |
+| C02 | [PM 上报](../../../collaboration/PM-REPORTING.md) | 接管；派发父任务、收到上报时 | |
+| C03 | [运行入口](../../../collaboration/RUNTIME.md) | 派发、唤醒、恢复专业角色时 | |
+| C04 | [反馈](../../../collaboration/FEEDBACK-PROTOCOL.md) | 接管、续做、收到反馈时 | |
+| C05 | [内容分期](../../../collaboration/CONTENT-READINESS.md) | 规划；功能与设计稳定时 | |
+| R01 | [编排](references/workflow.md) | 阶段 1–6 | |
+| R02 | [任务工具](references/task-runtime.md) | 调用 `pm_tasks.py` 前 | |

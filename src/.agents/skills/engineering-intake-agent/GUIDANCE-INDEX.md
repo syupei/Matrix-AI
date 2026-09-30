@@ -1,22 +1,16 @@
-# 指引索引
+# 指引索引：engineering-intake-agent
 
-适用：`engineering-intake-agent`。版本：guidance-index/0.1。
+启动时读一次；之后按"何时读"打开对应文件，不整体预读。"项目说明"由项目填写补充、替换或停用（规则见 [GUIDANCE-RESOLUTION](../../../collaboration/GUIDANCE-RESOLUTION.md)），空白表示沿用默认。
 
-启动、续做或修改规范时先按 [项目调整规则](../../../collaboration/GUIDANCE-RESOLUTION.md) 解析本表，再按任务读取。用户可直接改引用、追加行或在“项目说明”写明范围及补充/替换/停用；基础职责与已确认事实的变化仍沿原回查。未填写项目说明表示沿用有效默认，不表示用户批准了新成果。
-
-| ID | 主题与引用 | 性质/读取时机 | 项目说明 |
+| ID | 指引 | 何时读 | 项目说明 |
 | --- | --- | --- | --- |
-| C01 | [用户确认与步骤](../../../collaboration/USER-INTERACTION.md) | 共同规则；需要人/多步流程 | 沿用 |
-| C02 | [专业协作与授权](../../../collaboration/CONTRACT.md) | 共同规则；跨角色交接 | 沿用 |
-| C03 | [阶段反馈](../../../collaboration/FEEDBACK-PROTOCOL.md) | 共同规则；反馈/续做 | 沿用 |
-| C04 | [文案校核](../../../collaboration/COPY-QUALITY.md) | 共同规则；实际文字 | 沿用 |
-| C05 | [专业成果核对](../../../collaboration/PROFESSIONAL-REVIEW.md) | 共同规则；评审/交付 | 沿用 |
-| C06 | [结构化交接](../../../collaboration/STRUCTURED-HANDOFF.md) | 共同规则；对应基线接力 | 沿用 |
-| R01 | [协作、反馈与真实恢复](references/collaboration.md) | 依据/接续规则；对应任务 | 沿用 |
-| R02 | [逻辑工程建模](references/engineering-model.md) | 方法指引；对应任务 | 沿用 |
-| R03 | [输入检查与澄清责任](references/input-and-clarification.md) | 方法指引；对应任务 | 沿用 |
-| R04 | [模型评审、人工审阅与阶段交接](references/review-and-handoff.md) | 方法指引；对应任务 | 沿用 |
-| R05 | [E1 工作流](references/workflow.md) | 方法指引；对应任务 | 沿用 |
-| T01 | [engineering-workspace-template.md](assets/engineering-workspace-template.md) | 产出模板；按需使用 | 沿用 |
-
-项目追加引用可直接写在此处。记录用途、适用范围和实际来源；项目事实/文案/业务成果继续指向原有效源，不复制到本索引。
+| C00 | [共同底线](../../../collaboration/CORE.md) | 启动时 | |
+| C01 | [用户确认与流程位置](../../../collaboration/USER-INTERACTION.md) | E1.4 审阅或提前提问时 | |
+| C03 | [反馈处理](../../../collaboration/FEEDBACK-PROTOCOL.md) | 收到反馈；续做、审阅、交接前 | |
+| C04 | [全量文案](../../../collaboration/COPY-QUALITY.md) | E1.1、E1.4 涉及文案时 | |
+| C05 | [阶段检查](../../../collaboration/STAGE-GATES.md) | 切换子环节或标记完成前 | |
+| R01 | [协作与反馈](references/collaboration.md) | 首次接入；跨角色请求；反馈归属 E1–E3 | |
+| R02 | [逻辑工程建模](references/engineering-model.md) | E1.2 建模前；回查改模型时 | |
+| R03 | [输入核对与澄清](references/input-and-clarification.md) | E1.1；发现缺口时 | |
+| R04 | [走查、审阅与交接](references/review-and-handoff.md) | E1.3；E1.4 | |
+| T01 | [工作区模板](assets/engineering-workspace-template.md) | 建立 `engineering/intake/` 文件时 | |

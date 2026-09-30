@@ -1,14 +1,19 @@
-"""Install behavior in disposable projects; never writes to real projects."""
+"""Installer behavior, exercised only in disposable temporary projects."""
 import importlib.util
 import json
 from pathlib import Path
 import tempfile
 import unittest
 
-KIT=Path(__import__('os').environ.get('MATRIX_TEST_KIT', str(Path(__file__).resolve().parents[2]/'src')))
+import os
+KIT_ENV = os.environ.get('MATRIX_TEST_KIT')
+if not KIT_ENV:
+    raise unittest.SkipTest('set MATRIX_TEST_KIT to a built package (tools/production.py does this)')
+KIT=Path(KIT_ENV)
 spec=importlib.util.spec_from_file_location('pm_kit_install',KIT/'install.py')
 mod=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
+PACKAGE=json.loads((KIT/'MANIFEST.json').read_text())['package']
 
 
 class InstallTests(unittest.TestCase):
@@ -83,11 +88,11 @@ class InstallTests(unittest.TestCase):
         self.assertTrue(result.endswith('\nafter\n'))
         self.assertNotIn('previous release entry',result)
         self.assertEqual(result.count(mod.BEGIN),1)
-        self.assertIn(mod.BLOCK.rstrip('\n'),result)
+        self.assertIn(mod.block(PACKAGE,'.agents/skills').rstrip('\n'),result)
 
     def test_all_roles_installed_without_runtime_initialization(self):
         result=mod.install(self.root,True)
-        for role in ['product-agent','experience-design-agent','engineering-intake-agent','project-management-agent','professional-agent-collaboration']:
+        for role in ['product-agent','experience-design-agent','engineering-intake-agent','project-management-agent','professional-agent-collaboration','content-design-review','product-capability-model']:
             self.assertTrue((self.root/'.agents/skills'/role/'SKILL.md').is_file())
         self.assertFalse(result['runtime_initialized'])
         self.assertFalse(list(self.root.rglob('*.sqlite3')))
@@ -120,7 +125,7 @@ class InstallTests(unittest.TestCase):
         result=mod.install(self.root,True)
         self.assertEqual(result['preserved_custom_guidance'],[rel])
         self.assertEqual((self.root/rel).read_text(),custom)
-        self.assertTrue((self.root/'.agents/skills/experience-design-agent/references/default-interaction.md').is_file())
+        self.assertTrue((self.root/'.agents/skills/experience-design-agent/SKILL.md').is_file())
         again=mod.install(self.root,True)
         self.assertEqual(again['written'],[])
         self.assertEqual(again['guidance_review_required'],[rel])
@@ -162,6 +167,100 @@ class InstallTests(unittest.TestCase):
             mod.install(self.root,True)
         self.assertFalse((self.root/'AGENTS.md').exists())
         self.assertEqual((self.root/'outside.md').read_text(),'user index')
+
+    def package_copy(self, bases_update):
+        """A temporary copy of the kit whose upgrade bases include extra known releases."""
+        import shutil
+        tmp=tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        package=Path(tmp.name)
+        shutil.copytree(KIT,package,dirs_exist_ok=True,ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
+        bases=json.loads((package/'upgrade-bases.json').read_text())
+        for rel,digest in bases_update.items():
+            bases.setdefault(rel,[]).append(digest)
+        (package/'upgrade-bases.json').write_text(json.dumps(bases))
+        return package
+
+    def test_legacy_marker_block_is_migrated(self):
+        self.put('AGENTS.md','intro\n<!-- pm-agent-test:begin -->\nold entry\n<!-- pm-agent-test:end -->\noutro\n')
+        mod.install(self.root,True)
+        text=(self.root/'AGENTS.md').read_text()
+        self.assertNotIn('pm-agent-test',text)
+        self.assertNotIn('old entry',text)
+        self.assertTrue(text.startswith('intro\n') and text.endswith('\noutro\n'))
+        self.assertEqual(text.count(mod.BEGIN),1)
+
+    def test_host_specific_skills_dir_and_entry(self):
+        result=mod.install(self.root,True,'.claude/skills',['CLAUDE.md'])
+        self.assertEqual(result['skills_dir'],'.claude/skills')
+        self.assertTrue((self.root/'.claude/skills/product-agent/SKILL.md').is_file())
+        self.assertFalse((self.root/'.agents').exists())
+        self.assertFalse((self.root/'AGENTS.md').exists())
+        entry=(self.root/'CLAUDE.md').read_text()
+        self.assertIn('(.claude/skills/product-agent/SKILL.md)',entry)
+        self.assertTrue((self.root/'collaboration/CORE.md').is_file())
+
+    def test_multiple_entries_receive_the_same_block(self):
+        self.put('CLAUDE.md','host notes\n')
+        mod.install(self.root,True,'.agents/skills',['AGENTS.md','CLAUDE.md'])
+        for name in ['AGENTS.md','CLAUDE.md']:
+            self.assertEqual((self.root/name).read_text().count(mod.BEGIN),1)
+        self.assertIn('host notes',(self.root/'CLAUDE.md').read_text())
+
+    def test_invalid_skills_dir_or_entry_rejected(self):
+        for bad in ['/abs/skills','skills','a/b/c','../x']:
+            with self.assertRaisesRegex(ValueError,'skills dir'):
+                mod.install(self.root,True,bad)
+        with self.assertRaisesRegex(ValueError,'entry'):
+            mod.install(self.root,True,'.agents/skills',['docs/AGENTS.md'])
+        self.assertEqual(list(self.root.iterdir()),[])
+
+    def test_unmodified_retired_file_is_removed_with_backup(self):
+        from unittest.mock import patch
+        rel='.agents/skills/product-agent/references/retired-guide.md'
+        old=b'guide shipped by an earlier release'
+        self.put(rel,old.decode())
+        package=self.package_copy({rel:mod.sha(old)})
+        with patch.object(mod,'ROOT',package):
+            preview=mod.install(self.root)
+            self.assertIn(rel,preview['retire'])
+            result=mod.install(self.root,True)
+        self.assertFalse((self.root/rel).exists())
+        self.assertEqual([x['path'] for x in result['retired']],[rel])
+        self.assertEqual((self.root/'management/install-backups'/mod.sha(old)/rel).read_bytes(),old)
+
+    def test_modified_retired_file_is_kept_and_reported(self):
+        from unittest.mock import patch
+        rel='.agents/skills/product-agent/references/retired-guide.md'
+        package=self.package_copy({rel:mod.sha(b'released content')})
+        self.put(rel,'project edited this guide')
+        with patch.object(mod,'ROOT',package):
+            result=mod.install(self.root,True)
+        self.assertEqual(result['retired_modified_kept'],[rel])
+        self.assertEqual((self.root/rel).read_text(),'project edited this guide')
+
+    def test_unmodified_shared_file_from_other_release_is_retired(self):
+        from unittest.mock import patch
+        rel='shared/stage_gate.py'
+        old=b'shipped by another release line'
+        self.put(rel,old.decode())
+        package=self.package_copy({rel:mod.sha(old)})
+        with patch.object(mod,'ROOT',package):
+            result=mod.install(self.root,True)
+        self.assertEqual([x['path'] for x in result['retired']],[rel])
+        self.assertFalse((self.root/'shared').exists())
+
+    def test_custom_core_rules_stop_before_any_write(self):
+        self.put('collaboration/CORE.md','project rewrote the shared baseline')
+        with self.assertRaisesRegex(ValueError,'custom/unknown'):
+            mod.install(self.root,True)
+        self.assertFalse((self.root/'.agents').exists())
+
+    def test_legacy_entry_text_is_reported_not_removed(self):
+        self.put('AGENTS.md','# 产品与设计联合试验入口\nlegacy text\n')
+        result=mod.install(self.root,True)
+        self.assertEqual(result['legacy_entry_review'],['AGENTS.md: # 产品与设计联合试验入口'])
+        self.assertIn('legacy text',(self.root/'AGENTS.md').read_text())
 
 
 if __name__=='__main__':

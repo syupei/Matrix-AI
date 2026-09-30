@@ -1,11 +1,30 @@
 # Maintenance
 
-Edit only src/. Keep role entrypoints below 5000 characters and common rules in collaboration/. Version is package.json.
+Edit only `src/`. The version is in `package.json`. Keep role entry points (`SKILL.md`) at or below 3500 characters, common rules in `collaboration/`, and on-demand material behind each role's `GUIDANCE-INDEX.md`.
 
-Use tools/production.py --build-dir build to run mechanism checks. For release, run evals/run.py with previous and candidate source using the same fixtures and host; review actual outputs against evals/cases/suite.json. Publication requires --publish --evidence path/to/comparison.json --notes path/to/notes.md. Missing, stale or regressing evidence blocks release. Raw model logs are local evidence and are not part of the consumer package.
+Consumer text must be host-neutral and publishable: no host or model names, no local absolute paths, no internal project names, no build history or decision IDs. `tools/production.py` enforces these checks (the quoted capability-model source text is exempt), together with link, size and privacy checks.
 
-New behavioral rules need a demonstrated failure and a passing correction; an unobserved recommendation remains a proposal. Periodically audit rules without evidence, retaining explicit user constraints and professional invariants. Changes to those constraints need their original owner.
+Build and run all mechanism tests:
 
-Generated runtime package includes skills, common rules, shared standards and tools, installer and usage instructions. It excludes maintainer tests, reports, business fixtures and personal state. Stage validation checks records, not identity or professional quality. UI/device suitability needs visual/interactive tests beyond text probes.
+```sh
+python3 tools/production.py --build-dir build
+```
 
-From v0.16, release manifests and Git tags preserve source revisions; no new complete directories are added to packages/. Historical snapshots stay immutable. `tools/release.py verify` checks historical manifests and tagged canonical source. Generated build/ and dist/ are local artifacts.
+Before a release, run the behavior suite on the previous release and on the candidate with the same fixtures and the same runner, then review every criterion against the actual replies and traces:
+
+```sh
+python3 evals/run.py --runner claude --source packages/<previous-release> --output eval-results/<previous>
+python3 evals/run.py --runner claude --source build/<candidate> --output eval-results/<candidate>
+```
+
+`--runner codex` uses the Codex CLI instead; baseline and candidate must use the same runner. Write the comparison JSON described in `evals/README.md`, then publish:
+
+```sh
+python3 tools/production.py --build-dir build --publish --evidence eval-results/comparison.json --notes <release-notes.md>
+```
+
+Missing, stale or regressing evidence blocks the release. Raw model logs stay local and are not part of the consumer package.
+
+New behavioral rules need a demonstrated failure and a passing correction; an unobserved recommendation remains a proposal. Periodically audit rules without evidence, keeping explicit user constraints and professional invariants. Text probes do not certify visual quality, spatial layout, device behavior or native confirmation controls.
+
+The consumer package contains skills, common rules and tools, the installer, `START.md` and `BEHAVIOR-CHECKS.md`. It excludes maintainer tests, evaluation reports, business fixtures and personal state. Release manifests and Git tags preserve source revisions; historical snapshots under `packages/` stay immutable. `tools/release.py verify` checks historical manifests and tagged canonical sources.
