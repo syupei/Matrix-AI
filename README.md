@@ -4,11 +4,11 @@
 
 [最新完整包及下载](https://github.com/syupei/Matrix-AI/releases/latest) · [全部历史版本](https://github.com/syupei/Matrix-AI/releases) · [版本目录](releases.json) · [下载包 SHA256](SHA256SUMS)
 
-目前推荐 **professional-agents-kit-v0.15**，使用说明见 [START](packages/professional-agents-kit-v0.15/START.md)。安装不等于启动 Agent 或批准业务成果；具体能力、限制及实际验证以各版说明为准。
+目前推荐 **professional-agents-kit-v0.15**，使用说明见 [START](packages/professional-agents-kit-v0.15/START.md)。v0.16 正在按确认授权发布；远端核对完成前仍为候选。
 
 ## 历史档案
 
-- `packages/`：19 个已发布版本的完整源码快照，含隐藏 `.agents/skills/`、公共规则、原始来源及各版清单。
+- `packages/`：v0.15 及此前已发布版本的完整源码快照，含隐藏 `.agents/skills/`、公共规则、原始来源及各版清单。
 - GitHub Releases：对应版本标签、原 ZIP 或明确标注的重建 ZIP。早期误命名的 `product-design-agent-kit-v0.zip` 保留为 v0.1 的历史附件。
 - `archive/unreleased/`：未发布的完整包 v0.4 中间稿，保持原样并说明清单不一致，不作为可安装版。
 - 早期产品包 v0.1/v0.4、完整包 v0.5 的原 ZIP 缺失，已从哈希完整的原目录重建。重建不改变文件内容，但压缩文件哈希与原 ZIP 可能不同。
@@ -16,17 +16,20 @@
 
 本仓库于 2026-09-21 迁入历史发行物，标签和提交是迁移快照，不伪造过去的 Git 历史或原发布时间。原发布包保留原有来源与许可说明；没有为第三方材料重新授予许可。个人记忆、业务运行数据、临时研究和安装备份不在发布范围。
 
-## 构建后同步发布
+## 修改与发布
 
-完成已获确认的版本修改和专业验证后，更新该版本文件清单，并使用统一入口：
+唯一可编辑源码在 `src/`，版本在 `package.json`。从 v0.16 开始，Git 标签和 `release-manifests/` 保存版本依据，不再逐版复制完整目录。维护测试、合成行为场景与运行器分别在 `tests/`、`evals/`；它们不进入使用方 ZIP。
 
 ```sh
-python3 tools/release.py build /path/to/professional-agents-kit-v0.8 --notes /path/to/release-notes.md --latest
+python3 tools/production.py --build-dir build
+python3 evals/run.py --source /path/to/previous-source --output /path/to/baseline-results
+python3 evals/run.py --source src --output /path/to/candidate-results
+python3 tools/production.py --build-dir build --publish --evidence /path/to/comparison.json --notes /path/to/release-notes.md
 ```
 
-本地需要 Python 3.10+、Git 与已登录的 GitHub CLI，并具有本仓库写入权限。命令验证清单及 ZIP，运行包内测试，保存版本快照，提交、推送并创建 GitHub Release；上传后核对远端资产。只有整个过程成功才算发布完成。移交源文件须已获当前任务授权，外部同步不额外批准未审阅的技能改造。
+先完成实际行为比较与逐项审阅，报告格式见 [评测说明](evals/README.md)，维护约束见 [CONTRIBUTING](docs/CONTRIBUTING.md)。缺结果、源码/场景不匹配、测试未完成或发生退步均阻断发布。脚本检查不能认证人身份或代替专业判断。
 
-同版本不同内容会被拒绝，必须提升版本号。网络中断可用同一命令重试；已发布且一致的资产不重复上传，不使用覆盖旧资产的选项。上传失败保留待发布状态，退出码非零；不会只生成 ZIP 就宣称同步成功。`releases.json` 的 `latest` 字段是当前版本依据。
+本地需要 Python 3.10+、Git、已登录的 GitHub CLI；行为运行器需要已登录的 Codex CLI。正式发布验证源码与 ZIP、执行测试、推送源代码和标签、上传 Release 并核对远端资产。上传失败保留未完成状态；同版本内容不可替换，网络失败可按原命令重试。发布不等于安装，也不批准待审提案。
 
 批量重试已登记历史版本：
 

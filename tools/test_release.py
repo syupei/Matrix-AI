@@ -137,6 +137,40 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(catalog['latest'], self.source.name)
         self.assertIn(self.source.name, (checkout / 'README.md').read_text())
 
+    def test_canonical_release_uses_tag_without_full_snapshot(self):
+        checkout = self.root / 'publishing'
+        checkout.mkdir()
+        for args in [['init', '-b', 'main'], ['config', 'user.name', 'Test'], ['config', 'user.email', 'test@example.invalid'], ['remote', 'add', 'origin', 'https://github.com/syupei/Matrix-AI.git']]:
+            subprocess.run(['git', *args], cwd=checkout, check=True, capture_output=True)
+        (checkout / 'README.md').write_text('目前推荐 **previous**，old link\n')
+        (checkout / 'releases.json').write_text(json.dumps({'latest': None, 'releases': []}))
+        (checkout / 'SHA256SUMS').write_text('')
+        (checkout / 'src').mkdir()
+        (checkout / 'src/sample.md').write_bytes((self.source / 'sample.md').read_bytes())
+        (self.source / 'MANIFEST.json').write_text(json.dumps({'extensions':['stage-gates/0.1'],'files':self.expected}))
+        (checkout / 'tools').mkdir()
+        # Publishing topology test only; actual evidence gate has separate tests.
+        (checkout / 'tools/production.py').write_text('def check_evidence(*args): pass\ndef source_files(): return '+repr(self.expected)+'\n')
+        subprocess.run(['git', 'add', '.'], cwd=checkout, check=True)
+        subprocess.run(['git', 'commit', '-m', 'source'], cwd=checkout, check=True, capture_output=True)
+        notes = self.root / 'notes.md'; notes.write_text('Canonical release')
+        real_git = release.git
+        def local_git(*args, **kwargs):
+            if args[0] == 'push':return subprocess.CompletedProcess(args, 0, '', '')
+            return real_git(*args, **kwargs)
+        with patch.object(release, 'ROOT', checkout), patch.object(release, 'CATALOG', checkout / 'releases.json'), patch.object(release, 'git', side_effect=local_git), patch.object(release, 'publish'), patch.dict(release.os.environ, MATRIX_BEHAVIOR_REPORT=str(notes)):
+            release.build_and_publish(self.source, notes, True)
+            release.build_and_publish(self.source, notes, True)
+            entry=json.loads((checkout/'releases.json').read_text())['releases'][0]
+            self.assertEqual(entry['source'],'src')
+            self.assertFalse((checkout/'packages').exists())
+            release.verify_tag_source(entry)
+            # Current editing never changes a tagged historical source.
+            (checkout/'src/sample.md').write_text('next development')
+            release.verify_tag_source(entry)
+            (checkout/entry['manifest']).write_text('{}')
+            with self.assertRaises(ValueError):release.verify_tag_source(entry)
+
     def test_rename_status_includes_original_path_for_scope_check(self):
         result = subprocess.CompletedProcess([], 0, 'R  packages/new name\0private/old name\0', '')
         with patch.object(release, 'git', return_value=result):

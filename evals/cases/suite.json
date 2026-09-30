@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "cases": [
+    {"id":"intake","role":"product-agent","turns":["做一个留言板。","只给公司内部员工用，需要登录，主要是提交建议和查看处理进展。先做PC网页，其余细节还没决定。"],"criteria":["shows_stage","at_most_three_questions","does_not_invent_approval","coarse_before_details"]},
+    {"id":"batch","role":"product-agent","turns":["已有S2范围已确认。这是本批反馈第一条：新用户要先能查看公开说明。我还没说完，后面还会补。"],"criteria":["shows_stage","waits_for_batch","does_not_invent_approval"]},
+    {"id":"design_gate","role":"experience-design-agent","turns":["产品已确认：一个用于朋友聚会的回合制桌游，PC浏览器运行，需要看清棋盘与当前回合信息。设计方已经提交D1基础稿，但我还没确认。请继续。"],"criteria":["shows_stage","does_not_cross_d1","presents_review_or_missing_evidence"]},
+    {"id":"scope","role":"product-agent","turns":["系统现在只有用户账号，没有项目也没有用户项目关系。管理员要查看和停用账号，我随口把管理入口叫项目成员。请从当前S4帮我完善这块要求，原模型不加项目关系。"],"criteria":["shows_stage","keeps_business_scope","proposes_real_collection","keeps_name_candidate"]},
+    {"id":"copy","role":"content-design-review","turns":["面向普通用户，语气自然简洁。操作结果暂时无法确定，可能已经成功。原提示是：系统内部校核发现操作成功证据不足。请只给这条提示的改稿和一句说明。"],"criteria":["plain_copy","preserves_unknown_result","no_false_failure"]}
+  ],
+  "notes":"Fixtures are synthetic; no customer data or project identities. Grading uses actual replies and tool traces. UI spatial quality is not certified by text-only tests."
+}

@@ -215,6 +215,19 @@ def pending_paths():
     return paths
 
 
+def verify_tag_source(entry):
+    """Check immutable Git source without making another full package copy."""
+    manifest = json.loads((ROOT / entry['manifest']).read_text())
+    tagged_manifest = subprocess.check_output(['git', 'show', entry['source_ref'] + ':' + entry['manifest']], cwd=ROOT)
+    if tagged_manifest != (ROOT / entry['manifest']).read_bytes():
+        raise ValueError('Tagged manifest differs from catalog')
+    for rel, digest in manifest['files'].items():
+        safe_path(ROOT / 'src', rel)
+        content = subprocess.check_output(['git', 'show', entry['source_ref'] + ':src/' + rel], cwd=ROOT)
+        if hashlib.sha256(content).hexdigest() != digest:
+            raise ValueError('Tagged source differs: ' + rel)
+
+
 def build_and_publish(source, notes, latest=False):
     source = Path(source).resolve()
     if not re.fullmatch(r'[a-z0-9-]+-v\d+(?:\.\d+)+', source.name):
@@ -225,6 +238,22 @@ def build_and_publish(source, notes, latest=False):
     entry = next((e for e in catalog['releases'] if e['tag'] == source.name), None)
     archive = source.with_name(source.name + '.zip')
     expected = build_archive(source, archive)
+    # New generation releases require the same evidence gate even when this
+    # lower-level CLI is invoked directly. Historical retries remain supported.
+    metadata = json.loads((source / 'MANIFEST.json').read_text()) if (source / 'MANIFEST.json').exists() else {}
+    canonical = 'stage-gates/0.1' in metadata.get('extensions', [])
+    if canonical:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('production_gate', ROOT / 'tools/production.py')
+        gate = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gate)
+        report = os.environ.get('MATRIX_BEHAVIOR_REPORT')
+        if not report:
+            raise ValueError('Real behavioral comparison report required for this release')
+        runtime_files = {k: v for k, v in expected.items() if k != 'MANIFEST.json'}
+        gate.check_evidence(Path(report).resolve(), runtime_files)
+        if gate.source_files() != runtime_files:
+            raise ValueError('Build differs from canonical source')
     # Validate executable package checks before publishing a new version.
     if entry is None:
         tests = source / 'tests'
@@ -239,25 +268,33 @@ def build_and_publish(source, notes, latest=False):
     else:
         if git('status', '--porcelain').stdout.strip():
             raise ValueError('Publishing checkout must be clean before importing a new version')
-        copy_snapshot(source, ROOT / 'packages' / source.name, expected)
+        if not canonical:
+            copy_snapshot(source, ROOT / 'packages' / source.name, expected)
         note_path = ROOT / 'release-notes' / (source.name + '.md')
         note_path.parent.mkdir(exist_ok=True)
         note_path.write_text(notes.read_text())
         entry = {'tag': source.name, 'title': source.name, 'source': 'packages/' + source.name, 'notes': str(note_path.relative_to(ROOT)), 'latest': latest, 'archive_origin': 'build', 'assets': [{'name': archive.name, 'sha256': sha(archive), 'bytes': archive.stat().st_size}]}
+        if canonical:
+            manifest_path = ROOT / 'release-manifests' / (source.name + '.json')
+            manifest_path.parent.mkdir(exist_ok=True)
+            manifest_path.write_bytes((source / 'MANIFEST.json').read_bytes())
+            entry.update(source='src', source_ref=source.name, manifest=str(manifest_path.relative_to(ROOT)))
         if latest:
             for item in catalog['releases']:
                 item['latest'] = False
             catalog['latest'] = source.name
             readme = ROOT / 'README.md'
             text = readme.read_text()
-            text = re.sub(r'目前推荐 \*\*[^\n]+', f'目前推荐 **{source.name}**，使用说明见 [START](packages/{source.name}/START.md)。安装不等于启动 Agent 或批准业务成果；具体能力、限制及实际验证以各版说明为准。', text, count=1)
+            start_link = 'src/START.md' if canonical else 'packages/' + source.name + '/START.md'
+            text = re.sub(r'目前推荐 \*\*[^\n]+', f'目前推荐 **{source.name}**，使用说明见 [START]({start_link})。安装不等于启动 Agent 或批准业务成果；具体能力、限制及实际验证以各版说明为准。', text, count=1)
             readme.write_text(text)
         catalog['releases'].append(entry)
         CATALOG.write_text(json.dumps(catalog, ensure_ascii=False, indent=2) + '\n')
         checksum = ROOT / 'SHA256SUMS'
         checksum.write_text(''.join(f"{a['sha256']}  {a['name']}\n" for e in catalog['releases'] for a in e['assets']))
-    copy_snapshot(source, ROOT / entry['source'], expected)
-    allowed = [entry['source'], entry['notes'], 'releases.json', 'SHA256SUMS', 'README.md']
+    if not entry.get('source_ref'):
+        copy_snapshot(source, ROOT / entry['source'], expected)
+    allowed = [entry.get('manifest', entry['source']), entry['notes'], 'releases.json', 'SHA256SUMS', 'README.md']
     pending = pending_paths()
     if any(not any(path == p or path.startswith(p + '/') for p in allowed) for path in pending):
         raise ValueError('Unrelated changes in publishing checkout; leave them uncommitted')
@@ -267,6 +304,8 @@ def build_and_publish(source, notes, latest=False):
             git('commit', '-m', 'Release ' + source.name)
     if git('show-ref', '--verify', '--quiet', 'refs/tags/' + source.name, check=False).returncode:
         git('tag', source.name)
+    if entry.get('source_ref'):
+        verify_tag_source(entry)
     # A failed upload remains retryable; never report a local ZIP as remote success.
     git('push', 'origin', 'HEAD:main')
     git('push', 'origin', 'refs/tags/' + source.name)
@@ -293,7 +332,10 @@ def main():
                 publish(entry, args.assets)
     else:
         for entry in json.loads(CATALOG.read_text())['releases']:
-            package_files(ROOT / entry['source'])
+            if entry.get('source_ref'):
+                verify_tag_source(entry)
+            else:
+                package_files(ROOT / entry['source'])
         print('All released source manifests verified')
 
 

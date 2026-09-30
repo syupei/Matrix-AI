@@ -1,0 +1,28 @@
+{
+  "package": "professional-agents-kit/0.16",
+  "components": {
+    "product-agent": "0.21",
+    "experience-design-agent": "0.17",
+    "engineering-intake-agent": "0.7",
+    "project-management-agent": "0.7",
+    "professional-agent-collaboration": "0.8",
+    "content-design-review": "0.4"
+  },
+  "extensions": [
+    "guidance-index/0.1",
+    "interaction-flow/0.5",
+    "naming/0.1",
+    "task-views/0.1",
+    "progressive-intake/0.1",
+    "design-direction/0.4",
+    "feedback-batching/0.1",
+    "content-readiness/0.1",
+    "product-experience/0.3",
+    "design-foundation-review/0.2",
+    "core-scene-fit/0.2",
+    "detail-fit/0.1",
+    "portable-review/0.1",
+    "stage-gates/0.1"
+  ],
+  "baseline": "professional-agents-kit-v0.15"
+}

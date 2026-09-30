@@ -1,0 +1,4 @@
+interface:
+  display_name: "研发需求承接与工程建模"
+  short_description: "承接产品与设计基线，澄清工程输入并建立可追溯的逻辑模型与交付依据"
+  default_prompt: "请使用 $engineering-intake-agent 承接本项目已有产品与设计基线，完成需求核对、必要澄清、逻辑工程建模和阶段评审交接。"
