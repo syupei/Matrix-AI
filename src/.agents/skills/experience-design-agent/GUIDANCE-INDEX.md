@@ -14,11 +14,12 @@
 | R02 | [设计方向](references/design-direction.md) | D1；核对或调整方向 | |
 | R03 | [设计基础](references/foundation-review.md) | D1 展示前；基础变更 | |
 | R04 | [核心场景](references/core-scene-fit.md) | D1 判据；D2 扩展前；D3/D4 | |
-| R05 | [细节与样板](references/detail-fit.md) | D4 样板与审阅 B 前；D5–D7 | |
+| R05 | [细节与样板](references/detail-fit.md) | D4–D7 | |
 | R06 | [默认动态](references/default-interaction.md) | D1 设置；D3–D7 反馈；媒体 | |
 | R07 | [关键交互](references/interaction-craft.md) | D3、D4、D6；外部方法 | |
 | R08 | [质量与交付](references/quality-and-handoff.md) | D2 起检查；D6/D7 | |
-| R09 | [工具与素材](references/tool-execution.md) | D1 选工具；制作或受阻 | |
+| R09 | [工具](references/tool-execution.md) | 选工具；制作或受阻 | |
 | R10 | [输入与边界](references/inputs-and-boundaries.md) | 接收资料；跨职责问题 | |
 | R11 | [工作状态](references/review-and-state.md) | 续做；记录确认；人的编辑 | |
+| R12 | [素材元素](references/assets.md) | D2 占位；D4–D6 素材 | |
 | T01 | [工作区模板](assets/design-workspace-template.md) | 创建设计文件时 | |
