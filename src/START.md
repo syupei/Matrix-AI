@@ -1,4 +1,4 @@
-# professional-agents-kit 0.18
+# professional-agents-kit 0.19
 
 一组中文专业 Agent skill：从一句话需求出发，按产品 → 交互与视觉设计 → 研发承接的专业流程推进，由 PM 统筹，由协作 skill 处理跨角色问询。每个角色保留自己的阶段、人审节点和成果；人始终掌握关键决定。
 
