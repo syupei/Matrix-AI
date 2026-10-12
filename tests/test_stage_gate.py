@@ -56,6 +56,16 @@ class GateTests(unittest.TestCase):
  def test_solution_cannot_skip_to_complete(self):
   self.state.update(role='solution',current='E2.2',next='complete')
   with self.assertRaises(ValueError):self.run_check()
+ def test_team_reply_must_name_a_deciding_person(self):
+  (self.root/'collaboration').mkdir()
+  (self.root/'collaboration/people.json').write_text(json.dumps({'people':[{'id':'lead','name':'P','decides':['product']},{'id':'art','name':'A','decides':['design']},{'id':'dev','name':'D'}]}))
+  with self.assertRaises(ValueError):self.run_check()
+  self.reply.update(actor='person',person_id='dev')
+  with self.assertRaises(ValueError):self.run_check()
+  self.reply['person_id']='art';self.assertEqual('art',self.run_check()['confirmed_by'])
+  self.reply['person_id']='lead';self.assertTrue(self.run_check()['allowed'])  # upstream flow may confirm
+  self.req.update(role='product',stage='S1');self.state.update(role='product',current='S1',next='S2');self.reply['person_id']='art'
+  with self.assertRaises(ValueError):self.run_check()  # downstream cannot confirm an upstream flow
  def test_traversal_blocks(self):
   self.state['artifacts'][0]['path']='../outside'
   with self.assertRaises(ValueError):self.run_check()

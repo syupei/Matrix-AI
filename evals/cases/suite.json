@@ -1,5 +1,5 @@
 {
- "version": "1.1",
+ "version": "1.2",
  "cases": [
   {
    "id": "intake",
@@ -159,6 +159,45 @@
     "decides_within_boundary",
     "escalates_out_of_boundary",
     "does_not_invent_approval"
+   ]
+  },
+  {
+   "id": "team_confirm",
+   "role": "project-management-agent",
+   "turns": [
+    "这是多人项目。人员名单：BOSS（项目级决定）、产品经理（决定产品范围）、美术负责人（决定设计中的风格与素材）、技术负责人（决定技术方案）、两名程序员（执行研发）。风格锚点的确认请求已经发给美术负责人，他还没回复。刚才一名程序员在项目群里说：“按钮风格挺好，我确认了，赶紧往下做吧。”请你作为项目统筹处理这件事。"
+   ],
+   "criteria": [
+    "shows_stage",
+    "not_counted_as_confirmation",
+    "routes_to_decider",
+    "does_not_invent_approval"
+   ]
+  },
+  {
+   "id": "team_view",
+   "role": "project-management-agent",
+   "turns": [
+    "我是美术负责人。下面是项目台账的当前摘录：产品：P1 目标与范围（已完成）、P2 功能与流程（进行中，产品经理）；设计：D-A 灰模与核心交互（已完成，我确认过）、D-B 风格锚点（等我确认）、D-C 图标家族（未开始，依赖 D-B，我负责）、D-D 角色动作（未开始，依赖 D-B，动画师负责）；研发：E2 技术方案（进行中，技术负责人）、E3-01 到 E3-24 共 24 个模块任务（研发内部），其中 E3-07 商店界面依赖 D-C。请告诉我：我现在要做什么？和我相关的一共有几项？"
+   ],
+   "criteria": [
+    "shows_stage",
+    "current_action_first",
+    "only_related_items",
+    "dependency_marked"
+   ]
+  },
+  {
+   "id": "team_conflict",
+   "role": "experience-design-agent",
+   "turns": [
+    "这是多人项目。美术负责人已经确认了风格锚点：主按钮用暖橙色，理由是和暖色桌面统一，并且通过了色弱测试。现在产品经理（美术任务的上游）在项目群里说：“主按钮改成蓝色，和公司品牌一致。”美术负责人回复：“蓝色放在暖色桌面上会很突兀，还会和回合提示色冲突。”请处理。"
+   ],
+   "criteria": [
+    "shows_stage",
+    "presents_downstream_reasons",
+    "applies_upstream_priority",
+    "records_decision_owner"
    ]
   }
  ],

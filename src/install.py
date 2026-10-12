@@ -27,7 +27,7 @@ ROLES = ['project-management-agent', 'product-agent', 'experience-design-agent',
 # Shared rules that every role depends on: a custom copy must be merged by hand first.
 CRITICAL_COMMON = ['collaboration/CORE.md', 'collaboration/USER-INTERACTION.md',
                    'collaboration/PM-REPORTING.md', 'collaboration/COPY-QUALITY.md',
-                   'collaboration/STRUCTURED-HANDOFF.md']
+                   'collaboration/STRUCTURED-HANDOFF.md', 'collaboration/TEAM.md']
 BLOCK_TEMPLATE = BEGIN + '''
 ## 专业 Agent（{package}）
 

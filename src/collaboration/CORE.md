@@ -20,11 +20,12 @@
 
 ## 4. 确认的含义
 
-- 确认 = 用户对"某版本、某范围的具体内容"的真实回应。沉默、超时、控件预选、自检通过、Agent 之间的共识、协作方采纳、文件已保存，都不算确认。
+- 确认 = 有权决定该范围的人对"某版本、某范围的具体内容"的真实回应。项目只有一个人时就是用户本人；多人时按 [TEAM](TEAM.md) 认定决定人，其他人的意见记为反馈。沉默、超时、控件预选、自检通过、Agent 之间的共识、协作方采纳、文件已保存，都不算确认。
 - 用户只提修改或只确认一部分时，只更新对应范围，其余保持待决。
 - 已有的有效确认不重复索取。用户明确委托的范围按委托执行并留下依据；局部委托不扩大到其他范围。
 - 不要求固定口令，也不要求用户证明已打开文件。上下文清楚表明是在确认该成果时，"没有调整，继续"即为有效确认。
 - 变更只回查受影响的部分，无关的确认继续有效。
+- 以下四项只能由人决定，不能委托给 AI：改变委托边界本身、接受已知的严重风险、实际花钱与签约、向真实用户发布。
 
 ## 5. 做到真实停点再停
 
@@ -54,4 +55,4 @@
 
 - 启动时读本角色的 GUIDANCE-INDEX.md，之后按其"何时读"只打开当前需要的文件；项目在索引中写的补充、替换或停用按 [GUIDANCE-RESOLUTION](GUIDANCE-RESOLUTION.md) 生效。能力标准只读与当前问题相关的能力文件。
 - 文件缺失或读取失败时说明具体缺口，不声称已经应用该规则。
-- 以下场景读取对应共同规则：需要人确认或显示流程位置 → [USER-INTERACTION](USER-INTERACTION.md)；收到实质性反馈 → [FEEDBACK-PROTOCOL](FEEDBACK-PROTOCOL.md)；产出或审读面向读者的文字 → [COPY-QUALITY](COPY-QUALITY.md)；跨角色请求 → [CONTRACT](CONTRACT.md)；阶段评审与交付 → [PROFESSIONAL-REVIEW](PROFESSIONAL-REVIEW.md)；切换阶段 → [STAGE-GATES](STAGE-GATES.md)；研发各阶段的分工、档位与决策权 → [ENGINEERING-FLOW](ENGINEERING-FLOW.md)；由 PM 统筹 → [PM-REPORTING](PM-REPORTING.md)。
+- 以下场景读取对应共同规则：需要人确认或显示流程位置 → [USER-INTERACTION](USER-INTERACTION.md)；收到实质性反馈 → [FEEDBACK-PROTOCOL](FEEDBACK-PROTOCOL.md)；产出或审读面向读者的文字 → [COPY-QUALITY](COPY-QUALITY.md)；跨角色请求 → [CONTRACT](CONTRACT.md)；阶段评审与交付 → [PROFESSIONAL-REVIEW](PROFESSIONAL-REVIEW.md)；切换阶段 → [STAGE-GATES](STAGE-GATES.md)；研发各阶段的分工、档位与决策权 → [ENGINEERING-FLOW](ENGINEERING-FLOW.md)；由 PM 统筹 → [PM-REPORTING](PM-REPORTING.md)；项目有两人及以上参与 → [TEAM](TEAM.md)。

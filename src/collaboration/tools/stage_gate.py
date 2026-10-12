@@ -7,6 +7,9 @@ from pathlib import Path
 
 STAGES={'product':['S1','S2','S3','S4','S5','S6','S7','complete'], 'design':['D1','D2','D3','D4','D5','D6','D7','complete'], 'engineering':['E1.1','E1.2','E1.3','E1.4','complete'], 'solution':['E2.1','E2.2','E2.3','E2.4','complete']}
 REVIEW={'product':{'S1','S2','S3','S4','S5','S6','S7'},'design':{'D1','D2','D4','D6'},'engineering':{'E1.4'},'solution':{'E2.4'}}
+# Upstream first: a confirmation may come from a decider of this flow or of any flow above it.
+CHAIN=['project','product','design','engineering','solution']
+ROSTER='collaboration/people.json'
 
 def digest(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 def checked_file(root,ref):
@@ -27,6 +30,18 @@ def artifact_digest(root,artifacts):
     if len({p[0] for p in pairs})!=len(pairs):raise ValueError('duplicate artifact')
     return hashlib.sha256(json.dumps(sorted(pairs),ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
 
+def deciding_person(root,role,reply):
+    """In projects with two or more listed people, the reply names a person who may decide for this flow."""
+    path=Path(root).resolve()/ROSTER
+    if not path.is_file():return None
+    people={p.get('id'):p for p in json.loads(path.read_text(encoding='utf-8')).get('people',[]) if isinstance(p,dict)}
+    if len(people)<2:return None
+    pid=reply.get('person_id')
+    if pid not in people:raise ValueError('team project: reply must name a listed person (person_id)')
+    allowed=set(CHAIN[:CHAIN.index(role)+1])
+    if not allowed&set(people[pid].get('decides',[])):raise ValueError('person has no decision authority for this flow or its upstream')
+    return pid
+
 def check(root,state):
     root=Path(root).resolve();role=state['role'];stages=STAGES[role]
     current=state['current'];following=state['next']
@@ -43,11 +58,14 @@ def check(root,state):
         if req.get('artifact_sha256')!=content_hash or set(req.get('scope',[]))!=set(scope):raise ValueError('request content or scope is stale')
         shown=checked_file(root,req['display_evidence'])
         if not shown.read_text().strip():raise ValueError('missing displayed review evidence')
-        if reply.get('actor')!='user' or reply.get('choice')!='confirm':raise ValueError('explicit human confirmation required')
+        if reply.get('actor') not in {'user','person'} or reply.get('choice')!='confirm':raise ValueError('explicit human confirmation required')
+        person=deciding_person(root,role,reply)
         if reply.get('request_id')!=req['request_id'] or reply.get('artifact_sha256')!=content_hash or set(reply.get('scope',[]))!=set(scope):raise ValueError('reply is stale or partially scoped')
         evidence=checked_file(root,reply['source'])
         if not evidence.read_text().strip():raise ValueError('response source is empty')
-    return {'allowed':True,'role':role,'from':current,'to':following,'scope':scope,'artifact_sha256':content_hash,'limitation':'Validates records and files, not human identity or professional quality.'}
+    result={'allowed':True,'role':role,'from':current,'to':following,'scope':scope,'artifact_sha256':content_hash,'limitation':'Validates records and files, not human identity or professional quality.'}
+    if current in REVIEW[role] and person:result['confirmed_by']=person
+    return result
 
 def digests(root,paths):
     """Helper for preparing gate input: per-file sha256 and the combined artifact digest."""

@@ -10,5 +10,6 @@
 | C03 | [运行入口](../../../collaboration/RUNTIME.md) | 派发、唤醒、恢复专业角色时 | |
 | C04 | [反馈](../../../collaboration/FEEDBACK-PROTOCOL.md) | 接管、续做、收到反馈时 | |
 | C05 | [内容分期](../../../collaboration/CONTENT-READINESS.md) | 规划；功能与设计稳定时 | |
+| C06 | [多人协作](../../../collaboration/TEAM.md) | 名单中有两人及以上；分发待人事项、记录决定时 | |
 | R01 | [编排](references/workflow.md) | 阶段 1–6 | |
 | R02 | [任务工具](references/task-runtime.md) | 调用 `pm_tasks.py` 前 | |

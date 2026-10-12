@@ -1,4 +1,4 @@
-# professional-agents-kit 0.20
+# professional-agents-kit 0.21
 
 一组中文专业 Agent skill：从一句话需求出发，按产品 → 交互与视觉设计 → 研发（承接与建模、方案与验证）的专业流程推进，由 PM 统筹，由协作 skill 处理跨角色问询。每个角色保留自己的阶段、人审节点和成果；人始终掌握关键决定。
 
@@ -15,7 +15,7 @@
 | content-design-review | 产品与设计共用的文案写作与审读方法 |
 | product-capability-model | 共享知识库：优秀产品七原则、七大能力、48 项二级能力的原文 |
 
-`collaboration/` 是所有角色共用的规则，安装到项目根目录；`CORE.md` 是每个角色启动时读的共同底线，`ENGINEERING-FLOW.md` 说明研发的四个阶段、档位与谁决定什么。研发的 E3 增量构建与 E4 发布与交接暂无专门 skill，接入时另行配置。`collaboration/tools/` 里有阶段切换检查脚本 `stage_gate.py` 和离线审阅页 `review.html`。
+`collaboration/` 是所有角色共用的规则，安装到项目根目录；`CORE.md` 是每个角色启动时读的共同底线，`ENGINEERING-FLOW.md` 说明研发的四个阶段、档位与谁决定什么，`TEAM.md` 说明多人参与时的人员名单、决定权、视图与群组沟通。研发的 E3 增量构建与 E4 发布与交接暂无专门 skill，接入时另行配置。`collaboration/tools/` 里有阶段切换检查脚本 `stage_gate.py` 和离线审阅页 `review.html`。
 
 安装不会启动任何 Agent、初始化数据库或批准任何成果。
 
@@ -58,6 +58,7 @@ python3 install.py --target "<项目路径>" --skills-dir .claude/skills --entry
 - **新项目**：直接向宿主描述需求；需要全流程统筹时说"请用 project-management-agent 统筹这个项目"。
 - **已有成果的项目**：让当前负责角色读取本角色 skill 和 `collaboration/CORE.md`，从当前有效阶段继续；保留有效确认与人的修改，只补受影响的范围，不重新访谈。
 - **项目调整**：在各 skill 的 `GUIDANCE-INDEX.md` "项目说明"列写补充、替换或停用（见 `collaboration/GUIDANCE-RESOLUTION.md`）。
+- **多人参与**：在 `collaboration/people.json` 登记参与的人及其决定权（格式见 `collaboration/TEAM.md`；可由你们的成员管理系统同步）。之后 PM 会把事项发给对应的人，并在 `management/views/` 生成全程计划表、项目总入口、群摘要、个人视图与专业组视图。只有一个人时不需要这份名单。
 
 ## 按需加载
 

@@ -15,7 +15,7 @@
 需要审阅记录的切换：产品每个阶段（S1–S7）；设计 D1（设计基础）、D2（审阅 A）、D4（审阅 B）、D6（审阅 C）；研发承接 E1.4；技术方案 E2.4（核心评审）。
 
 - **request**：`request_id`、`role`、`stage`、`scope`、`artifact_sha256`、`display_evidence`（实际展示给用户的内容或其记录的路径）。
-- **response**：`request_id`、`scope`、`artifact_sha256`、`actor: "user"`、`choice: "confirm"`、`source`（用户原话与时间的记录路径）。
+- **response**：`request_id`、`scope`、`artifact_sha256`、`actor`、`choice: "confirm"`、`source`（原话与时间的记录路径）。`actor` 在只有一个人的项目写 `"user"`；名单中有两人及以上时写 `"person"`，并加 `person_id`。检查会核对此人是否对该流程或其上游流程有决定权（见 [TEAM](TEAM.md) §3）。
 - 用户通过选项工具或文字回复时，把原话照录进 `source` 指向的记录；用离线审阅页 `collaboration/tools/review.html` 时，保存它导出的回复文件。不能凭推测写 `confirm`。
 
 ## 例外与限制
