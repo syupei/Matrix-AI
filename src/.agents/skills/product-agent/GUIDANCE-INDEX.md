@@ -18,6 +18,6 @@
 | R06 | [命名](references/naming.md) | 解读名称；S2–S7 | |
 | R07 | [成果与接收方](references/deliverables.md) | 建工作区；写验收；S7 | |
 | R08 | [评审与交接](references/review-and-handoff.md) | 审阅前；S6–S7；下游返回 | |
-| R09 | [协作请求](references/product-collaboration.md) | 收发产品请求 | |
+| R09 | [协作请求](references/product-collaboration.md) | 收发产品请求；范围项需要技术代价时 | |
 | R10 | [结构化交付](references/structured-handoff.md) | S6–S7；基线变更 | |
 | T01 | [工作区模板](assets/product-workspace-template.md) | 建或补工作区文件 | |

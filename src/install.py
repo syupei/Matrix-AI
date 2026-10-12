@@ -22,7 +22,8 @@ LEGACY_MARKERS = [('<!-- pm-agent-test:begin -->', '<!-- pm-agent-test:end -->')
 # Entry text written by earlier standalone kits; reported for manual review, never removed.
 LEGACY_HEADINGS = ['# 产品与设计联合试验入口', '# 产品 Agent 试验项目', '<!-- professional-agent-collaboration:begin -->']
 ROLES = ['project-management-agent', 'product-agent', 'experience-design-agent',
-         'engineering-intake-agent', 'professional-agent-collaboration', 'content-design-review']
+         'engineering-intake-agent', 'engineering-solution-agent', 'professional-agent-collaboration',
+         'content-design-review']
 # Shared rules that every role depends on: a custom copy must be merged by hand first.
 CRITICAL_COMMON = ['collaboration/CORE.md', 'collaboration/USER-INTERACTION.md',
                    'collaboration/PM-REPORTING.md', 'collaboration/COPY-QUALITY.md',
@@ -38,6 +39,7 @@ BLOCK_TEMPLATE = BEGIN + '''
 | 新产品需求；产品阶段续做；产品事实、规则、范围问题 | [product-agent]({skills}/product-agent/SKILL.md) |
 | 承接产品基线做空间、交互、视觉设计；设计续做与设计问题 | [experience-design-agent]({skills}/experience-design-agent/SKILL.md) |
 | 研发第一阶段：需求承接、澄清与逻辑工程建模 | [engineering-intake-agent]({skills}/engineering-intake-agent/SKILL.md) |
+| 研发第二阶段：技术决定、风险试做、可运行骨架与技术评审 | [engineering-solution-agent]({skills}/engineering-solution-agent/SKILL.md) |
 | 跨角色问询、唤醒与接续 | [professional-agent-collaboration]({skills}/professional-agent-collaboration/SKILL.md) |
 
 产品与设计撰写或审读文案时使用 [content-design-review]({skills}/content-design-review/SKILL.md)；需要能力模型原文时查 [product-capability-model]({skills}/product-capability-model/SKILL.md)。安装本包不代表任何 Agent 已在运行；用户当前的明确要求优先于这里的默认安排。

@@ -46,6 +46,16 @@ class GateTests(unittest.TestCase):
   with self.assertRaises(ValueError):self.run_check()
  def test_internal_design_step_needs_no_extra_approval(self):
   self.state.update(current='D3',next='D4');self.state.pop('request');self.state.pop('response');self.assertTrue(self.run_check()['allowed'])
+ def test_solution_core_review_needs_human_confirmation(self):
+  self.req.update(role='solution',stage='E2.4');self.state.update(role='solution',current='E2.4',next='complete')
+  self.assertTrue(self.run_check()['allowed'])
+  self.reply['actor']='assistant'
+  with self.assertRaises(ValueError):self.run_check()
+ def test_solution_internal_step_needs_no_review(self):
+  self.state.update(role='solution',current='E2.2',next='E2.3');self.state.pop('request');self.state.pop('response');self.assertTrue(self.run_check()['allowed'])
+ def test_solution_cannot_skip_to_complete(self):
+  self.state.update(role='solution',current='E2.2',next='complete')
+  with self.assertRaises(ValueError):self.run_check()
  def test_traversal_blocks(self):
   self.state['artifacts'][0]['path']='../outside'
   with self.assertRaises(ValueError):self.run_check()

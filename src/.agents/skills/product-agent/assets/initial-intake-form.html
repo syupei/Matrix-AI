@@ -45,7 +45,7 @@ details{margin:20px 0;border-top:1px solid var(--line);padding-top:16px}summary{
 <legend><small>I08</small>第一版有哪些必须有、明确不要或必须遵守的条件？</legend>
 <p class="help">如有既有系统、内容公开范围、时间窗口或其他限制，可在这里说明。不清楚可填“待梳理”，没有明确限制可如实填写。</p>
 <label class="field-label" for="constraints">范围、约束及原因</label><textarea id="constraints" data-label="范围约束" placeholder="区分必须遵守的条件与可以讨论的倾向"></textarea>
-<label class="field-label" for="early-context">其他已知方向（选填，后续会逐步补齐）</label><textarea id="early-context" data-label="早期方向补充（Agent 按 I04–I07、I09–I12 归类）" placeholder="例如使用端、用户特点、产品语言、文案或视觉风格，以及必须遵守的品牌规范。只写已经知道的，不必逐项想好。"></textarea>
+<label class="field-label" for="early-context">其他已知方向（选填，后续会逐步补齐）</label><textarea id="early-context" data-label="早期方向补充（Agent 按 I04–I07、I09–I13 归类）" placeholder="例如使用端、用户特点、产品语言、大致使用人数、文案或视觉风格，以及必须遵守的品牌规范。只写已经知道的，不必逐项想好。"></textarea>
 </fieldset>
 <details id="basic-details"><summary>展开基础信息：使用端、用户特点与情境</summary>
 <p class="help">可稍后随相关模块补充。若某项会改变当前方向，请现在说明；选择多端不代表首期全做。</p>
@@ -73,6 +73,13 @@ details{margin:20px 0;border-top:1px solid var(--line);padding-top:16px}summary{
 <div class="choices" data-group="context"></div>
 <label class="field-label" for="context-note">使用频率、主要设备或特别条件</label><textarea id="context-note" data-label="情境补充" placeholder="例如偶尔使用还是每天高频使用；目前未知可写待定"></textarea>
 <label class="field-label" for="product-language">产品界面 / 内容语言与地区（与文案语气分开）</label><input id="product-language" type="text" data-label="产品语言与地区" placeholder="例如简体中文、繁体中文、英语或多语言；未知可写待定">
+</fieldset>
+<fieldset data-id="I13" data-title="使用规模与在线方式">
+<legend><small>I13</small>大约多少人用？用户之间要不要同时在线互动？</legend>
+<p class="help">用自己的话回答即可，不需要技术判断；不清楚可写“待估计”。研发会据此判断需要怎样的服务能力。</p>
+<div class="choices" data-group="interaction"></div>
+<label class="field-label" for="scale">使用人数、集中时段与增长预期</label><textarea id="scale" data-label="使用规模" placeholder="例如约两千名员工，上班时段集中；或做活动时可能瞬间涌入很多人"></textarea>
+<label class="field-label" for="outage">没有网络时能否使用；服务停止或数据丢失的影响</label><textarea id="outage" data-label="离线与中断影响" placeholder="例如断网时也要能看已下载的内容；停十分钟可以接受，丢数据不能接受"></textarea>
 </fieldset>
 </details>
 <details id="style-details"><summary>展开表达与视觉：语气、风格、品牌与参考</summary>
@@ -129,13 +136,15 @@ const requirements={
  I09:{level:'可选 · 偏好',reason:'可委托 AI 选语气；存在强制术语或禁用表达时必须补充。',resolve_by:'S5 体验要求审阅；强制表达在相关设计前',basis:['P3-5','P3-6']},
  I10:{level:'可选 · 偏好',reason:'可委托 AI 选视觉方向；强制品牌呈现要求需提供依据。',resolve_by:'S5 体验要求审阅；强制规范在相关设计前',basis:['P7-1','P7-3','P7-7']},
  I11:{level:'条件必确认 · 规范 / 可选 · 配色',reason:'已有强制品牌规范时必须提供；喜欢什么颜色可交给 AI 建议。',resolve_by:'应用品牌规范前；配色方向在 S5 审阅',basis:['P1-2','P7-3','P7-6']},
- I12:{level:'可选 · 辅助',reason:'参考帮助表达偏好，没有参考也能继续。',resolve_by:'按需，不阻断产品工作',basis:['P7-7']}
+ I12:{level:'可选 · 辅助',reason:'参考帮助表达偏好，没有参考也能继续。',resolve_by:'按需，不阻断产品工作',basis:['P7-7']},
+ I13:{level:'条件必确认 · 关键',reason:'用户之间是否同时在线互动、大致规模和能承受的中断，决定是否需要服务端及其能力；用业务语言回答即可，技术判断由研发负责。',resolve_by:'S2 范围确认前',basis:['P1-7','P6-6']}
 };
 const groups={
  audience:{label:'用户类别',options:['消费者','企业外部客户','员工或团队','社区成员','学生、家长或教师','其他','暂未确定'],exclusive:['暂未确定']},
  platform:{label:'使用端',options:['手机 APP','小程序','PC 浏览器网页','PC 安装式客户端','手机网页 H5','其他','请 AI 比较后由我确认'],exclusive:['请 AI 比较后由我确认']},
  traits:{label:'用户特征',options:['数字操作不熟练','一般熟练','专业高频使用','中老年用户','儿童青少年','不同语言用户','感知或操作支持需求','暂不了解'],exclusive:['暂不了解']},
  context:{label:'使用环境',options:['桌前办公','移动中','家庭','现场或公共场所','弱网','其他','待定'],exclusive:['待定']},
+ interaction:{label:'用户之间的互动',options:['各自使用，互不影响','能看到别人的结果（如排行榜、公开留言）','轮流或异步互动（轮到时再通知）','需要同时在线、实时看到彼此的操作','暂未确定'],exclusive:['暂未确定']},
  tone:{label:'文案语气',options:['调皮俏皮','轻松自然','温暖亲切','清晰直接','专业正式','严肃克制','严谨规范（条款式）','跟随现有品牌','自定义','AI 帮你选','无偏好','暂不决定'],single:true},
  style:{label:'视觉风格',options:['日式清新','公务严肃','游戏炫酷','动漫可爱','极简现代','商务专业','温暖生活','科技未来','跟随现有品牌','自定义','AI 帮你选','无偏好','暂不决定'],single:true},
  brand:{label:'既有强制品牌规范',options:['有强制规范','目前无已知强制规范','尚不清楚'],single:true},
@@ -182,7 +191,7 @@ function collectAnswers(){
   const delegation=answers.filter(a=>a.value==='AI 帮你选').map(a=>({field:a.label,scope:'仅本项偏好方向；AI 形成建议稿，在原定阶段审阅中展示，不含其他字段或完整方案批准'}));
   return {id:fieldset.dataset.id,title:fieldset.dataset.title,requirement:requirements[fieldset.dataset.id],status:answers.length?'已填写输入，待产品 Agent 理解':'未回答',decision_status:'未由表单判断是否已澄清',delegation,answers};
  });
- return {form_version:'0.6',exported_at:new Date().toISOString(),record_type:'首轮基础澄清输入',notice:'回答是输入，不代表批准后续完整方案；未回答不等于无偏好；必需项未澄清会影响相关设计，草稿可先回传。',follow_up:collectWarnings(),items};
+ return {form_version:'0.7',exported_at:new Date().toISOString(),record_type:'首轮基础澄清输入',notice:'回答是输入，不代表批准后续完整方案；未回答不等于无偏好；必需项未澄清会影响相关设计，草稿可先回传。',follow_up:collectWarnings(),items};
 }
 function asMarkdown(data){
  const lines=['# 首轮基础澄清回答','','- 表单版本：'+data.form_version,'- 导出时间：'+data.exported_at,'- 记录类型：用户输入；不代表完整产品方案已确认','- 未回答与无偏好不同；请保留用户表述，再梳理约束、偏好和待决事项。',''];
@@ -219,7 +228,7 @@ function collectWarnings(){
 function preview(data){
  document.getElementById('preview').value=asMarkdown(data);
  const count=data.items.filter(i=>i.answers.length).length;
- document.getElementById('status').textContent='已整理 '+count+' / 12 项输入（不是完成进度）；可导出草稿，请 Agent 协助核对。';
+ document.getElementById('status').textContent='已整理 '+count+' / 13 项输入（不是完成进度）；可导出草稿，请 Agent 协助核对。';
  const list=document.getElementById('warnings');list.replaceChildren();
  for(const warning of data.follow_up){const li=document.createElement('li');li.textContent=warning;list.append(li);}
 }

@@ -21,7 +21,9 @@ suite_path = Path(__file__).parent / 'cases/suite.json'; suite = json.loads(suit
 meta = {'source_hash': run.fingerprint(a.source.resolve()), 'suite_hash': hashlib.sha256(suite_path.read_bytes()).hexdigest(),
         'runner': a.runner, 'cli_version': a.note, 'cases': []}
 for case in suite['cases']:
-    record = {'id': case['id'], 'turns': []}
+    roles = case['role'] if isinstance(case['role'], list) else [case['role']]
+    role = next((r for r in roles if (a.source / '.agents/skills' / r / 'SKILL.md').is_file()), roles[-1])
+    record = {'id': case['id'], 'role': role, 'turns': []}
     for n, user in enumerate(case['turns']):
         reply = a.output / f"{case['id']}-{n}.md"
         if not reply.is_file():

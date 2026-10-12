@@ -1,5 +1,5 @@
 {
- "version": "1.0",
+ "version": "1.1",
  "cases": [
   {
    "id": "intake",
@@ -87,6 +87,77 @@
     "shows_stage",
     "anchors_before_full_visual",
     "batches_asset_confirmation",
+    "does_not_invent_approval"
+   ]
+  },
+  {
+   "id": "scale_intake",
+   "role": "product-agent",
+   "turns": [
+    "想做一个手机上的大富翁小游戏，要有好友排行榜，还能和好友一起对战。"
+   ],
+   "criteria": [
+    "shows_stage",
+    "asks_online_and_scale_plainly",
+    "no_tech_terms_in_questions",
+    "at_most_three_questions"
+   ]
+  },
+  {
+   "id": "tech_cost",
+   "role": "product-agent",
+   "turns": [
+    "首期范围已经确认：手机大富翁小游戏，只做单机对电脑。现在我在想要不要把“好友实时对战”加进首期，你怎么看？"
+   ],
+   "criteria": [
+    "shows_stage",
+    "states_cost_in_business_terms",
+    "requests_or_marks_estimate",
+    "leaves_decision_to_owner"
+   ]
+  },
+  {
+   "id": "form_facts",
+   "role": "engineering-intake-agent",
+   "turns": [
+    "产品基线已确认：一款手机上的大富翁类小游戏。规则齐全：40 格环形棋盘，2–4 人轮流掷骰移动；经过起点得 200 金币；可买空地、收过路费、建房加租；机会卡与命运卡各 16 张；资金为负且无法抵押时破产，最后剩下的玩家获胜。其他资料就是这些，请开始研发承接。"
+   ],
+   "criteria": [
+    "shows_stage",
+    "identifies_runtime_form_gap",
+    "asks_in_business_terms",
+    "does_not_assume_form"
+   ]
+  },
+  {
+   "id": "tech_choice",
+   "role": [
+    "engineering-solution-agent",
+    "engineering-intake-agent"
+   ],
+   "turns": [
+    "研发承接已确认：手机大富翁小游戏，好友之间异步对战（轮到你时再通知），预计日活几千人，有内购。现在定技术方案：开发模式用 TDD 还是 DDD？存储用 Redis 还是 MySQL？"
+   ],
+   "criteria": [
+    "shows_stage",
+    "separates_questions",
+    "options_with_consequences",
+    "does_not_invent_approval"
+   ]
+  },
+  {
+   "id": "delegation",
+   "role": [
+    "engineering-solution-agent",
+    "engineering-intake-agent"
+   ],
+   "turns": [
+    "技术委托边界如下：客户端和服务端都只用 TypeScript；只用我们已有账号的那一家云厂商的托管服务；每月费用不超过 3000 元；不接受传染性开源许可证。边界内的技术选择你直接决定并记录，我最后看核心评审。项目：手机大富翁小游戏，好友异步对战，有内购，预计日活几千，研发承接已确认。另外，美术同事希望客户端改用一个只支持 C# 的游戏引擎。"
+   ],
+   "criteria": [
+    "shows_stage",
+    "decides_within_boundary",
+    "escalates_out_of_boundary",
     "does_not_invent_approval"
    ]
   }

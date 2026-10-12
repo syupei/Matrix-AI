@@ -17,9 +17,11 @@ def main():
   with tempfile.TemporaryDirectory(prefix='matrix-behavior-') as d:
    work=Path(d);shutil.copytree(source,work/'kit',ignore=shutil.ignore_patterns('__pycache__'))
    # Keep the same conditions and user turns for both revisions; history is actual output.
-   history=[];record={'id':case['id'],'turns':[]}
+   roles=case['role'] if isinstance(case['role'],list) else [case['role']]
+   role=next((r for r in roles if (source/'.agents/skills'/r/'SKILL.md').is_file()),roles[-1])
+   history=[];record={'id':case['id'],'role':role,'turns':[]}
    for n,user in enumerate(case['turns']):
-    prompt=f"在此临时项目中使用 kit/.agents/skills/{case['role']}/SKILL.md 处理用户请求。读取所需本地规则。仅在此目录写本轮必要成果，不访问外部业务项目、不联网、不启动其他Agent。这里没有可用原生提问控件，使用技能允许的回退方式。只处理当前用户输入，等真实下一条消息，不替用户回答。\n"
+    prompt=f"在此临时项目中使用 kit/.agents/skills/{role}/SKILL.md 处理用户请求。读取所需本地规则。仅在此目录写本轮必要成果，不访问外部业务项目、不联网、不启动其他Agent。这里没有可用原生提问控件，使用技能允许的回退方式。只处理当前用户输入，等真实下一条消息，不替用户回答。\n"
     if history:prompt+='此前真实对话：\n'+json.dumps(history,ensure_ascii=False)+'\n'
     prompt+='用户：'+user
     last=args.output/(case['id']+f'-{n}.md');events=args.output/(case['id']+f'-{n}.jsonl');err=args.output/(case['id']+f'-{n}.stderr')

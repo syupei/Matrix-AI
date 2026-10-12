@@ -1,0 +1,4 @@
+interface:
+  display_name: "技术方案与验证"
+  short_description: "按问题作技术决定，对主要风险试做，搭可运行骨架，并组织委托优先的技术评审"
+  default_prompt: "请使用 $engineering-solution-agent 承接研发承接的工程基线，完成技术决定、风险试做、可运行骨架与技术评审。"

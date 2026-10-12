@@ -5,8 +5,8 @@ import hashlib
 import json
 from pathlib import Path
 
-STAGES={'product':['S1','S2','S3','S4','S5','S6','S7','complete'], 'design':['D1','D2','D3','D4','D5','D6','D7','complete'], 'engineering':['E1.1','E1.2','E1.3','E1.4','complete']}
-REVIEW={'product':{'S1','S2','S3','S4','S5','S6','S7'},'design':{'D1','D2','D4','D6'},'engineering':{'E1.4'}}
+STAGES={'product':['S1','S2','S3','S4','S5','S6','S7','complete'], 'design':['D1','D2','D3','D4','D5','D6','D7','complete'], 'engineering':['E1.1','E1.2','E1.3','E1.4','complete'], 'solution':['E2.1','E2.2','E2.3','E2.4','complete']}
+REVIEW={'product':{'S1','S2','S3','S4','S5','S6','S7'},'design':{'D1','D2','D4','D6'},'engineering':{'E1.4'},'solution':{'E2.4'}}
 
 def digest(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 def checked_file(root,ref):
