@@ -1,6 +1,6 @@
-# professional-agents-kit 0.21
+# professional-agents-kit 0.22
 
-一组中文专业 Agent skill：从一句话需求出发，按产品 → 交互与视觉设计 → 研发（承接与建模、方案与验证）的专业流程推进，由 PM 统筹，由协作 skill 处理跨角色问询。每个角色保留自己的阶段、人审节点和成果；人始终掌握关键决定。
+一组中文专业 Agent skill：从一句话需求出发，按产品 → 交互与视觉设计 → 研发（承接与建模、方案与验证、增量构建、质量验证）的专业流程推进，由 PM 统筹，由协作 skill 处理跨角色问询。每个角色保留自己的阶段、人审节点和成果；人始终掌握关键决定。
 
 ## 包含什么
 
@@ -11,11 +11,13 @@
 | experience-design-agent | 交互与视觉设计：设计基础、粗结构、细交互、代表视觉、完整设计、验证与交付（D1–D7） |
 | engineering-intake-agent | 研发承接：输入核对与澄清、逻辑工程模型、档位与技术风险、评审与交接（E1） |
 | engineering-solution-agent | 技术方案与验证：按问题作技术决定、风险试做、可运行骨架与工程基础、委托优先的技术评审（E2） |
+| engineering-build-agent | 增量构建（技术负责人）：按用户可见能力切增量、任务卡、检验与集成、范围完成评审（E3） |
+| quality-verification-agent | 质量验证：验收条目与覆盖、非实现者检验、质量测量、缺陷与回归（贯穿 E1–E3） |
 | professional-agent-collaboration | 协作：真实请求、唤醒、应答、人工答复与恢复 |
 | content-design-review | 产品与设计共用的文案写作与审读方法 |
 | product-capability-model | 共享知识库：优秀产品七原则、七大能力、48 项二级能力的原文 |
 
-`collaboration/` 是所有角色共用的规则，安装到项目根目录；`CORE.md` 是每个角色启动时读的共同底线，`ENGINEERING-FLOW.md` 说明研发的四个阶段、档位与谁决定什么，`TEAM.md` 说明多人参与时的人员名单、决定权、视图与群组沟通。研发的 E3 增量构建与 E4 发布与交接暂无专门 skill，接入时另行配置。`collaboration/tools/` 里有阶段切换检查脚本 `stage_gate.py` 和离线审阅页 `review.html`。
+`collaboration/` 是所有角色共用的规则，安装到项目根目录；`CORE.md` 是每个角色启动时读的共同底线，`ENGINEERING-FLOW.md` 说明研发的四个阶段、档位与谁决定什么，`TEAM.md` 说明多人参与时的人员名单、决定权、视图与群组沟通。研发的 E4 发布与交接暂无专门 skill，接入时另行配置。`collaboration/tools/` 里有阶段切换检查脚本 `stage_gate.py` 和离线审阅页 `review.html`。
 
 安装不会启动任何 Agent、初始化数据库或批准任何成果。
 

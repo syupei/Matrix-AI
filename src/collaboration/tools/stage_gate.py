@@ -5,10 +5,12 @@ import hashlib
 import json
 from pathlib import Path
 
-STAGES={'product':['S1','S2','S3','S4','S5','S6','S7','complete'], 'design':['D1','D2','D3','D4','D5','D6','D7','complete'], 'engineering':['E1.1','E1.2','E1.3','E1.4','complete'], 'solution':['E2.1','E2.2','E2.3','E2.4','complete']}
-REVIEW={'product':{'S1','S2','S3','S4','S5','S6','S7'},'design':{'D1','D2','D4','D6'},'engineering':{'E1.4'},'solution':{'E2.4'}}
+STAGES={'product':['S1','S2','S3','S4','S5','S6','S7','complete'], 'design':['D1','D2','D3','D4','D5','D6','D7','complete'], 'engineering':['E1.1','E1.2','E1.3','E1.4','complete'], 'solution':['E2.1','E2.2','E2.3','E2.4','complete'], 'build':['E3.1','E3.2','E3.3','complete']}
+REVIEW={'product':{'S1','S2','S3','S4','S5','S6','S7'},'design':{'D1','D2','D4','D6'},'engineering':{'E1.4'},'solution':{'E2.4'},'build':{'E3.3'}}
 # Upstream first: a confirmation may come from a decider of this flow or of any flow above it.
-CHAIN=['project','product','design','engineering','solution']
+CHAIN=['project','product','design','engineering','solution','build']
+# Implementation starts only on a still-valid confirmed technical review.
+UPSTREAM={('build','E3.1'):('solution','E2.4')}
 ROSTER='collaboration/people.json'
 
 def digest(path):return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -42,13 +44,19 @@ def deciding_person(root,role,reply):
     if not allowed&set(people[pid].get('decides',[])):raise ValueError('person has no decision authority for this flow or its upstream')
     return pid
 
-def check(root,state):
+def check(root,state,conversation=True):
     root=Path(root).resolve();role=state['role'];stages=STAGES[role]
     current=state['current'];following=state['next']
     if current not in stages[:-1] or stages[stages.index(current)+1]!=following:raise ValueError('invalid or skipped stage transition')
     scope=state['scope']
     if not isinstance(scope,list) or not scope or not all(isinstance(s,str) and s.strip() for s in scope) or len(set(scope))!=len(scope):raise ValueError('explicit unique scope required')
     if state.get('blockers')!=[]:raise ValueError('unresolved or unspecified blockers')
+    if conversation:
+        # Requests made in conversation must reach files before moving on (FEEDBACK-PROTOCOL §6).
+        ref=state.get('conversation_check')
+        if not isinstance(ref,str) or not ref.strip():raise ValueError('conversation check record required')
+        record=''.join(checked_file(root,ref).read_text(encoding='utf-8').split())
+        if not any(current+arrow+following in record for arrow in ('→','->')):raise ValueError('conversation check record has no entry for '+current+' → '+following)
     content_hash=artifact_digest(root,state['artifacts'])
     # Review/evidence files are projections of existing sources, not a new authority.
     if current in REVIEW[role]:
@@ -63,8 +71,16 @@ def check(root,state):
         if reply.get('request_id')!=req['request_id'] or reply.get('artifact_sha256')!=content_hash or set(reply.get('scope',[]))!=set(scope):raise ValueError('reply is stale or partially scoped')
         evidence=checked_file(root,reply['source'])
         if not evidence.read_text().strip():raise ValueError('response source is empty')
+    need=UPSTREAM.get((role,current))
+    if need:
+        if not state.get('upstream'):raise ValueError('upstream review record required: %s %s'%need)
+        up=json.loads(checked_file(root,state['upstream']).read_text())
+        if (up.get('role'),up.get('current'))!=need:raise ValueError('upstream record is not the required review: %s %s'%need)
+        try:check(root,up,conversation=False)
+        except (ValueError,KeyError,TypeError) as e:raise ValueError('upstream review not confirmed or changed: '+str(e))
     result={'allowed':True,'role':role,'from':current,'to':following,'scope':scope,'artifact_sha256':content_hash,'limitation':'Validates records and files, not human identity or professional quality.'}
     if current in REVIEW[role] and person:result['confirmed_by']=person
+    if need:result['upstream']=state['upstream']
     return result
 
 def digests(root,paths):

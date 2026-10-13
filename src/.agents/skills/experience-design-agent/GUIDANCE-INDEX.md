@@ -22,4 +22,5 @@
 | R10 | [输入与边界](references/inputs-and-boundaries.md) | 接收资料；跨职责问题 | |
 | R11 | [工作状态](references/review-and-state.md) | 续做；记录确认；人的编辑 | |
 | R12 | [素材元素](references/assets.md) | D2 占位；D4–D6 素材 | |
+| R13 | [实现走查](references/walkthrough.md) | 研发请求实现走查 | |
 | T01 | [工作区模板](assets/design-workspace-template.md) | 创建设计文件时 | |

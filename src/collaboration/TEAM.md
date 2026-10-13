@@ -7,7 +7,7 @@
 - 名单放在 `collaboration/people.json`，由 BOSS 或项目负责人维护。项目使用外部成员管理系统时，以它同步过来的名单为准，各角色只读。
 - 每人必填 `id`（稳定的简单标识）与 `name`，按需填写：
   - `groups`：所属专业组；
-  - `decides`：对哪些流程有决定权，可选 project、product、design、engineering、solution；其中 project 是项目级决定权；
+  - `decides`：对哪些流程有决定权，可选 project、product、design、engineering、solution、build；其中 project 是项目级决定权；
   - `scope`：具体的决定或负责范围；
   - `clarifies`：能提供哪些事实；
   - `designates`：能指定哪些人或范围；

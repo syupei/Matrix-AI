@@ -117,6 +117,14 @@ class TeamTests(unittest.TestCase):
             self.assertIn(direction, project)
         self.assertIn('在等的人', (self.root / 'management/views/digest.md').read_text())
 
+    def test_project_page_links_to_professional_progress_source(self):
+        (self.root / 'engineering/build').mkdir(parents=True)
+        (self.root / 'engineering/build/01-增量计划.md').write_text('SIMULATED plan', encoding='utf-8')
+        self.create('E-9', title='增量构建', direction='研发·客户端', source='engineering/build/01-增量计划.md')
+        pm.render(self.root)
+        project = (self.root / 'management/views/project.md').read_text(encoding='utf-8')
+        self.assertIn('engineering/build/01-增量计划.md', project)
+
     def test_single_person_project_has_no_personal_views(self):
         (self.root / 'collaboration/people.json').write_text(json.dumps({'people': [{'id': 'me', 'name': '我'}]}))
         self.create('A', title='only task')

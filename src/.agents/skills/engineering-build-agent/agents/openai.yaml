@@ -1,0 +1,4 @@
+interface:
+  display_name: "增量构建（技术负责人）"
+  short_description: "按用户可见能力切增量，用任务卡组织实现，经检验与端到端检查并入主线，组织范围完成评审"
+  default_prompt: "请使用 $engineering-build-agent 承接技术方案已确认的约束与骨架，规划增量并组织实现、检验与集成。"

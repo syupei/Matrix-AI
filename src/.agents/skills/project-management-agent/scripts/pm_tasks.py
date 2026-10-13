@@ -149,7 +149,7 @@ def effective_done(t, tasks):
         return False
     if t['human_required'] and not (t.get('human_review') and t['human_review']['outcome'] == 'approved' and t['human_review']['basis'] == b):
         return False
-    return all(effective_done(tasks[d], tasks) for d in t['dependencies']) and all(x['state'] == 'cancelled' or effective_done(x,tasks) for x in children(tasks,t['id']))
+    return all(effective_done(tasks[d], tasks) for d in t['dependencies'] + t.get('completion_requires', [])) and all(x['state'] == 'cancelled' or effective_done(x,tasks) for x in children(tasks,t['id']))
 
 
 def counts(items, tasks):
@@ -175,6 +175,12 @@ def validation(t, tasks):
     require(type(t['expanded']) is bool, 'expanded must be boolean')
     for dep in t['dependencies']:
         require(dep in tasks and dep != t['id'], 'unknown or self dependency: ' + dep)
+    # Completion prerequisites: work may start before them, but cannot complete until they are done.
+    finish = t.get('completion_requires', [])
+    require(strings(finish), 'completion_requires must be a task id list')
+    require(len(finish) == len(set(finish)) and not set(finish) & set(t['dependencies']), 'duplicate completion prerequisite or also listed as dependency')
+    for dep in finish:
+        require(dep in tasks and dep != t['id'], 'unknown or self completion prerequisite: ' + dep)
     require(t.get('kind', 'work') in KINDS, 'kind must be work or stage')
     stage = t.get('stage')
     if stage is not None:
@@ -199,9 +205,10 @@ def validation(t, tasks):
             climb(up)
         path.discard(k)
     climb(t['id'])
-    # A parent completes after children. Include those edges to detect indirect
-    # deadlocks (child depends on its parent / an ancestor waits for itself).
-    graph = {k: list(v['dependencies']) + [x['id'] for x in children(tasks, k)] for k, v in tasks.items()}
+    # A parent completes after children and a task after its completion prerequisites.
+    # Include those edges to detect indirect deadlocks (child depends on its parent /
+    # an ancestor waits for itself / two tasks wait for each other to complete).
+    graph = {k: list(v['dependencies']) + list(v.get('completion_requires', [])) + [x['id'] for x in children(tasks, k)] for k, v in tasks.items()}
     visiting, visited = set(), set()
     def visit(k):
         require(k not in visiting, 'dependency/containment cycle')
@@ -223,6 +230,10 @@ def basis(t, tasks):
     data = {k: t[k] for k in ['work_revision', 'inputs', 'outputs', 'criteria', 'evidence', 'human_required']}
     data['dependencies'] = [(d, tasks[d]['work_revision'], tasks[d]['state']) for d in t['dependencies']]
     data['children'] = desc(t['id'])
+    if t.get('completion_requires'):
+        # Bound to the prerequisite's work version: accepted unchanged keeps this check valid,
+        # rework invalidates it. Omitted when empty so existing verification stays valid.
+        data['completion_requires'] = [(d, tasks[d]['work_revision']) for d in t['completion_requires']]
     return hashlib.sha256(canon(data).encode()).hexdigest()
 
 
@@ -252,6 +263,7 @@ def snapshot(db):
                            needs_recheck=t['state'] == 'done' and not effective_done(t,tasks),
                            ready=t['state'] == 'planned' and not reasons(t, tasks, cfg),
                            readiness_issues=reasons(t, tasks, cfg),
+                           completion_pending=[d for d in t.get('completion_requires', []) if not effective_done(tasks[d], tasks)],
                            review_current=bool(t.get('review') and t['review']['basis'] == basis(t, tasks)))
                       for t in tasks.values()]}
 
@@ -309,14 +321,14 @@ def execute(project, cmd):
                     require(tasks[parent]['state'] not in TERMINAL, 'closed parent; reopen explicitly first')
                     manager = tasks[parent]['owner']
                 require(actor == manager, 'only responsible manager may create this level')
-                allowed = {'id','parent','title','owner','checker','goal','inputs','outputs','criteria','dependencies','resources','slots','executor','human_required','expanded','next_action','source',
+                allowed = {'id','parent','title','owner','checker','goal','inputs','outputs','criteria','dependencies','completion_requires','resources','slots','executor','human_required','expanded','next_action','source',
                            'kind','stage','direction','people','derived_from','awaiting'}
                 require(set(data) <= allowed, 'unknown create fields')
                 after = dict(data, parent=parent, manager=manager, state='planned', revision=1,
                              work_revision=1, evidence=[], review=None, human_review=None,
                              created_at=now(), updated_at=now(), last_report=None,
                              reason='registered before execution')
-                for key, default in [('dependencies',[]),('resources',[]),('slots',1),('executor',None),('human_required',False),('expanded',False),('source',''),
+                for key, default in [('dependencies',[]),('completion_requires',[]),('resources',[]),('slots',1),('executor',None),('human_required',False),('expanded',False),('source',''),
                                      ('kind','work'),('stage',None),('direction',''),('people',{}),('derived_from',[]),('awaiting',[])]:
                     after.setdefault(key, default)
                 tasks[tid] = after
@@ -333,10 +345,10 @@ def execute(project, cmd):
                 if op == 'update':
                     require(after['state'] not in TERMINAL, 'reopen before editing terminal task')
                     changes = cmd['changes']
-                    allowed = {'next_action','evidence','executor','expanded','source','reason','title','goal','inputs','outputs','criteria','dependencies','resources','slots','human_required','checker'} | COORDINATION
+                    allowed = {'next_action','evidence','executor','expanded','source','reason','title','goal','inputs','outputs','criteria','dependencies','completion_requires','resources','slots','human_required','checker'} | COORDINATION
                     require(set(changes) <= allowed, 'immutable/unknown field')
                     require(nonempty(cmd.get('reason')), 'change reason required')
-                    if set(changes) & {'goal','inputs','outputs','criteria','dependencies','human_required','checker','people','derived_from'}:
+                    if set(changes) & {'goal','inputs','outputs','criteria','dependencies','completion_requires','human_required','checker','people','derived_from'}:
                         require(actor == after['manager'] or nonempty(cmd.get('scope_authorization')), 'scope/interface change needs manager authorization reference')
                     after.update(changes)
                     require(not before['human_required'] or after['human_required'] or nonempty(cmd.get('scope_authorization')), 'cannot silently remove human review')
@@ -368,6 +380,8 @@ def execute(project, cmd):
                     if state == 'done':
                         require(after['evidence'], 'deliverable evidence missing')
                         require(all(effective_done(tasks[d],tasks) for d in after['dependencies']), 'dependencies not complete/current')
+                        pending = [d for d in after.get('completion_requires', []) if not effective_done(tasks[d], tasks)]
+                        require(not pending, 'completion prerequisites not complete/current: ' + ','.join(pending))
                         require(all(x['state'] == 'cancelled' or effective_done(x,tasks) for x in children(tasks,tid)), 'child verification stale')
                         b = basis(after, tasks)
                         require(after['review'] and after['review']['basis'] == b and after['review']['outcome'] == 'passed', 'current professional verification required')
@@ -489,16 +503,22 @@ def render(project):
     def done(t):
         return t['state'] == 'done' and not t['needs_recheck']
     def waiters(t):
-        # Open tasks that cannot proceed until this one is done.
+        # Open tasks that cannot start until this one is done.
         return [x for x in tasks.values() if t['id'] in x['dependencies'] and x['state'] not in TERMINAL]
+    def finishers(t):
+        # Open tasks that may proceed but cannot complete until this one is done.
+        return [x for x in tasks.values() if t['id'] in x.get('completion_requires', []) and x['state'] not in TERMINAL]
     awaiting = [(t, a) for t in tasks.values() if t['state'] not in TERMINAL for a in t.get('awaiting', [])]
-    awaiting.sort(key=lambda ta: (-len(waiters(ta[0])), ta[0]['id']))
+    awaiting.sort(key=lambda ta: (-len(waiters(ta[0])) - len(finishers(ta[0])), ta[0]['id']))
     def awaiting_line(t, a, prefix='tasks/'):
         blocked = waiters(t)
         line = f"- {tlink(t, prefix)}：{who(a['person'])}（{RELATION_NAMES[a['action']]}）{esc(a['item'])}"
         if a.get('ref'):
             line += '；查看：' + link(a['ref'])
-        return line + ('；阻塞：' + '、'.join(esc(x['title']) for x in blocked) if blocked else '') + '\n'
+        finishing = finishers(t)
+        line += '；阻塞：' + '、'.join(esc(x['title']) for x in blocked) if blocked else ''
+        line += '；影响完成：' + '、'.join(esc(x['title']) for x in finishing) if finishing else ''
+        return line + '\n'
     summary = data['top_level']
     head = f"# 项目任务总览\n\n只读派生视图。任务事实由 `management/runtime/tasks.sqlite3` 维护；专业内容仍在原源。\n\n项目：{esc(data['config']['project'])}。读取时间：{data['observed_at']}。事件修订：{data['revision']}。\n\n顶层完成 {summary['done']}/{summary['total']}，剩余 {summary['remaining']}；仅统计已登记范围，未登记远期不计入。\n\n另见：[全程计划表](plan.md)｜[项目总入口](project.md)｜[群摘要](digest.md)\n\n"
     head += '| 编号 | 任务 | 责任方 | 状态 | 本层子项 | 下一步 | 详情 |\n|---|---|---|---|---|---|---|\n'
@@ -539,6 +559,8 @@ def render(project):
         body+=f"- 直接子项：完成 {c['done']}/{c['total']}，剩余 {c['remaining']}；{'本轮已展开' if t['expanded'] else '尚未声明完整展开'}。\n"
         for key,label in [('inputs','输入'),('outputs','关键交付物'),('criteria','完成条件'),('dependencies','依赖'),('evidence','成果证据')]:
             body+=f'\n{label}：\n\n'+''.join('- '+link(x)+'\n' for x in t[key])
+            if key == 'dependencies' and t.get('completion_requires'):
+                body+='\n完成前置（可以先开始，完成前须已完成）：\n\n'+''.join(f"- [{d} {esc(tasks[d]['title'])}]({d}.md)：{state_of(tasks[d])}\n" for d in t['completion_requires'])
         if t.get('last_report'):
             body+='\n最后上报：\n\n'+esc(canon(t['last_report']))+'\n'
         if t['needs_recheck']:
@@ -602,7 +624,7 @@ def render(project):
     for t in children(tasks, None):
         if t.get('kind') != 'stage':
             directions.setdefault(t.get('direction') or '未分类', []).append(t)
-    proj = f"# 项目总入口\n\n只读派生视图，读取时间：{data['observed_at']}。每个子方向一行；成果与状态取自任务源，专业内容在各工作区。\n\n| 子方向 | 负责的人 | 进行中 | 最新完成与证据 | 在等谁 |\n|---|---|---|---|---|\n"
+    proj = f"# 项目总入口\n\n只读派生视图，读取时间：{data['observed_at']}。每个子方向一行；成果与状态取自任务源，按维度的详细进度在各角色的专业源。\n\n| 子方向 | 负责的人 | 进行中 | 最新完成与证据 | 在等谁 | 详细进度 |\n|---|---|---|---|---|---|\n"
     for name in sorted(directions):
         items = directions[name]
         owners = sorted(set(p for x in items for r in ('decide', 'execute') for p in x.get('people', {}).get(r, [])))
@@ -610,7 +632,8 @@ def render(project):
         finished = sorted([x for x in items if done(x)], key=lambda x: x['updated_at'], reverse=True)
         latest = '；'.join(esc(x['title']) + (' ' + link(x['evidence'][0]) if x['evidence'] else '') for x in finished[:2]) or '—'
         waiting = sorted(set(a['person'] for x in items for a in x.get('awaiting', []) if x['state'] not in TERMINAL))
-        proj += f"| {esc(name)} | {'、'.join(who(p) for p in owners) or '—'} | {'；'.join(tlink(x) + '（' + state_of(x) + '）' for x in active[:3]) or '—'} | {latest} | {'、'.join(who(p) for p in waiting) or '—'} |\n"
+        sources = sorted(set(x['source'] for x in items if x.get('source')))
+        proj += f"| {esc(name)} | {'、'.join(who(p) for p in owners) or '—'} | {'；'.join(tlink(x) + '（' + state_of(x) + '）' for x in active[:3]) or '—'} | {latest} | {'、'.join(who(p) for p in waiting) or '—'} | {'、'.join(link(s) for s in sources) or '—'} |\n"
     atomic(local(root,'management/views/project.md'),proj)
     written.append('project.md')
 
@@ -646,6 +669,12 @@ def render(project):
             for x in waiters(t):
                 if x['id'] not in ids:
                     neighbours.setdefault(top(x)['id'], set()).add('它在等你的「' + t['title'] + '」')
+            for d in t.get('completion_requires', []):
+                if d not in ids:
+                    neighbours.setdefault(top(tasks[d])['id'], set()).add('你的「' + t['title'] + '」完成前需要它')
+            for x in finishers(t):
+                if x['id'] not in ids:
+                    neighbours.setdefault(top(x)['id'], set()).add('它完成前需要你的「' + t['title'] + '」')
         text += '\n## 因依赖显示（只列上层任务）\n\n' + (''.join(f"- {tlink(tasks[k], prefix)}（{state_of(tasks[k])}）：{esc('；'.join(sorted(v)))}\n" for k, v in sorted(neighbours.items()) if k not in ids) or '- 无\n')
         text += '\n## 你负责的环节\n\n' + (''.join(f"- {tlink(t, prefix)}：{'、'.join(RELATION_NAMES[r] for m in members for r in rels(m, t) if r != 'inform')}；{state_of(t)}\n" for t in sorted(mine, key=lambda t: t['id'])) or '- 无\n')
         informed = [t for t in tasks.values() if t['id'] not in ids and any(rels(m, t) == ['inform'] for m in members)]
