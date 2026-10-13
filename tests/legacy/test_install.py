@@ -92,7 +92,7 @@ class InstallTests(unittest.TestCase):
 
     def test_all_roles_installed_without_runtime_initialization(self):
         result=mod.install(self.root,True)
-        for role in ['product-agent','experience-design-agent','engineering-intake-agent','engineering-solution-agent','engineering-build-agent','quality-verification-agent','project-management-agent','professional-agent-collaboration','content-design-review','product-capability-model']:
+        for role in ['project-front-desk-agent','product-agent','experience-design-agent','engineering-intake-agent','engineering-solution-agent','engineering-build-agent','quality-verification-agent','project-management-agent','professional-agent-collaboration','content-design-review','product-capability-model']:
             self.assertTrue((self.root/'.agents/skills'/role/'SKILL.md').is_file())
         self.assertFalse(result['runtime_initialized'])
         self.assertFalse(list(self.root.rglob('*.sqlite3')))
@@ -133,7 +133,7 @@ class InstallTests(unittest.TestCase):
 
     def test_all_six_fresh_guidance_indexes_installed(self):
         result=mod.install(self.root,True)
-        roles=['product-agent','experience-design-agent','engineering-intake-agent','engineering-solution-agent','engineering-build-agent','quality-verification-agent','project-management-agent','professional-agent-collaboration','content-design-review']
+        roles=['project-front-desk-agent','product-agent','experience-design-agent','engineering-intake-agent','engineering-solution-agent','engineering-build-agent','quality-verification-agent','project-management-agent','professional-agent-collaboration','content-design-review']
         for role in roles:
             rel=Path('.agents/skills')/role/'GUIDANCE-INDEX.md'
             self.assertEqual((self.root/rel).read_bytes(),(KIT/rel).read_bytes())

@@ -287,7 +287,7 @@ def execute(project, cmd):
                 result = {'events': [{k: json.loads(r[k]) if k in {'command', 'before_data', 'after_data', 'result'} and r[k] else r[k] for k in r.keys()} for r in rows]}
             db.commit()
             return result
-        require(op in {'init', 'create', 'update', 'transition', 'review', 'human_review', 'report', 'handoff'}, 'unknown operation')
+        require(op in {'init', 'configure', 'create', 'update', 'transition', 'review', 'human_review', 'report', 'handoff'}, 'unknown operation')
         require(nonempty(cmd.get('event_id')) and nonempty(cmd.get('actor')), 'event_id and actor required')
         db.execute('BEGIN IMMEDIATE')
         old = db.execute('SELECT command,result FROM events WHERE event_id=?', (cmd['event_id'],)).fetchone()
@@ -305,6 +305,15 @@ def execute(project, cmd):
             require(cmd['actor'] == cfg['pm_actor'], 'init actor must be PM')
             db.execute('INSERT INTO meta VALUES (?,?)', ('config', canon(cfg)))
             result = {'initialized': True, 'schema': SCHEMA}
+        elif op == 'configure':
+            # The front desk faces people; PM may let it record their real decisions.
+            cfg = config(db)
+            require(cmd['actor'] == cfg['pm_actor'], 'only PM configures the coordination entry')
+            desk = cmd.get('frontdesk_actor')
+            require(desk is None or (nonempty(desk) and desk != cfg['pm_actor']), 'frontdesk_actor must be a distinct actor or null')
+            cfg['frontdesk_actor'] = desk
+            db.execute("UPDATE meta SET value=? WHERE key='config'", (canon(cfg),))
+            result = {'configured': True, 'frontdesk_actor': desk}
         else:
             cfg, tasks = config(db), task_map(db)
             people = roster(root)
@@ -402,7 +411,7 @@ def execute(project, cmd):
                     after['review'] = {'basis':basis(after,tasks),'checker':actor,'outcome':cmd['outcome'],'evidence':cmd['evidence'],'at':now()}
                 elif op == 'human_review':
                     require(after['state'] not in TERMINAL, 'reopen closed task before new human decision')
-                    require(actor == cfg['pm_actor'], 'unified frontdoor records human decisions')
+                    require(actor in {cfg['pm_actor'], cfg.get('frontdesk_actor')} - {None}, 'unified frontdoor records human decisions')
                     require(cmd.get('outcome') in {'approved','changes_requested','deferred'}, 'invalid human decision')
                     require(all(nonempty(cmd.get(k)) for k in ['presented_ref','source','quote','scope']), 'actual presentation, reply source, exact quote and scope required')
                     person = cmd.get('person')
@@ -633,7 +642,7 @@ def render(project):
         latest = '；'.join(esc(x['title']) + (' ' + link(x['evidence'][0]) if x['evidence'] else '') for x in finished[:2]) or '—'
         waiting = sorted(set(a['person'] for x in items for a in x.get('awaiting', []) if x['state'] not in TERMINAL))
         sources = sorted(set(x['source'] for x in items if x.get('source')))
-        proj += f"| {esc(name)} | {'、'.join(who(p) for p in owners) or '—'} | {'；'.join(tlink(x) + '（' + state_of(x) + '）' for x in active[:3]) or '—'} | {latest} | {'、'.join(who(p) for p in waiting) or '—'} | {'、'.join(link(s) for s in sources) or '—'} |\n"
+        proj += f"| {esc(name)} | {'、'.join(who(p) for p in owners) or '—'} | {'；'.join(tlink(x) + '（' + state_of(x) + '；执行：' + esc(x.get('executor') or '未登记') + '）' for x in active[:3]) or '—'} | {latest} | {'、'.join(who(p) for p in waiting) or '—'} | {'、'.join(link(s) for s in sources) or '—'} |\n"
     atomic(local(root,'management/views/project.md'),proj)
     written.append('project.md')
 

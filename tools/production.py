@@ -54,7 +54,7 @@ def check_evidence(report,files):
  if data.get('baseline_ref')!=baseline:raise ValueError('wrong baseline version')
  prior=ROOT/'release-manifests'/(baseline+'.json')
  if not prior.exists():prior=ROOT/'packages'/baseline/'MANIFEST.json'
- baseline_hash=fingerprint(json.loads(prior.read_text())['files'])
+ base_files=json.loads(prior.read_text())['files'];baseline_hash=fingerprint(base_files)
  if data.get('baseline_hash')!=baseline_hash:raise ValueError('wrong baseline source')
  if set(data.get('cases',{}))!=set(expected):raise ValueError('missing/extra behavior cases')
  runners=set()
@@ -79,6 +79,13 @@ def check_evidence(report,files):
    runners.add(run['runner'])
    records=[r for r in run['cases'] if r['id']==cid]
    if len(records)!=1 or [t['user'] for t in records[0]['turns']]!=specs[cid]['turns']:raise ValueError('actual user turns incomplete')
+   reuse=records[0].get('reused_from')
+   if reuse:
+    # Carried over from the previous release's run: allowed only for a role whose files are unchanged.
+    if side!='candidate' or reuse.get('source_hash')!=baseline_hash:raise ValueError('reused evidence must come from the baseline release: '+cid)
+    prefix='.agents/skills/'+str(records[0].get('role',''))+'/'
+    old={k:v for k,v in base_files.items() if k.startswith(prefix)};new={k:v for k,v in files.items() if k.startswith(prefix)}
+    if not records[0].get('role') or not new or old!=new:raise ValueError('reused evidence for a changed role: '+cid)
    for turn in records[0]['turns']:
     reply=(run_path.parent/turn['reply']).resolve();events=(run_path.parent/turn['events']).resolve()
     if str(reply) not in paths or str(events) not in paths or sha(reply)!=turn['sha256']:raise ValueError('actual turn output missing')

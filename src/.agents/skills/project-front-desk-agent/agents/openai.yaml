@@ -1,0 +1,4 @@
+interface:
+  display_name: "项目前台"
+  short_description: "主对话入口：启动检测、按需拉起角色，按文件回答问询，登记并转交要求，展示待决事项"
+  default_prompt: "请使用 $project-front-desk-agent 作为本项目的主对话：先做启动检测，再按项目文件回答问询、登记并转交要求。"

@@ -26,6 +26,27 @@
   "1ababc62959e232e97a27251d166a01c18195fc273b74b7727b4b5de2383e05c",
   "df678746cd9851564ded86d4637cd15a46bb3f8fbcae261a228a769b90d20da9"
  ],
+ ".agents/skills/engineering-build-agent/GUIDANCE-INDEX.md": [
+  "8b1371898eb2faf69ed3540195ba355f57b12edbd4ab423ffcbaf92223f90eca"
+ ],
+ ".agents/skills/engineering-build-agent/SKILL.md": [
+  "ee3e567ce5f8735b0c66fdeeb00091404e4012c76b8574d12d6784b52e1eacae"
+ ],
+ ".agents/skills/engineering-build-agent/agents/openai.yaml": [
+  "5e3c03f2645aa25063ce7ed28d5f7f43603459e6437a0443bf7a82a3a95e753c"
+ ],
+ ".agents/skills/engineering-build-agent/assets/build-workspace-template.md": [
+  "bfac18987ee956e948b81799ec3798309adc560dd4aaf98ececf7d1cf3e7cf3f"
+ ],
+ ".agents/skills/engineering-build-agent/references/increments.md": [
+  "4ac3aa1a6897012565ec1573cfd500ff5c9607063692caea7e05fca75aa2a831"
+ ],
+ ".agents/skills/engineering-build-agent/references/scope-complete.md": [
+  "451e53452231a4e049f6f92edf43cee50e6c1f3bb68d1d214adf44bafc754eec"
+ ],
+ ".agents/skills/engineering-build-agent/references/verification.md": [
+  "f9409cbab5918721a79ae43a688fe2c87547f80b61288276f707557ae3d045cf"
+ ],
  ".agents/skills/engineering-intake-agent/GUIDANCE-INDEX.md": [
   "1639c4fabb82d72b9d76c4feb26789dc363d5cc6d94693ebd1ac661fbd594062",
   "40ba70d8d3a276e69d21148f8d9bd0b9c915a4d461a3bd7a16656a61467e26a3",
@@ -41,6 +62,7 @@
   "847c46f34fa38fa76afc8dd24dedf9fd9c0cf210b820430b190e2eef7c25104b",
   "8512e64efdba189c4bb5bcaaf1321c57e44842d2e218218e9881dee9ece58495",
   "9223323fabb8227fc683d841c58dfdf00229de961aa83e36cbcddb3f4d6ee7da",
+  "a59b4c1e4b4b393dd5d47bb5007bf07aaee74384e05d69436e396de5a5f1b18c",
   "c77ddfe333a557c47b67404a6c480425ac21a645d97f4d99181ceced4192f8ef",
   "d1654ccc2b449f5c198768d05a615eea3de61941c80ba62b21e5664ee5906535",
   "e1487534fdeaf23559325d29e476e7973afd0004cee7770ae61c48f349f606c9",
@@ -50,6 +72,7 @@
   "750a52d4ca6a64fb3ce16e89ee97161b2af69c2d849cc4023165834577b2f00d"
  ],
  ".agents/skills/engineering-intake-agent/assets/engineering-workspace-template.md": [
+  "166199a711ff18bab6561abe87e6bbbca8be9f0a0cb4ae591980d230967a7e86",
   "8b342f422d640796d868cc380d257dfe804ca8f3b8e03d4b9112a9bdf49bb994",
   "93ac4f06ebcc67a017207d4f3dfa9232339471e90d0933484b68784d31023695",
   "b56214d067a5935e8ec025a984a403189ed16ac6b14308c35f07ac98294e21f3",
@@ -71,7 +94,8 @@
   "8d9aaf7b914462154e42b7474ace6675570157322286d1393e29716d53bf17d2",
   "c1360f637c7ec29e8d73e22e07af19b6c8f7385972c3f4da935ec0274cd319f9",
   "ebbaf18642e78a25636917f908fe419034fbfd0ff65b64e222c183c3fd50348a",
-  "ebfe7a172516b09ab35a40fa82eef17856ab632d3aff66ded505ae1f62d364cd"
+  "ebfe7a172516b09ab35a40fa82eef17856ab632d3aff66ded505ae1f62d364cd",
+  "fd4570556f6a053027612422349a59600c3964fa1ce1534cd5ebcaa6b4f24641"
  ],
  ".agents/skills/engineering-intake-agent/references/review-and-handoff.md": [
   "26423782190e94ed2cb192b24f57dfb4f6f506f792514c9490463b2b09c809a7",
@@ -86,10 +110,12 @@
   "f8746944acc435fec8b663a360e5f45b690e91faa90b14f298cd7dd331089748"
  ],
  ".agents/skills/engineering-solution-agent/GUIDANCE-INDEX.md": [
+  "2b51c3e9f197485a808d66cf03cb47ef36e0b97debfc62b119ef9e6132afed51",
   "75067c699ec90f5a08d885af759679dbea4bea91a075041546aef1d324c8cb2f"
  ],
  ".agents/skills/engineering-solution-agent/SKILL.md": [
   "16914436f272dddceae5bf5b12f0b025b5dd68dfbdbc8da66e2f275cf78bd339",
+  "3e0a50b454f8fbd8c225b6bf887088f0af1a958e654b950842db46d44cae0e15",
   "ad22aadf090c4106305d92096cfb16dd5f5bf7d089e97fa0578b2444c2fc3aab"
  ],
  ".agents/skills/engineering-solution-agent/agents/openai.yaml": [
@@ -97,20 +123,25 @@
  ],
  ".agents/skills/engineering-solution-agent/assets/solution-workspace-template.md": [
   "7a1906057f312d0ff7ab441e327d58d79431da9990a0fc6019d2733dcdcc5d88",
-  "d3739034d8a228a545e445f03c7a6bb381fc7deda6c441a0b3041008d56f9317"
+  "d3739034d8a228a545e445f03c7a6bb381fc7deda6c441a0b3041008d56f9317",
+  "da51130833fe226d6d8ebd0ab3e21f4f236313e28458c719b2b2039b60d7bd3c"
  ],
  ".agents/skills/engineering-solution-agent/references/decisions.md": [
-  "5e4751ae114b23e1bfe924a03828ca73c583f13881cf6aea84628b1df6c2ddd1"
+  "5e4751ae114b23e1bfe924a03828ca73c583f13881cf6aea84628b1df6c2ddd1",
+  "bfc860fa3b808b598d938b2543df1a2a095710e580aac0f73294fba7c2e3e9bc"
  ],
  ".agents/skills/engineering-solution-agent/references/proof-and-skeleton.md": [
+  "460434661700f760bec432e63e46ec9023a01d5f6b348ea535cd8f37d2ae09ea",
   "e41be3402a85a4b4ce110e0e2c6e1e312c462a7c6cdc101aeb5f68273d0e6720"
  ],
  ".agents/skills/engineering-solution-agent/references/technical-review.md": [
   "95d3296dacc377bcd4e45538844b2af7bdd5d2400a31d4fddacd93d74cd70f06",
+  "a039aff9d57a87cbe10a545172e15c9bbfccd4dcef576dbd5057f9bbf602fca8",
   "a281e73006ae9499a28e05900e2cbe8ff17234a882ecead84a05cd1413cf22e4"
  ],
  ".agents/skills/experience-design-agent/GUIDANCE-INDEX.md": [
   "11891fc373569bbac00706273fb0a49234c6a752a963f94089394b327a0b7bbd",
+  "33215bccffd5d38b1555e21360b1f2f40ecbd2e7cd09050790f574d1ab5ad120",
   "3cab26d510acb8107963992b214d6abcff8b990c052a72ff962ccc332006da6c",
   "3ccaff9a52a1bc1ca4bddbe565ff4f9fcf23e7a0de6f98436977c39c430eedb1",
   "40a0cff693b897a02198142d6353b4e665f39c7dd430752b5d434ad603a8d99a",
@@ -123,6 +154,7 @@
   "da50b964ec4d657f86fa55eb6c1ad0d9b9a5711e608d8ffe6812c1ae3cacfbca"
  ],
  ".agents/skills/experience-design-agent/SKILL.md": [
+  "0cb448601d0ab85a4e656b35cad3f99299972249169c9609604fe10bcb4d2688",
   "10bc485558a2b921596f7dd73f39807f016a63aa67df4348d5f079db7e4bf627",
   "294ac93fcf9a47b6e1b8b0f7d28bf788fe6dddf3cdd6708c94d601eb3a7f9e08",
   "35ab94f105099c38b640ba0fbe05cfec892a24f76530a127cdf933c5d6e4994c",
@@ -154,6 +186,7 @@
   "30a2f971aa4e4f14cfee106099d86c92b6608314d8d820e0395235865a7599e2",
   "36fdc079c1d71377c710988835da23ffb5132dd895fa32664931abbf70731e1b",
   "3f5183ab237662759eaaeff43c8965a36cf0d9649537a555f2e7f1e20175a522",
+  "4ef590a534a89549c01029bb4d42a60ff344c507f271f63f7b3805e3db00d6b9",
   "51d3e00c67193d2e474e0c36a5375b525871b27540d2934ed4ed8bc679d7e214",
   "571a26c0de8f80fd2ad33fbe426272e46d423dd3272f1335b96c1a92263de358",
   "5d5e198abceced2393438ce899154a6dd6c6cad0db47323c7310a2440361f84a",
@@ -170,7 +203,8 @@
  ],
  ".agents/skills/experience-design-agent/references/assets.md": [
   "773fddcaa915da0cc42201c078833555d60020b9b08e1f99295500b82d98c4b9",
-  "ac748e3ff45573c93c1e783a57d31de5e5e9c83d86c1d78b0b607b95bf81a70f"
+  "ac748e3ff45573c93c1e783a57d31de5e5e9c83d86c1d78b0b607b95bf81a70f",
+  "da220b15e72a0922519cfc4dc68978238c60e8b518f554a66da5a87700592f8d"
  ],
  ".agents/skills/experience-design-agent/references/capability-index.md": [
   "b44a5128493ac4d091678d470439909ffde52113ee06b4e3285f171a2029f231",
@@ -241,6 +275,7 @@
   "6ae9599d198f6f6662a9ab9e8754c0f6bd4ad9378b901bd8cd021239385c479e",
   "72c8de44bb73c82ca2aa286235606128c8216abd2a5b43dc8cdfd0e3e7c1d04e",
   "739b18bc764746e09b3c3c2e34f210adb60d53df89916ccf359cb3e4af233c24",
+  "eaacb031949e1312b4364dfe2da3916521bae7b7208bcaeaecacc9400ae4e58c",
   "f6206c5d75236c72e140e576d945449a8103b41539d5ad416bcb3bc4f9068b00"
  ],
  ".agents/skills/experience-design-agent/references/quality-samples-and-media.md": [
@@ -297,6 +332,9 @@
   "a3b0e7b25f2caefdf28cf13a46fafbea48804f711a527631c4a3a010b0099ce5",
   "f72ad0252ddba93af0f3ff91b61eb9e5bff29a252bc71291a9690d6ff1918339",
   "fd224d30367229dc711afe19e738fc8a00c8527507ac5c50565cbb0125097fb9"
+ ],
+ ".agents/skills/experience-design-agent/references/walkthrough.md": [
+  "9ece0afd2b603ee1f71644cdb855042bcd4dd3bc561e0d03b1631cb1ae46fc8b"
  ],
  ".agents/skills/experience-design-agent/references/workflow.md": [
   "08d17e6445b3ad25787b10e88627e5e83ce14a788c5bbe66806a4d2101a9d29e",
@@ -828,6 +866,7 @@
   "27f5f92e4fe79b12a8f180d25d4ae4f9c3a22d3bf037a732262fa104e000a5f2",
   "3f8919c18e2d3f72fcdd7160dba2d5ac48013245a4eefb14f9d5e6344ea13d67",
   "464f0c214235e5f8ae90af834e9171552586c94245fecb517af8499c02e5e98f",
+  "59b752cdcce9b0aa4f73b9cecbc607adbea7b63dc664119210a3dd940d5c8c42",
   "6dd3fd12cbcb1fcb56eaac7f72fa5a28c2dc2fd491ba1043f803399131549416",
   "6e3b0052a5f4ccb0276fee9e3dfafd46635c3bb4feeda02ccba2427d451ea96b",
   "866d95013ec666ee49fb8ef937517aab5c331d6af1448b5f6c5350e281e57382",
@@ -840,12 +879,14 @@
  ".agents/skills/project-management-agent/references/task-runtime.md": [
   "464f8a21668482d147a2bb6a1e575f09bc83dd5428436e81d3311a6a0edbf106",
   "4d30e94b89e44a3aec86dadf2de9a7040227b9d323a269598d13796008163380",
+  "808f0de885c35b78f449717501da1d31134f38d7c9fa2f5e53921d8bea8ef954",
   "a32a2b91656dc25e6f815f8a0b7b626c30c6ab3c17cd7266403bc4036333f165"
  ],
  ".agents/skills/project-management-agent/references/workflow.md": [
   "018021ef02e249be6cd9c1cc0eda3eae8854bf285f43ea7a8998a3aaa64fe2e3",
   "0aabbdf42d8f9076f5c83b6846dc1fa00e806c052c84eea42973f5b5cf89ab52",
   "2a9a5eae485f981d4602229220181d2bad3ce044241f10832748e87823ba5a59",
+  "5b07483f8a4a084650d3d14111ad8484055254e74bf64ae35e96d9ae64d6238c",
   "69eb19f4777434a0cf9336b5af9d1c749fd9cbc5951eb6eaf54a4bc1f3a4144e",
   "9501ed1beef0b762633ebbff2c368149b23a73bd36b61d8e13f827db4aec7dc7",
   "b8db363c4b45f67f23744a70fc51451ea7707ede996f83fd9ec6d441ed6c7c03",
@@ -853,8 +894,30 @@
   "cb1cd2bce282e865f80af4ab06d1f2aca4535e5252deb481d385a72397808da3"
  ],
  ".agents/skills/project-management-agent/scripts/pm_tasks.py": [
+  "3806bd954d1ef9285838c039ece0778bbc3606935e1c11af123e2b1eacfb0c0c",
   "53c75aaafe0ef5f2ba2919e7d1c96d0cbb4a3ee2aab49cec10842a004dc61eeb",
   "667ce805d12d591665b100f0bb4b92439442d0f4dfe622b848877c30c17e41db"
+ ],
+ ".agents/skills/quality-verification-agent/GUIDANCE-INDEX.md": [
+  "f1cb8fe410beb140f8775a84981178e3776e8aa1cfed520057ce8d577dbe4830"
+ ],
+ ".agents/skills/quality-verification-agent/SKILL.md": [
+  "c331f9f828c3aa9b4e6644569afebd24c77556c78acf51d0f21683943de79543"
+ ],
+ ".agents/skills/quality-verification-agent/agents/openai.yaml": [
+  "d7a101015814631d35eb937dfe78a9be220e8c56307c26664544c5b28bf3fb4a"
+ ],
+ ".agents/skills/quality-verification-agent/assets/qa-workspace-template.md": [
+  "581783ab3fe612ff1cae3ecc8febcbb1f6195c98546b114d929fdf9746728641"
+ ],
+ ".agents/skills/quality-verification-agent/references/acceptance.md": [
+  "135c603009b7c1607aac9d2ae64caf2713df1f7a96b04dc1bfc9c557cfe14f17"
+ ],
+ ".agents/skills/quality-verification-agent/references/defects.md": [
+  "9cbb10d261f68427b0fe6616833735622b1c25c48c6daf719a9d1e879b5d2504"
+ ],
+ ".agents/skills/quality-verification-agent/references/verification.md": [
+  "2f6ad22e11b041016157f7edebaa3f79a2d2ac1f6a197622cb6a813bf4828946"
  ],
  "DEMO-TEST.md": [
   "459e4680734afb9112aab62e0f46482a6c0fa4fef37383a5c38bdf362b817448"
@@ -874,6 +937,7 @@
  "collaboration/CONTRACT.md": [
   "2e8a89e06ff1a50118e6cd6641a2059bc3880c843bb2e350183d64e9d175ebf3",
   "5b831fb17f50d940fb6ae4d23c9a2c8ee2ca18f7c5c1acd1c6ebb7bb53fcb5c3",
+  "7a02faeab7772c80db2bcd83c03b84c70a6b9ba5214173d14f745d3d99283585",
   "90037a29eacfffdc09fcaa01324d284323b36b33200847789760f7553bb65882",
   "cc592e68c5612e9c16762693044622381fedd4146f44630ff8e05ae61cc253c8"
  ],
@@ -888,10 +952,12 @@
   "02d2abbcd430cce36de8207cfb808e3f86acffdaba59fc37d6cb2836e74567a9",
   "32e5bead2ca18123f4128c77f305656acb262608da0a4021164f619e657ce628",
   "4826ca90f207b740f5570df6ed5203858326d786c8603fd9be75d0eedccd9a24",
+  "c5f36bea2c821fb053fd45cc6c205e6f62f0cf17c3355c25af52db6f484c9105",
   "ecc34cc2867e9b4ac4918d828e71d17a94c180ff62be5f6a4fe36c78b4d0848a"
  ],
  "collaboration/ENGINEERING-FLOW.md": [
   "994d4be71d8ddc4eb09a440950510fdad098ba32266e8b856f266d3cbdb0202e",
+  "c7e6298786e9a7abc358af2085b3ae2833eb90cb31c75ed7f24ace8f552d6e48",
   "e569e153cf4fbaa0e09b9263e4c5610083b82f578f77051062dcb992f8187989"
  ],
  "collaboration/ENGINEERING-INTAKE-ROLE.md": [
@@ -903,7 +969,8 @@
   "07b6020188015222aaa3cf7a0082b94c99a52929733f9a9bd60ece10fe405033",
   "736e661cb5bb355e4e86efa84165bf302e78afb24be4aa341f1ddb7242ffb3c9",
   "7531574307babbed84853d4f0f42f00350e72edc57364da4e624e36408c0545d",
-  "90b9eb071725c98efbcd0716785ff51bded4095e1e36923a8583eb5873465961"
+  "90b9eb071725c98efbcd0716785ff51bded4095e1e36923a8583eb5873465961",
+  "fb176cfcdef50448786e686aa771eb3a62e4cadd6612eb7e5f8cc05030a0fbad"
  ],
  "collaboration/GUIDANCE-RESOLUTION.md": [
   "5adf0019b0f31943dd1ba81139e9acee81078ef1f98f5ba287bfa69e10c6e5e5",
@@ -911,6 +978,7 @@
  ],
  "collaboration/PM-REPORTING.md": [
   "1b8f4b7a01408d3bcfbae535389a43212aff7fef27f44f7fa399571ba2310949",
+  "31c6df4e5cb57cb19b8c785abf774ff54a33018624096defaa5457e171e6a2a9",
   "3f1b614b78ad96692a929d5b56d53093ddce8d98162823ae8778cb52e2d2bf03",
   "500c649d2376c7aa192a39b8aabc2c9e736d78e2f9fbbfa0103f9b0837eb02ee",
   "82b3b59b19703b8ce58c4ab31df54737d7c6648261353f97a58314b5ec62682c",
@@ -942,6 +1010,7 @@
   "42d86a9575a089539418336815e9ee6ef28069f51c57b6e22269573812410230",
   "4dc3ac774aa064e616cef11d845423dd93220a408ff507acc8a0cb9ba5be8bfe",
   "abcb68c9bd82f6fdced3dcc428c2f1063fa395cde5ba2bdcecfceb88abd45db1",
+  "abceaaa7e09e638f703db03647c889726a5cec296154bc9df8484a2a4f026638",
   "b7fafb4ba5003d0770883d7773edd3f2c667f0801611a3cf774742def5f9818e",
   "bdd1cce043a13acd4e5a1cdb0d3d160fe2b66fe9367ee4cbd870893c5aa1af08",
   "c7e3101837b384611c90528578201d1f153c45a8d7e3c0839608616d46d59ce5",
@@ -955,10 +1024,12 @@
   "5ef5ec9d87b1b6c810411ab7546e9e923c5515beaf9910883ecab3207f2fec07",
   "5f088c34f80991ce943bc8b60bc67723bbc119700ca021399e419e9ed2e62dd6",
   "64a77021e6c84df9b87a05d4c79ea17f3c49c2b87e8f5ad257e73c5423b2beb2",
-  "f211e33a82832c92a635de8f277ac52104278d058335867b4abaafbc0761da93"
+  "f211e33a82832c92a635de8f277ac52104278d058335867b4abaafbc0761da93",
+  "fb67da3282be795c669360534c60c94b2f6345fafc57f12ac7bcd1075c17532a"
  ],
  "collaboration/STAGE-GATES.md": [
   "11608463e12bdf2db3255265390d9e0fc51b0940996ef2a34a8ba2133a7ebf12",
+  "a99f7c87487de1eb9299bc3a1a61931728ee669740ceb91481d15892aaa2cee9",
   "b1e56db3b2f950283e737e925dfc9f008af45d76e3b6a744a794e0dabc49a8b8",
   "d488b2d9405a83becc348a0dc684beca4e782c33a621deb442c4a5fbce8ce595",
   "dfc3f3e7b32af189dd58234e4332a7844f9e41c08c2027a69e5a9fc3c5b83040"
@@ -968,6 +1039,7 @@
   "68d142cd7e8fe5f5d5c3c62294ec1298a3aa301333711e815c0645a62d9d61d7"
  ],
  "collaboration/TEAM.md": [
+  "3cdd2c7a860c48165412b1a97ded7a73ebb1fc8d9ad3c8beab490b38343b0704",
   "7ad4d38961b253a5587183d543c08ec2b1da4ff19b0d845b67fb061b0bcb5103"
  ],
  "collaboration/USER-INTERACTION.md": [
@@ -976,6 +1048,7 @@
   "3e0572c59f7222257c5f6215d14a6466943bfd5e55c7351cbabc4a8b1361f234",
   "43c30693e67701c6b22fdbaaf00384d1210462d593ab8b4d78c724c02972d8ce",
   "586dfe156992c7ae265c88486ce52079d9ad8b50b414eeaf5499e5ed65a21dfc",
+  "597719b4dcac8999eff4b0f1440edb6b4e3f702fe639ea0ee9ddfecc59e550ba",
   "b8c27e1cb832456750cc75d2b3e0187f671610c18a6f3af26c4f9c60816b7862",
   "bb6d7146f0aec1803e81e419669cdf56470dceef0ceca5ac7dc20ef5d4de5519",
   "ced13250ec4b34f821377ec98f0fc339ae0e9350dd5e7ebe0746af1b626c5e40",
@@ -988,6 +1061,7 @@
  "collaboration/tools/stage_gate.py": [
   "0c9239ff01e04e99e7d43837a27d9790d0d3c677471cb3748981267e80521d2f",
   "a873f2a8ca10735ce4482d5636235a1085facad267e63ac1caa5f35b5f4113ec",
+  "dad34db36ca63b7cf274e5b98a9ed9850b1c668801fa06da4729c81992fb8ff5",
   "eb43df0da169bb7bb46b3f0ff4a67a86ecbe8762cf47077fd10e7eade125294f"
  ],
  "install.py": [

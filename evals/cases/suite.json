@@ -1,5 +1,5 @@
 {
- "version": "1.7",
+ "version": "1.8",
  "cases": [
   {
    "id": "intake",
@@ -459,6 +459,54 @@
     "marks_items_pending_review",
     "rewrites_from_current_source",
     "defines_regression_scope"
+   ]
+  },
+  {
+   "id": "desk_startup",
+   "role": [
+    "project-front-desk-agent",
+    "project-management-agent"
+   ],
+   "turns": [
+    "这是一个新项目：手机大富翁小游戏，后面产品、设计、研发都会参与，过程会很长。我希望各个角色分开运行，别把所有讨论都堆在这一个对话里。请先把项目开起来。"
+   ],
+   "criteria": [
+    "shows_stage",
+    "reports_host_capability",
+    "asks_one_time_authorization_or_falls_back",
+    "no_upfront_spawn"
+   ]
+  },
+  {
+   "id": "desk_status",
+   "role": [
+    "project-front-desk-agent",
+    "project-management-agent"
+   ],
+   "turns": [
+    "现在项目进展怎么样？设计做到哪了？我这周要做什么？"
+   ],
+   "criteria": [
+    "shows_stage",
+    "answers_from_files_only",
+    "states_gaps_and_sources",
+    "no_scheduling_or_judgment"
+   ]
+  },
+  {
+   "id": "desk_new_request",
+   "role": [
+    "project-front-desk-agent",
+    "project-management-agent"
+   ],
+   "turns": [
+    "我刚想到两件事：大富翁里要加一个好友排行榜；另外商店里的道具价格太贵了，便宜一半吧。"
+   ],
+   "criteria": [
+    "shows_stage",
+    "registers_and_routes",
+    "does_not_change_sources",
+    "states_who_decides"
    ]
   }
  ],

@@ -1,11 +1,12 @@
-# professional-agents-kit 0.22
+# professional-agents-kit 0.23
 
-一组中文专业 Agent skill：从一句话需求出发，按产品 → 交互与视觉设计 → 研发（承接与建模、方案与验证、增量构建、质量验证）的专业流程推进，由 PM 统筹，由协作 skill 处理跨角色问询。每个角色保留自己的阶段、人审节点和成果；人始终掌握关键决定。
+一组中文专业 Agent skill：从一句话需求出发，按产品 → 交互与视觉设计 → 研发（承接与建模、方案与验证、增量构建、质量验证）的专业流程推进，由项目前台面对人、PM 在后台统筹，由协作 skill 处理跨角色问询。每个角色保留自己的阶段、人审节点和成果；人始终掌握关键决定。
 
 ## 包含什么
 
 | skill | 作用 |
 | --- | --- |
+| project-front-desk-agent | 项目前台：主对话入口，启动检测并按需拉起角色，按文件回答问询，登记并转交要求，展示待决事项 |
 | project-management-agent | 统筹：顶层任务、依赖、子任务上报、集中人审、进度视图 |
 | product-agent | 产品：澄清、目标与范围、对象与规则、功能流程、体验要求、评审与交付（S1–S7） |
 | experience-design-agent | 交互与视觉设计：设计基础、粗结构、细交互、代表视觉、完整设计、验证与交付（D1–D7） |
@@ -61,6 +62,7 @@ python3 install.py --target "<项目路径>" --skills-dir .claude/skills --entry
 - **已有成果的项目**：让当前负责角色读取本角色 skill 和 `collaboration/CORE.md`，从当前有效阶段继续；保留有效确认与人的修改，只补受影响的范围，不重新访谈。
 - **项目调整**：在各 skill 的 `GUIDANCE-INDEX.md` "项目说明"列写补充、替换或停用（见 `collaboration/GUIDANCE-RESOLUTION.md`）。
 - **多人参与**：在 `collaboration/people.json` 登记参与的人及其决定权（格式见 `collaboration/TEAM.md`；可由你们的成员管理系统同步）。之后 PM 会把事项发给对应的人，并在 `management/views/` 生成全程计划表、项目总入口、群摘要、个人视图与专业组视图。只有一个人时不需要这份名单。
+- **运行方式**：多人或中型以上项目，建议主对话使用 project-front-desk-agent。它启动时检测宿主能否创建子 Agent，经你一次授权后，在各角色第一项任务就绪时为它创建子 Agent；主对话只保留问询与结论。宿主不支持时在主对话里切换角色。
 
 ## 按需加载
 

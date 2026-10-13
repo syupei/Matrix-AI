@@ -2,8 +2,9 @@ import importlib.util,json,tempfile,unittest,hashlib,copy
 from pathlib import Path
 s=importlib.util.spec_from_file_location('production',Path(__file__).resolve().parents[1]/'tools/production.py');p=importlib.util.module_from_spec(s);s.loader.exec_module(p)
 class PublishingGateTests(unittest.TestCase):
- def setUp(self):
-  self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name);self.files={'file':'0'*64};suite=p.ROOT/'evals/cases/suite.json'
+ def setUp(self):self.build({'file':'0'*64})
+ def build(self,files):
+  self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name);self.files=dict(files);suite=p.ROOT/'evals/cases/suite.json'
   suite_data=json.loads(suite.read_text());config=json.loads((p.ROOT/'package.json').read_text());baseline=config['baseline'];prior=p.ROOT/'release-manifests'/(baseline+'.json')
   if not prior.exists():prior=p.ROOT/'packages'/baseline/'MANIFEST.json'
   bh=p.fingerprint(json.loads(prior.read_text())['files']);ch=p.fingerprint(self.files);cases={}
@@ -50,4 +51,20 @@ class PublishingGateTests(unittest.TestCase):
   for item in self.data['cases']['intake']['candidate_evidence']:
    if item['path']==str(path.relative_to(self.root)):item['sha256']=p.sha(path)
   with self.assertRaises(ValueError):self.check()
+ def baseline_role_files(self,role):
+  files=json.loads((p.ROOT/'release-manifests'/(self.data['baseline_ref']+'.json')).read_text())['files']
+  return {k:v for k,v in files.items() if k.startswith('.agents/skills/'+role+'/')}
+ def reuse_intake(self,role,files,source=None):
+  self.build(files);run_path=self.root/'candidate-intake/run.json';run=json.loads(run_path.read_text())
+  run['cases'][0].update(role=role,reused_from={'run':'previous/run.json','source_hash':source or self.data['baseline_hash']});run_path.write_text(json.dumps(run))
+  for item in self.data['cases']['intake']['candidate_evidence']:
+   if item['path']=='candidate-intake/run.json':item['sha256']=p.sha(run_path)
+ def test_reuse_for_unchanged_role_passes(self):
+  self.reuse_intake('product-agent',self.baseline_role_files('product-agent'));self.assertTrue(self.check())
+ def test_reuse_for_changed_role_blocks(self):
+  changed=self.baseline_role_files('product-agent');changed[next(iter(changed))]='f'*64;self.reuse_intake('product-agent',changed)
+  with self.assertRaisesRegex(ValueError,'changed role'):self.check()
+ def test_reuse_from_other_source_blocks(self):
+  self.reuse_intake('product-agent',self.baseline_role_files('product-agent'),source='0'*64)
+  with self.assertRaisesRegex(ValueError,'baseline release'):self.check()
 if __name__=='__main__':unittest.main()

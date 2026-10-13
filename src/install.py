@@ -21,7 +21,7 @@ END = '<!-- professional-agents:end -->'
 LEGACY_MARKERS = [('<!-- pm-agent-test:begin -->', '<!-- pm-agent-test:end -->')]
 # Entry text written by earlier standalone kits; reported for manual review, never removed.
 LEGACY_HEADINGS = ['# 产品与设计联合试验入口', '# 产品 Agent 试验项目', '<!-- professional-agent-collaboration:begin -->']
-ROLES = ['project-management-agent', 'product-agent', 'experience-design-agent',
+ROLES = ['project-front-desk-agent', 'project-management-agent', 'product-agent', 'experience-design-agent',
          'engineering-intake-agent', 'engineering-solution-agent', 'engineering-build-agent', 'quality-verification-agent',
          'professional-agent-collaboration',
          'content-design-review']
@@ -36,7 +36,8 @@ BLOCK_TEMPLATE = BEGIN + '''
 
 | 任务 | 角色 |
 | --- | --- |
-| 项目统筹、进度与续做 | [project-management-agent]({skills}/project-management-agent/SKILL.md) |
+| 主对话：问询、登记与转交（多人或中型以上项目） | [project-front-desk-agent]({skills}/project-front-desk-agent/SKILL.md) |
+| 项目统筹与调度 | [project-management-agent]({skills}/project-management-agent/SKILL.md) |
 | 产品需求、续做与问题 | [product-agent]({skills}/product-agent/SKILL.md) |
 | 空间、交互与视觉设计；设计续做与问题 | [experience-design-agent]({skills}/experience-design-agent/SKILL.md) |
 | 研发 E1：需求承接与逻辑建模 | [engineering-intake-agent]({skills}/engineering-intake-agent/SKILL.md) |
@@ -45,7 +46,7 @@ BLOCK_TEMPLATE = BEGIN + '''
 | 研发验收、独立检验与质量测量 | [quality-verification-agent]({skills}/quality-verification-agent/SKILL.md) |
 | 跨角色问询与接续 | [professional-agent-collaboration]({skills}/professional-agent-collaboration/SKILL.md) |
 
-撰写或审读文案时使用 [content-design-review]({skills}/content-design-review/SKILL.md)；能力模型原文见 [product-capability-model]({skills}/product-capability-model/SKILL.md)。安装本包不代表任何 Agent 已在运行。
+文案写作与审读、能力模型原文由各角色按需调用。安装本包不代表任何 Agent 已在运行。
 ''' + END + '\n'
 
 
