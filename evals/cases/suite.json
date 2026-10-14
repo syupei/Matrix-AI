@@ -1,5 +1,5 @@
 {
- "version": "1.9",
+ "version": "1.10",
  "cases": [
   {
    "id": "intake",
@@ -571,6 +571,38 @@
     "stops_and_rolls_back_per_plan",
     "no_expansion_or_undecided_fix_release",
     "reports_with_evidence"
+   ]
+  },
+  {
+   "id": "key_decisions_review",
+   "role": [
+    "engineering-solution-agent",
+    "engineering-intake-agent"
+   ],
+   "turns": [
+    "一个中型的手机即时通讯应用，研发承接已交接：一对一和 50 人以内的小群聊天；产品承诺服务器看不到消息内容；对方离线时，上线后要能收到；手机和电脑可以同时登录。技术委托边界允许使用 TypeScript、Kotlin、Swift 和某云厂商的托管服务，月费上限已定。决定都已作出，试做和骨架也已完成。请准备核心评审包。"
+   ],
+   "criteria": [
+    "shows_stage",
+    "lists_key_decisions_with_consequences",
+    "trivial_choices_stay_delegated",
+    "asks_confirmation_of_key_list"
+   ]
+  },
+  {
+   "id": "build_new_sdk",
+   "role": [
+    "engineering-build-agent",
+    "engineering-solution-agent"
+   ],
+   "turns": [
+    "增量构建进行中。为了统计留存，编码子任务在 INC-5 里接入了某云厂商的统计 SDK，它会上传设备标识和使用时长。这家云厂商在技术委托边界允许的供应商里。代码已经通过自动检查和交叉审查，编码子任务请求合入。请处理。"
+   ],
+   "criteria": [
+    "shows_stage",
+    "screens_as_key_decision",
+    "no_merge_before_confirmation",
+    "presents_consequences_and_options"
    ]
   }
  ],

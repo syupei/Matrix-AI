@@ -1,4 +1,4 @@
-# professional-agents-kit 0.24
+# professional-agents-kit 0.25
 
 一组中文专业 Agent skill：从一句话需求出发，按产品 → 交互与视觉设计 → 研发（承接与建模、方案与验证、增量构建、发布与交接、质量验证）的专业流程推进，由项目前台面对人、PM 在后台统筹，由协作 skill 处理跨角色问询。每个角色保留自己的阶段、人审节点和成果；人始终掌握关键决定。
 
@@ -11,7 +11,7 @@
 | product-agent | 产品：澄清、目标与范围、对象与规则、功能流程、体验要求、评审与交付（S1–S7） |
 | experience-design-agent | 交互与视觉设计：设计基础、粗结构、细交互、代表视觉、完整设计、验证与交付（D1–D7） |
 | engineering-intake-agent | 研发承接：输入核对与澄清、逻辑工程模型、档位与技术风险、评审与交接（E1） |
-| engineering-solution-agent | 技术方案与验证：按问题作技术决定、风险试做、可运行骨架与工程基础、委托优先的技术评审（E2） |
+| engineering-solution-agent | 技术方案与验证：按问题作技术决定、风险试做、可运行骨架与工程基础、委托优先的技术评审，关键技术选型由人确认（E2） |
 | engineering-build-agent | 增量构建与发布（技术负责人）：按用户可见能力切增量、任务卡、检验与集成、范围完成评审（E3）；小型、中型项目的发布准备、发布决定包、逐批发布与交接（E4） |
 | quality-verification-agent | 质量验证：验收条目与覆盖、非实现者检验、质量测量、发布验收、缺陷分级与回归（贯穿 E1–E4） |
 | professional-agent-collaboration | 协作：真实请求、唤醒、应答、人工答复与恢复 |

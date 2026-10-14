@@ -15,7 +15,7 @@
 | R03 | [集成与范围完成](references/scope-complete.md) | E3.3 | |
 | R04 | [发布准备与发布决定](references/release.md) | E4.1、E4.2；E3.1 列出发布前只能由人办的事项时 | |
 | R05 | [发布、观察与交接](references/handoff.md) | E4.3；触发停止条件或发布后发现问题时；起草交接包时 | |
-| X01 | [技术评审：委托边界与回升条件](../engineering-solution-agent/references/technical-review.md) | 判断是否越界、哪些代码必须人审、需要改变已确认的决定时 | |
+| X01 | [技术评审：委托边界与回升条件](../engineering-solution-agent/references/technical-review.md) | 判断是否越界、哪些代码必须人审；引入新的存储、组件或算法时；需要改变已确认的决定时 | |
 | X02 | [缺陷分级与回归](../quality-verification-agent/references/defects.md) | 判断缺陷级别对发布的影响时 | |
 | T01 | [工作区模板](assets/build-workspace-template.md) | 建立 `engineering/build/` 下的文件时 | |
 | T02 | [发布工作区模板](assets/release-workspace-template.md) | 建立 `engineering/release/` 下的文件时 | |

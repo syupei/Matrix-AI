@@ -27,21 +27,36 @@
   "df678746cd9851564ded86d4637cd15a46bb3f8fbcae261a228a769b90d20da9"
  ],
  ".agents/skills/engineering-build-agent/GUIDANCE-INDEX.md": [
+  "812db4fdcb595ffcf056777b335a6fe85c96834d00477ddb7b62584e0c40ef6b",
   "8b1371898eb2faf69ed3540195ba355f57b12edbd4ab423ffcbaf92223f90eca"
  ],
  ".agents/skills/engineering-build-agent/SKILL.md": [
+  "a9273223616cd7b131cce03effc3ef65340ed737069ed9f437639bec031fabb4",
   "ee3e567ce5f8735b0c66fdeeb00091404e4012c76b8574d12d6784b52e1eacae"
  ],
  ".agents/skills/engineering-build-agent/agents/openai.yaml": [
-  "5e3c03f2645aa25063ce7ed28d5f7f43603459e6437a0443bf7a82a3a95e753c"
+  "5e3c03f2645aa25063ce7ed28d5f7f43603459e6437a0443bf7a82a3a95e753c",
+  "aa2e781e406eaea686a8daeae14165b039ee0b1ef4ded5406d908958aed10603"
  ],
  ".agents/skills/engineering-build-agent/assets/build-workspace-template.md": [
-  "bfac18987ee956e948b81799ec3798309adc560dd4aaf98ececf7d1cf3e7cf3f"
+  "bfac18987ee956e948b81799ec3798309adc560dd4aaf98ececf7d1cf3e7cf3f",
+  "e75c016a4fcbd462dcdc786d1aa34de77d19a6b3420493c99187986abed42c26"
+ ],
+ ".agents/skills/engineering-build-agent/assets/release-workspace-template.md": [
+  "99e9d5e8cd4491fe9b2f74b713358fdf5d84a5bf92a4f1d50770a2dd55b379a7"
+ ],
+ ".agents/skills/engineering-build-agent/references/handoff.md": [
+  "f83eaebd623c0ed16547cefca85803ac3d38bd41d8026d530f745e2fafc40a56"
  ],
  ".agents/skills/engineering-build-agent/references/increments.md": [
-  "4ac3aa1a6897012565ec1573cfd500ff5c9607063692caea7e05fca75aa2a831"
+  "4ac3aa1a6897012565ec1573cfd500ff5c9607063692caea7e05fca75aa2a831",
+  "94a04696206b90700a24874a790ef15a4ba9a3d9796c8a100d41fb17466e7e06"
+ ],
+ ".agents/skills/engineering-build-agent/references/release.md": [
+  "0c9e147e9b025be20c15bea5136db63537266aaed164f3924570ce481ddbb2dd"
  ],
  ".agents/skills/engineering-build-agent/references/scope-complete.md": [
+  "1c5625a4a99cfdb53b9e73566d0d14e804ea212a6ba47d6eea822fbc5f628bcd",
   "451e53452231a4e049f6f92edf43cee50e6c1f3bb68d1d214adf44bafc754eec"
  ],
  ".agents/skills/engineering-build-agent/references/verification.md": [
@@ -920,25 +935,31 @@
   "667ce805d12d591665b100f0bb4b92439442d0f4dfe622b848877c30c17e41db"
  ],
  ".agents/skills/quality-verification-agent/GUIDANCE-INDEX.md": [
+  "7545cef31bfb87f5e6d5e57054b4f2cad3ab7c3af2a4e6ae8038c700c8ee083c",
   "f1cb8fe410beb140f8775a84981178e3776e8aa1cfed520057ce8d577dbe4830"
  ],
  ".agents/skills/quality-verification-agent/SKILL.md": [
+  "80e1638a01e7c0e9e0bc06d886d0e0a41e70f05140872c79c0b7b20966f6c189",
   "c331f9f828c3aa9b4e6644569afebd24c77556c78acf51d0f21683943de79543"
  ],
  ".agents/skills/quality-verification-agent/agents/openai.yaml": [
+  "7e00c7b99be0e63b663ab20c3d3a9994ad2e90a2937d5db71e4102e784ec38d9",
   "d7a101015814631d35eb937dfe78a9be220e8c56307c26664544c5b28bf3fb4a"
  ],
  ".agents/skills/quality-verification-agent/assets/qa-workspace-template.md": [
-  "581783ab3fe612ff1cae3ecc8febcbb1f6195c98546b114d929fdf9746728641"
+  "581783ab3fe612ff1cae3ecc8febcbb1f6195c98546b114d929fdf9746728641",
+  "b2a74320f97e1230002770e5b1bc675e62cdaefb182954ad6270cde3539679d6"
  ],
  ".agents/skills/quality-verification-agent/references/acceptance.md": [
   "135c603009b7c1607aac9d2ae64caf2713df1f7a96b04dc1bfc9c557cfe14f17"
  ],
  ".agents/skills/quality-verification-agent/references/defects.md": [
+  "6417a9327f18bc7421ca0f5edb7641e9190ec9fd9f32e6aa07f46089bd428ac1",
   "9cbb10d261f68427b0fe6616833735622b1c25c48c6daf719a9d1e879b5d2504"
  ],
  ".agents/skills/quality-verification-agent/references/verification.md": [
-  "2f6ad22e11b041016157f7edebaa3f79a2d2ac1f6a197622cb6a813bf4828946"
+  "2f6ad22e11b041016157f7edebaa3f79a2d2ac1f6a197622cb6a813bf4828946",
+  "8ad5a4b953ae3c43c69d2a1ba0ba9c4920a1f5c2309a75a9918feb556683b63a"
  ],
  "DEMO-TEST.md": [
   "459e4680734afb9112aab62e0f46482a6c0fa4fef37383a5c38bdf362b817448"
@@ -980,7 +1001,8 @@
  "collaboration/ENGINEERING-FLOW.md": [
   "994d4be71d8ddc4eb09a440950510fdad098ba32266e8b856f266d3cbdb0202e",
   "c7e6298786e9a7abc358af2085b3ae2833eb90cb31c75ed7f24ace8f552d6e48",
-  "e569e153cf4fbaa0e09b9263e4c5610083b82f578f77051062dcb992f8187989"
+  "e569e153cf4fbaa0e09b9263e4c5610083b82f578f77051062dcb992f8187989",
+  "f3e5f23715c06b230616228e356b49de8d6045d47b362db7a9f842e462ee6754"
  ],
  "collaboration/ENGINEERING-INTAKE-ROLE.md": [
   "08aa89253bc3beeda598a4a7aacf01ab053335895cb55752969b71231db44ce6",
@@ -999,6 +1021,7 @@
   "c23d2a9be70f6ed44b6736ba4987b2df91352d5a754da3033e967d45310ee063"
  ],
  "collaboration/PM-REPORTING.md": [
+  "1ae13c72c917c28f6417e13b062825b405e8041c158be3a07b30260e67aa961e",
   "1b8f4b7a01408d3bcfbae535389a43212aff7fef27f44f7fa399571ba2310949",
   "31c6df4e5cb57cb19b8c785abf774ff54a33018624096defaa5457e171e6a2a9",
   "3f1b614b78ad96692a929d5b56d53093ddce8d98162823ae8778cb52e2d2bf03",
@@ -1028,6 +1051,7 @@
  ],
  "collaboration/ROLE-CONFIG-TEMPLATE.md": [
   "08d6392b6711c3e0dcecc2ed8e5590b39fa7603833581991fa4df3b4e4ba598e",
+  "15e4e9ffc4f32119151a35d0c372a6f3be91e53c030e8e9aca2b78c7ba334fcc",
   "27d6ac6ae60bcb90e37ef42bc6bf17fb462db8298146fda6402033471c8cc035",
   "3580648ae8aed8d03f34f67c6721a4d4e9c8b983853af740d01e5a1a2a331357",
   "41f718433f8a07c8b0bc793941b09a0b6e8c7e3a2e9dc8738bd10ab39a24b47b",
@@ -1053,6 +1077,7 @@
   "fb67da3282be795c669360534c60c94b2f6345fafc57f12ac7bcd1075c17532a"
  ],
  "collaboration/STAGE-GATES.md": [
+  "101b1df985a79e6d2d33ce4206d178c83a5325c66c7e11b0275c5540731baf23",
   "11608463e12bdf2db3255265390d9e0fc51b0940996ef2a34a8ba2133a7ebf12",
   "a99f7c87487de1eb9299bc3a1a61931728ee669740ceb91481d15892aaa2cee9",
   "b1e56db3b2f950283e737e925dfc9f008af45d76e3b6a744a794e0dabc49a8b8",
@@ -1065,7 +1090,8 @@
  ],
  "collaboration/TEAM.md": [
   "3cdd2c7a860c48165412b1a97ded7a73ebb1fc8d9ad3c8beab490b38343b0704",
-  "7ad4d38961b253a5587183d543c08ec2b1da4ff19b0d845b67fb061b0bcb5103"
+  "7ad4d38961b253a5587183d543c08ec2b1da4ff19b0d845b67fb061b0bcb5103",
+  "a7c6fcc96b6cd7bd18dd333945d64390aed7e4102274c965677e2c7e6f8f924c"
  ],
  "collaboration/USER-INTERACTION.md": [
   "08892cafea2ea880606b154152e32f1894499031ad371d923b463be49a21937b",
@@ -1074,6 +1100,7 @@
   "43c30693e67701c6b22fdbaaf00384d1210462d593ab8b4d78c724c02972d8ce",
   "586dfe156992c7ae265c88486ce52079d9ad8b50b414eeaf5499e5ed65a21dfc",
   "597719b4dcac8999eff4b0f1440edb6b4e3f702fe639ea0ee9ddfecc59e550ba",
+  "8b5784d70e2a10f7ca924e88f258e52e5660354d5fb6ab60d158a95050d8825d",
   "b8c27e1cb832456750cc75d2b3e0187f671610c18a6f3af26c4f9c60816b7862",
   "bb6d7146f0aec1803e81e419669cdf56470dceef0ceca5ac7dc20ef5d4de5519",
   "c622132f228ecd78394d08f6c89db4c54c90edc646863b0cd532e875a6d796cc",
@@ -1087,6 +1114,7 @@
  "collaboration/tools/stage_gate.py": [
   "0c9239ff01e04e99e7d43837a27d9790d0d3c677471cb3748981267e80521d2f",
   "a873f2a8ca10735ce4482d5636235a1085facad267e63ac1caa5f35b5f4113ec",
+  "ade8e95880cff963b8160338610e0b061abdcbe7bf3e5a2462a97aa4ed4b1bbe",
   "dad34db36ca63b7cf274e5b98a9ed9850b1c668801fa06da4729c81992fb8ff5",
   "eb43df0da169bb7bb46b3f0ff4a67a86ecbe8762cf47077fd10e7eade125294f"
  ],

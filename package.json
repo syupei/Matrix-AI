@@ -1,12 +1,12 @@
 {
-  "package": "professional-agents-kit/0.24",
+  "package": "professional-agents-kit/0.25",
   "components": {
     "project-front-desk-agent": "0.1",
     "product-agent": "0.25",
     "experience-design-agent": "0.21",
     "engineering-intake-agent": "0.11",
-    "engineering-solution-agent": "0.3",
-    "engineering-build-agent": "0.2",
+    "engineering-solution-agent": "0.4",
+    "engineering-build-agent": "0.3",
     "quality-verification-agent": "0.2",
     "project-management-agent": "0.11",
     "professional-agent-collaboration": "0.10",
@@ -36,7 +36,8 @@
     "front-desk/0.1",
     "on-demand-agents/0.1",
     "release-handoff/0.1",
-    "defect-severity/0.1"
+    "defect-severity/0.1",
+    "key-tech-decisions/0.1"
   ],
-  "baseline": "professional-agents-kit-v0.23"
+  "baseline": "professional-agents-kit-v0.24"
 }
