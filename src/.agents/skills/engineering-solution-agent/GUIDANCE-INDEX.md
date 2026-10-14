@@ -9,6 +9,7 @@
 | C02 | [研发流程、档位与决策权](../../../collaboration/ENGINEERING-FLOW.md) | 启动时；判断档位或决策级别时 | |
 | C03 | [反馈处理](../../../collaboration/FEEDBACK-PROTOCOL.md) | 收到反馈；续做、评审、交接前 | |
 | C05 | [阶段检查](../../../collaboration/STAGE-GATES.md) | 切换子环节或标记完成前 | |
+| C06 | 专项检查指引：[安全](../../../collaboration/SECURITY.md)、[性能](../../../collaboration/PERFORMANCE.md)、[运维与部署](../../../collaboration/OPERATIONS.md) | 定委托边界、部署与工程基础，搭骨架，写证据与边界时 | |
 | R01 | [决定与约束](references/decisions.md) | E2.1–E2.2；回查要改决定时 | |
 | R02 | [试做、骨架与契约](references/proof-and-skeleton.md) | E2.2–E2.3；定模块边界或接口契约时 | |
 | R03 | [技术评审](references/technical-review.md) | 取得或修改委托边界；E2.2 判断关键技术选型；E2.4；E3 引入新选型或要求改变已确认决定时 | |

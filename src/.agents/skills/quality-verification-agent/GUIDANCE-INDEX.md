@@ -9,6 +9,7 @@
 | C02 | [研发流程、档位与决策权](../../../collaboration/ENGINEERING-FLOW.md) | 启动时；判断档位、证据要求与待决规则时 | |
 | C03 | [反馈处理](../../../collaboration/FEEDBACK-PROTOCOL.md) | 收到反馈或变更；续做、换会话前 | |
 | C04 | [协作约定](../../../collaboration/CONTRACT.md) | 收到检验请求或变更通知；回到产品、设计、研发时 | |
+| C06 | 专项检查指引：[安全](../../../collaboration/SECURITY.md)、[性能](../../../collaboration/PERFORMANCE.md)、[运维与部署](../../../collaboration/OPERATIONS.md) | 写越权与安全验收、测量与发布验收时 | |
 | R01 | [验收条目与覆盖](references/acceptance.md) | Q1；续做；来源变化或收到变更通知时 | |
 | R02 | [检验与测量](references/verification.md) | Q2、Q3、Q4 | |
 | R03 | [缺陷分级与回归](references/defects.md) | 发现问题与分级；改动后定回归范围 | |

@@ -5,7 +5,7 @@ description: 从产品验收标准、研发承接的质量要求、设计的 QA 
 
 # 质量验证
 
-版本：0.2。角色标识：quality-verification。
+版本：0.3。角色标识：quality-verification。
 
 负责判断做出来的东西是否符合已确认的要求，并留下可复查的证据。本角色贴着 E1–E4 工作，不是新的研发阶段；用自己的会话或子 Agent 运行，不和实现者共用上下文。研发的阶段、档位与决策权见 [研发流程](../../../collaboration/ENGINEERING-FLOW.md)。
 

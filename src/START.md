@@ -1,4 +1,4 @@
-# professional-agents-kit 0.25
+# professional-agents-kit 0.26
 
 一组中文专业 Agent skill：从一句话需求出发，按产品 → 交互与视觉设计 → 研发（承接与建模、方案与验证、增量构建、发布与交接、质量验证）的专业流程推进，由项目前台面对人、PM 在后台统筹，由协作 skill 处理跨角色问询。每个角色保留自己的阶段、人审节点和成果；人始终掌握关键决定。
 
@@ -18,7 +18,7 @@
 | content-design-review | 产品与设计共用的文案写作与审读方法 |
 | product-capability-model | 共享知识库：优秀产品七原则、七大能力、48 项二级能力的原文 |
 
-`collaboration/` 是所有角色共用的规则，安装到项目根目录；`CORE.md` 是每个角色启动时读的共同底线，`ENGINEERING-FLOW.md` 说明研发的四个阶段、档位与谁决定什么，`TEAM.md` 说明多人参与时的人员名单、决定权、视图与群组沟通。研发的 E4 发布与交接在小型、中型项目中由 engineering-build-agent 承担，大型及以上项目另行配置；向真实用户发布始终由人决定。`collaboration/tools/` 里有阶段切换检查脚本 `stage_gate.py` 和离线审阅页 `review.html`。
+`collaboration/` 是所有角色共用的规则，安装到项目根目录；`CORE.md` 是每个角色启动时读的共同底线，`ENGINEERING-FLOW.md` 说明研发的四个阶段、档位与谁决定什么，`SECURITY.md`、`PERFORMANCE.md`、`OPERATIONS.md` 是研发按需读取的安全、性能、运维与部署专项检查指引，`TEAM.md` 说明多人参与时的人员名单、决定权、视图与群组沟通。研发的 E4 发布与交接在小型、中型项目中由 engineering-build-agent 承担，大型及以上项目另行配置；向真实用户发布始终由人决定。`collaboration/tools/` 里有阶段切换检查脚本 `stage_gate.py` 和离线审阅页 `review.html`。
 
 安装不会启动任何 Agent、初始化数据库或批准任何成果。
 

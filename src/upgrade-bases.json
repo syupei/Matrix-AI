@@ -27,11 +27,13 @@
   "df678746cd9851564ded86d4637cd15a46bb3f8fbcae261a228a769b90d20da9"
  ],
  ".agents/skills/engineering-build-agent/GUIDANCE-INDEX.md": [
+  "04fd8dcc644ca545932a7f4e239061fdce35edfca3ef29797043a929377303fc",
   "812db4fdcb595ffcf056777b335a6fe85c96834d00477ddb7b62584e0c40ef6b",
   "8b1371898eb2faf69ed3540195ba355f57b12edbd4ab423ffcbaf92223f90eca"
  ],
  ".agents/skills/engineering-build-agent/SKILL.md": [
   "a9273223616cd7b131cce03effc3ef65340ed737069ed9f437639bec031fabb4",
+  "da3d4d2d71c2c321b8229ea1eff3afb3fb29bcebe19ea5af2993fea835876298",
   "ee3e567ce5f8735b0c66fdeeb00091404e4012c76b8574d12d6784b52e1eacae"
  ],
  ".agents/skills/engineering-build-agent/agents/openai.yaml": [
@@ -60,6 +62,7 @@
   "451e53452231a4e049f6f92edf43cee50e6c1f3bb68d1d214adf44bafc754eec"
  ],
  ".agents/skills/engineering-build-agent/references/verification.md": [
+  "32f8dcc07534e2cd924ceba7ab28f646bab5f6951c743453065d92c567cd676d",
   "f9409cbab5918721a79ae43a688fe2c87547f80b61288276f707557ae3d045cf"
  ],
  ".agents/skills/engineering-intake-agent/GUIDANCE-INDEX.md": [
@@ -126,23 +129,27 @@
  ],
  ".agents/skills/engineering-solution-agent/GUIDANCE-INDEX.md": [
   "2b51c3e9f197485a808d66cf03cb47ef36e0b97debfc62b119ef9e6132afed51",
+  "337bfb56ed8138223544119c9e8455702b9c221ec0b3c05aa0ad911b3d6d86ae",
   "75067c699ec90f5a08d885af759679dbea4bea91a075041546aef1d324c8cb2f"
  ],
  ".agents/skills/engineering-solution-agent/SKILL.md": [
   "16914436f272dddceae5bf5b12f0b025b5dd68dfbdbc8da66e2f275cf78bd339",
   "3e0a50b454f8fbd8c225b6bf887088f0af1a958e654b950842db46d44cae0e15",
-  "ad22aadf090c4106305d92096cfb16dd5f5bf7d089e97fa0578b2444c2fc3aab"
+  "ad22aadf090c4106305d92096cfb16dd5f5bf7d089e97fa0578b2444c2fc3aab",
+  "e73d87b8e15bf5d9ec65046dc0179d38549fec8f866765b21c8cd5b287f36dd0"
  ],
  ".agents/skills/engineering-solution-agent/agents/openai.yaml": [
   "172e8de7fe723890c718a6c2d48b12f44b46b3f7defe3d9c72cb60a4e36e3a48"
  ],
  ".agents/skills/engineering-solution-agent/assets/solution-workspace-template.md": [
+  "657f551f28474fdbd97abbee6ce8260dda6b4ef09c59c2eaf2ea4e44c2210eb2",
   "7a1906057f312d0ff7ab441e327d58d79431da9990a0fc6019d2733dcdcc5d88",
   "d3739034d8a228a545e445f03c7a6bb381fc7deda6c441a0b3041008d56f9317",
   "da51130833fe226d6d8ebd0ab3e21f4f236313e28458c719b2b2039b60d7bd3c"
  ],
  ".agents/skills/engineering-solution-agent/references/decisions.md": [
   "5e4751ae114b23e1bfe924a03828ca73c583f13881cf6aea84628b1df6c2ddd1",
+  "5fd1bd7bf78f4782c42c136f31a9523a09ae0de8f5ce1e6c870c4796ad71d7bf",
   "bfc860fa3b808b598d938b2543df1a2a095710e580aac0f73294fba7c2e3e9bc"
  ],
  ".agents/skills/engineering-solution-agent/references/proof-and-skeleton.md": [
@@ -150,6 +157,7 @@
   "e41be3402a85a4b4ce110e0e2c6e1e312c462a7c6cdc101aeb5f68273d0e6720"
  ],
  ".agents/skills/engineering-solution-agent/references/technical-review.md": [
+  "3fa4600c2074fc3d4efd2d014d7bc5ee3b2a870e7fb4302f1a24761b0455b1d5",
   "95d3296dacc377bcd4e45538844b2af7bdd5d2400a31d4fddacd93d74cd70f06",
   "a039aff9d57a87cbe10a545172e15c9bbfccd4dcef576dbd5057f9bbf602fca8",
   "a281e73006ae9499a28e05900e2cbe8ff17234a882ecead84a05cd1413cf22e4"
@@ -999,6 +1007,7 @@
   "ecc34cc2867e9b4ac4918d828e71d17a94c180ff62be5f6a4fe36c78b4d0848a"
  ],
  "collaboration/ENGINEERING-FLOW.md": [
+  "0dc7767268f3c92a0c3088b34c32e32d7953e0cbf789c322b1686947ba848bc1",
   "994d4be71d8ddc4eb09a440950510fdad098ba32266e8b856f266d3cbdb0202e",
   "c7e6298786e9a7abc358af2085b3ae2833eb90cb31c75ed7f24ace8f552d6e48",
   "e569e153cf4fbaa0e09b9263e4c5610083b82f578f77051062dcb992f8187989",

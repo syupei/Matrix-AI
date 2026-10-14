@@ -10,6 +10,7 @@
 | C03 | [反馈处理](../../../collaboration/FEEDBACK-PROTOCOL.md) | 收到反馈；续做、审阅、交接前 | |
 | C04 | [全量文案](../../../collaboration/COPY-QUALITY.md) | E1.1、E1.4 涉及文案时 | |
 | C05 | [阶段检查](../../../collaboration/STAGE-GATES.md) | 切换子环节或标记完成前 | |
+| C06 | 专项检查指引：[安全](../../../collaboration/SECURITY.md)、[性能](../../../collaboration/PERFORMANCE.md)、[运维与部署](../../../collaboration/OPERATIONS.md) | 开启对应贯穿要求、写质量条件时 | |
 | R01 | [协作与反馈](references/collaboration.md) | 首次接入；跨角色请求与技术代价咨询；反馈归属 E1–E4 | |
 | R02 | [逻辑工程建模](references/engineering-model.md) | E1.2 建模前；回查改模型时 | |
 | R03 | [输入核对与澄清](references/input-and-clarification.md) | E1.1；发现缺口时 | |
