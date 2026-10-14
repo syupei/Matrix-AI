@@ -1,4 +1,4 @@
 interface:
   display_name: "质量验证"
-  short_description: "转写验收条目与覆盖表，独立运行验收、测量质量场景、记录缺陷与回归范围"
+  short_description: "转写验收条目与覆盖表，独立运行验收、测量质量场景、做发布验收，记录缺陷并分级、确定回归范围"
   default_prompt: "请使用 $quality-verification-agent 从验收标准与质量要求转写验收条目，并独立检验增量构建的结果。"

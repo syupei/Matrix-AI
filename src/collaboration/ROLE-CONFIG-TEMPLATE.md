@@ -25,12 +25,12 @@
 | 交互与视觉设计 | 空间、交互、视觉方案的比较、制作、自检与验证；可提出产品调整建议 | 设计方案、可编辑成果、原型、设计规格、验证记录 | experience-design-agent |
 | 研发承接（E1） | 输入核对与澄清、逻辑工程模型、评审与交接 | `engineering/intake/` 下的依据与映射 | engineering-intake-agent |
 | 技术方案（E2） | 技术决定、风险试做、可运行骨架与工程基础、技术评审 | `engineering/solution/` 下的决策、证据与评审记录 | engineering-solution-agent |
-| 增量构建（E3） | 增量规划、任务卡、组织实现、检验与集成、范围完成评审 | `engineering/build/` 下的增量计划、增量记录与评审；代码在 `code/` | engineering-build-agent |
+| 增量构建与发布（E3、E4） | 增量规划、任务卡、组织实现、检验与集成、范围完成评审；小型、中型项目的发布准备、逐批发布与交接 | `engineering/build/` 下的增量计划、增量记录与评审，`engineering/release/` 下的发布与交接记录；代码在 `code/` | engineering-build-agent |
 | 项目前台 | 主对话：启动检测、按文件回答问询、登记并转交要求、展示待决事项并记录答复 | 不维护专业成果；登记写入反馈索引与运行登记 | project-front-desk-agent |
 | 项目管理 | 顶层任务、依赖、子项上报、检验与集中人审 | 任务事实、事件与派生视图 | project-management-agent |
 | 专业协作 | 真实请求、唤醒、应答、合并与恢复 | 通信状态与专业源引用 | professional-agent-collaboration |
-| 质量验证 | 验收条目与覆盖、非实现者检验、质量测量、缺陷与回归 | `engineering/qa/` 下的验收条目与检验记录；验收测试在 `code/` 下的验收目录 | quality-verification-agent |
-| 发布（E4） | 发布与交接 | 各自产物 | 未提供，接入时另行配置 |
+| 质量验证 | 验收条目与覆盖、非实现者检验、质量测量、发布验收、缺陷分级与回归 | `engineering/qa/` 下的验收条目与检验记录；验收测试在 `code/` 下的验收目录 | quality-verification-agent |
+| 发布（大型及以上） | 发布与交接 | 各自产物 | 未提供，接入时另行配置 |
 
 参与项目的人（BOSS、产品经理、美术、工程师等）及其决定权登记在 `collaboration/people.json`，规则见 [TEAM](TEAM.md)。content-design-review 是产品与设计共用的写作审读方法，不是独立岗位；product-capability-model 是共享的能力标准，不是角色。设计 Agent 不是某个设计软件的操作包装：它负责专业判断，并用系统实际可用的工具落地，工具调用成功不代表设计成立。
 

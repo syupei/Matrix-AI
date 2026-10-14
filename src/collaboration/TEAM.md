@@ -7,7 +7,7 @@
 - 名单放在 `collaboration/people.json`，由 BOSS 或项目负责人维护。项目使用外部成员管理系统时，以它同步过来的名单为准，各角色只读。
 - 每人必填 `id`（稳定的简单标识）与 `name`，按需填写：
   - `groups`：所属专业组；
-  - `decides`：对哪些流程有决定权，可选 project、product、design、engineering、solution、build；其中 project 是项目级决定权；
+  - `decides`：对哪些流程有决定权，可选 project、product、design、engineering、solution、build、release；其中 project 是项目级决定权，release 是发布决定权；
   - `scope`：具体的决定或负责范围；
   - `clarifies`：能提供哪些事实；
   - `designates`：能指定哪些人或范围；
@@ -36,6 +36,7 @@ PM 任务用 `people` 字段登记这些关系，用 `derived_from` 登记派生
 ## 3. 谁的确认有效
 
 - 确认只能来自该事项的决定人，或者沿派生链往上的上游决定人；项目级决定人对全项目有效。其他人的意见记为反馈或澄清，不算确认。
+- 发布决定（是否向真实用户发布、分批计划、带着已知严重问题发布）只来自项目级决定人或 `decides` 含 release 的人，不从产品、设计或研发的决定权顺延：它牵涉花钱、接受风险与运维责任。
 - 冲突时上游优先。不在同一条派生链上的冲突，由两者最近的共同上游决定。
 - 上游要否决下游的专业意见，先把下游的理由与影响摆给上游，再由上游决定，并记录"上游决定，与专业建议不同"。
 - 决定人不明确时，请有指定权的人指定，AI 不自行认定。

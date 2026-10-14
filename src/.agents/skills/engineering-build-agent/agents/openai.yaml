@@ -1,4 +1,4 @@
 interface:
-  display_name: "增量构建（技术负责人）"
-  short_description: "按用户可见能力切增量，用任务卡组织实现，经检验与端到端检查并入主线，组织范围完成评审"
-  default_prompt: "请使用 $engineering-build-agent 承接技术方案已确认的约束与骨架，规划增量并组织实现、检验与集成。"
+  display_name: "增量构建与发布（技术负责人）"
+  short_description: "按用户可见能力切增量并组织实现、检验与集成，组织范围完成评审；小型、中型项目还负责发布准备、发布决定包、逐批发布与交接"
+  default_prompt: "请使用 $engineering-build-agent 承接技术方案已确认的约束与骨架，规划增量并组织实现、检验与集成；人决定进入发布准备后，组织发布与交接。"

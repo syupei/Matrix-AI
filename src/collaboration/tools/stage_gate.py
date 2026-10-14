@@ -5,12 +5,14 @@ import hashlib
 import json
 from pathlib import Path
 
-STAGES={'product':['S1','S2','S3','S4','S5','S6','S7','complete'], 'design':['D1','D2','D3','D4','D5','D6','D7','complete'], 'engineering':['E1.1','E1.2','E1.3','E1.4','complete'], 'solution':['E2.1','E2.2','E2.3','E2.4','complete'], 'build':['E3.1','E3.2','E3.3','complete']}
-REVIEW={'product':{'S1','S2','S3','S4','S5','S6','S7'},'design':{'D1','D2','D4','D6'},'engineering':{'E1.4'},'solution':{'E2.4'},'build':{'E3.3'}}
+STAGES={'product':['S1','S2','S3','S4','S5','S6','S7','complete'], 'design':['D1','D2','D3','D4','D5','D6','D7','complete'], 'engineering':['E1.1','E1.2','E1.3','E1.4','complete'], 'solution':['E2.1','E2.2','E2.3','E2.4','complete'], 'build':['E3.1','E3.2','E3.3','complete'], 'release':['E4.1','E4.2','E4.3','complete']}
+REVIEW={'product':{'S1','S2','S3','S4','S5','S6','S7'},'design':{'D1','D2','D4','D6'},'engineering':{'E1.4'},'solution':{'E2.4'},'build':{'E3.3'},'release':{'E4.2'}}
 # Upstream first: a confirmation may come from a decider of this flow or of any flow above it.
 CHAIN=['project','product','design','engineering','solution','build']
-# Implementation starts only on a still-valid confirmed technical review.
-UPSTREAM={('build','E3.1'):('solution','E2.4')}
+# Release to real users is a project-level decision: not inherited from professional flows.
+AUTHORITY={'release':{'project','release'}}
+# Implementation starts only on a still-valid confirmed technical review; the release decision only on a still-valid scope review.
+UPSTREAM={('build','E3.1'):('solution','E2.4'),('release','E4.1'):('build','E3.3')}
 ROSTER='collaboration/people.json'
 
 def digest(path):return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -40,7 +42,7 @@ def deciding_person(root,role,reply):
     if len(people)<2:return None
     pid=reply.get('person_id')
     if pid not in people:raise ValueError('team project: reply must name a listed person (person_id)')
-    allowed=set(CHAIN[:CHAIN.index(role)+1])
+    allowed=AUTHORITY.get(role) or set(CHAIN[:CHAIN.index(role)+1])
     if not allowed&set(people[pid].get('decides',[])):raise ValueError('person has no decision authority for this flow or its upstream')
     return pid
 

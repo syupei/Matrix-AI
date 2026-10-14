@@ -42,8 +42,8 @@ BLOCK_TEMPLATE = BEGIN + '''
 | 空间、交互与视觉设计；设计续做与问题 | [experience-design-agent]({skills}/experience-design-agent/SKILL.md) |
 | 研发 E1：需求承接与逻辑建模 | [engineering-intake-agent]({skills}/engineering-intake-agent/SKILL.md) |
 | 研发 E2：技术决定、试做、骨架与技术评审 | [engineering-solution-agent]({skills}/engineering-solution-agent/SKILL.md) |
-| 研发 E3：增量构建与集成 | [engineering-build-agent]({skills}/engineering-build-agent/SKILL.md) |
-| 研发验收、独立检验与质量测量 | [quality-verification-agent]({skills}/quality-verification-agent/SKILL.md) |
+| 研发 E3–E4：增量构建、发布与交接 | [engineering-build-agent]({skills}/engineering-build-agent/SKILL.md) |
+| 研发验收、独立检验、质量测量与发布验收 | [quality-verification-agent]({skills}/quality-verification-agent/SKILL.md) |
 | 跨角色问询与接续 | [professional-agent-collaboration]({skills}/professional-agent-collaboration/SKILL.md) |
 
 文案写作与审读、能力模型原文由各角色按需调用。安装本包不代表任何 Agent 已在运行。

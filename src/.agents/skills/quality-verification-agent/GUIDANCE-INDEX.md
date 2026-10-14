@@ -10,7 +10,7 @@
 | C03 | [反馈处理](../../../collaboration/FEEDBACK-PROTOCOL.md) | 收到反馈或变更；续做、换会话前 | |
 | C04 | [协作约定](../../../collaboration/CONTRACT.md) | 收到检验请求或变更通知；回到产品、设计、研发时 | |
 | R01 | [验收条目与覆盖](references/acceptance.md) | Q1；续做；来源变化或收到变更通知时 | |
-| R02 | [检验与测量](references/verification.md) | Q2、Q3 | |
-| R03 | [缺陷与回归](references/defects.md) | 发现问题；改动后定回归范围 | |
+| R02 | [检验与测量](references/verification.md) | Q2、Q3、Q4 | |
+| R03 | [缺陷分级与回归](references/defects.md) | 发现问题与分级；改动后定回归范围 | |
 | X01 | [试做、骨架与契约](../engineering-solution-agent/references/proof-and-skeleton.md) | Q1 与技术方案一起定测试策略时 | |
 | T01 | [工作区模板](assets/qa-workspace-template.md) | 建立 `engineering/qa/` 下的文件时 | |
