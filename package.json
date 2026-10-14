@@ -3,7 +3,7 @@
   "components": {
     "project-front-desk-agent": "0.1",
     "product-agent": "0.25",
-    "experience-design-agent": "0.21",
+    "experience-design-agent": "0.22",
     "engineering-intake-agent": "0.12",
     "engineering-solution-agent": "0.5",
     "engineering-build-agent": "0.4",
@@ -38,7 +38,8 @@
     "release-handoff/0.1",
     "defect-severity/0.1",
     "key-tech-decisions/0.1",
-    "nonfunctional-guides/0.1"
+    "nonfunctional-guides/0.1",
+    "task-packet/0.1"
   ],
   "baseline": "professional-agents-kit-v0.25"
 }

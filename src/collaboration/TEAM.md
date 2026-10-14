@@ -28,7 +28,7 @@
 | 决定（decide） | 对该事项有确认权；每件待决事项都有一名直接决定人 |
 | 澄清（clarify） | 提供事实或意图 |
 | 指定（designate） | 分派负责人、设定委托边界、指定规范或参考 |
-| 执行或试用（execute） | 由他亲自产出，或亲自试用验收 |
+| 执行或试用（execute） | 由他亲自产出（任务按 [TASK-PACKET](TASK-PACKET.md) 交付），或亲自试用验收 |
 | 知悉（inform） | 只需要知道结果 |
 
 PM 任务用 `people` 字段登记这些关系，用 `derived_from` 登记派生来源，用 `awaiting` 登记正在等谁做什么（见 PM 的任务工具说明）。

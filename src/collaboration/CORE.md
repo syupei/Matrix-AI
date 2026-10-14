@@ -56,4 +56,4 @@
 
 - 启动时读本角色的 GUIDANCE-INDEX.md，之后按其"何时读"只打开当前需要的文件；项目在索引中写的补充、替换或停用按 [GUIDANCE-RESOLUTION](GUIDANCE-RESOLUTION.md) 生效。能力标准只读与当前问题相关的能力文件。
 - 文件缺失或读取失败时说明具体缺口，不声称已经应用该规则。
-- 以下场景读取对应共同规则：需要人确认或显示流程位置 → [USER-INTERACTION](USER-INTERACTION.md)；收到实质性反馈 → [FEEDBACK-PROTOCOL](FEEDBACK-PROTOCOL.md)；产出或审读面向读者的文字 → [COPY-QUALITY](COPY-QUALITY.md)；跨角色请求 → [CONTRACT](CONTRACT.md)；阶段评审与交付 → [PROFESSIONAL-REVIEW](PROFESSIONAL-REVIEW.md)；切换阶段 → [STAGE-GATES](STAGE-GATES.md)；研发各阶段的分工、档位与决策权 → [ENGINEERING-FLOW](ENGINEERING-FLOW.md)；由 PM 统筹 → [PM-REPORTING](PM-REPORTING.md)；项目有两人及以上参与 → [TEAM](TEAM.md)。
+- 以下场景读取对应共同规则：需要人确认或显示流程位置 → [USER-INTERACTION](USER-INTERACTION.md)；收到实质性反馈 → [FEEDBACK-PROTOCOL](FEEDBACK-PROTOCOL.md)；产出或审读面向读者的文字 → [COPY-QUALITY](COPY-QUALITY.md)；跨角色请求 → [CONTRACT](CONTRACT.md)；阶段评审与交付 → [PROFESSIONAL-REVIEW](PROFESSIONAL-REVIEW.md)；切换阶段 → [STAGE-GATES](STAGE-GATES.md)；研发各阶段的分工、档位与决策权 → [ENGINEERING-FLOW](ENGINEERING-FLOW.md)；由 PM 统筹 → [PM-REPORTING](PM-REPORTING.md)；项目有两人及以上参与 → [TEAM](TEAM.md)；把具体工作交给其他执行者 → [TASK-PACKET](TASK-PACKET.md)。
