@@ -1,15 +1,15 @@
 {
-  "package": "professional-agents-kit/0.26",
+  "package": "professional-agents-kit/0.27",
   "components": {
-    "project-front-desk-agent": "0.1",
+    "project-front-desk-agent": "0.2",
     "product-agent": "0.25",
     "experience-design-agent": "0.22",
     "engineering-intake-agent": "0.12",
     "engineering-solution-agent": "0.5",
     "engineering-build-agent": "0.4",
-    "quality-verification-agent": "0.3",
-    "project-management-agent": "0.11",
-    "professional-agent-collaboration": "0.10",
+    "quality-verification-agent": "0.4",
+    "project-management-agent": "0.12",
+    "professional-agent-collaboration": "0.11",
     "content-design-review": "0.5",
     "product-capability-model": "1.0"
   },
@@ -39,7 +39,10 @@
     "defect-severity/0.1",
     "key-tech-decisions/0.1",
     "nonfunctional-guides/0.1",
-    "task-packet/0.1"
+    "task-packet/0.1",
+    "delivery-integrity/0.1",
+    "change-plans/0.1",
+    "instance-assignment/0.1"
   ],
-  "baseline": "professional-agents-kit-v0.25"
+  "baseline": "professional-agents-kit-v0.26"
 }

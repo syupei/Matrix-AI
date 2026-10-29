@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Local, cooperative task ownership + atomic events. No transport or daemon."""
 import argparse
+import importlib.util
+from types import SimpleNamespace
 import hashlib
 import html
 import json
@@ -12,11 +14,21 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 
+_spec = importlib.util.spec_from_file_location('pm_integrity', Path(__file__).with_name('pm_integrity.py'))
+integrity = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(integrity)
+
+
+def api():
+    return SimpleNamespace(**globals())
+
+
 SCHEMA = 'pm-tasks/0.1'
-STATES = {'planned', 'running', 'waiting_review', 'blocked', 'done', 'cancelled'}
-TERMINAL = {'done', 'cancelled'}
+STATES = {'planned', 'running', 'waiting_review', 'blocked', 'done', 'cancelled', 'deprecated'}
+TERMINAL = {'done', 'cancelled', 'deprecated'}
+RETIRED = {'cancelled', 'deprecated'}
 RELATIONS = ('decide', 'clarify', 'designate', 'execute', 'inform')
-STATE_NAMES = {'planned': '未开始', 'running': '进行中', 'waiting_review': '待审', 'blocked': '受阻', 'done': '完成', 'cancelled': '已取消'}
+STATE_NAMES = {'planned': '未开始', 'running': '进行中', 'waiting_review': '待审', 'blocked': '受阻', 'done': '完成', 'cancelled': '已取消', 'deprecated': '已弃用'}
 RELATION_NAMES = {'decide': '决定', 'clarify': '澄清', 'designate': '指定', 'execute': '执行或试用', 'inform': '知悉'}
 ACTIONS = {'decide', 'clarify', 'designate', 'execute'}
 KINDS = {'work', 'stage'}
@@ -102,14 +114,20 @@ def check_people(t, people):
     require(not unknown, 'unknown person ids (not in people.json): ' + ','.join(unknown))
 
 
-def connect(root):
+def connect(root, readonly=False):
     path = local(root, 'management/runtime/tasks.sqlite3')
+    if readonly:
+        require(path.is_file(), 'task database missing; initialize explicitly')
+        db = sqlite3.connect(path.as_uri()+'?mode=ro', uri=True, timeout=20, isolation_level=None)
+        db.row_factory = sqlite3.Row
+        return db
     path.parent.mkdir(parents=True, exist_ok=True)
     db = sqlite3.connect(path, timeout=20, isolation_level=None)
     db.row_factory = sqlite3.Row
     db.executescript('''
       CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, data TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS pm_records (kind TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(kind,id));
       CREATE TABLE IF NOT EXISTS events (
         seq INTEGER PRIMARY KEY AUTOINCREMENT, event_id TEXT UNIQUE NOT NULL,
         command TEXT NOT NULL, task_id TEXT, actor TEXT NOT NULL,
@@ -128,7 +146,18 @@ def strings(value):
 
 
 def task_map(db):
-    return {r['id']: json.loads(r['data']) for r in db.execute('SELECT * FROM tasks ORDER BY id')}
+    root = Path(db.execute('PRAGMA database_list').fetchone()[2]).parent.parent.parent
+    tasks = {r['id']: integrity.observe(api(), root, json.loads(r['data'])) for r in db.execute('SELECT * FROM tasks ORDER BY id')}
+    for c in integrity.records(db, 'change').values():
+        if c['state'] not in {'planned', 'closed'}:
+            continue
+        for d in c.get('dispositions', []):
+            if d.get('replaces') in tasks:
+                tasks[d['replaces']]['_superseded_by'] = d['task_id']
+    for scope in integrity.records(db, 'scope').values():
+        if scope['root_task'] in tasks and integrity.scope_issues(api(), root, scope, tasks):
+            tasks[scope['root_task']]['_scope_incomplete'] = True
+    return tasks
 
 
 def config(db):
@@ -142,6 +171,10 @@ def children(tasks, parent):
 
 
 def effective_done(t, tasks):
+    if t.get('_superseded_by') or t.get('_scope_incomplete') or t.get('_current_gate'):
+        return False
+    if t.get('artifact_digests') and t.get('_observed_artifacts') != t['artifact_digests']:
+        return False
     if t['state'] != 'done' or not t.get('review'):
         return False
     b = basis(t, tasks)
@@ -149,16 +182,17 @@ def effective_done(t, tasks):
         return False
     if t['human_required'] and not (t.get('human_review') and t['human_review']['outcome'] == 'approved' and t['human_review']['basis'] == b):
         return False
-    return all(effective_done(tasks[d], tasks) for d in t['dependencies'] + t.get('completion_requires', [])) and all(x['state'] == 'cancelled' or effective_done(x,tasks) for x in children(tasks,t['id']))
+    return all(effective_done(tasks[d], tasks) for d in t['dependencies'] + t.get('completion_requires', [])) and all(x['state'] in RETIRED or effective_done(x,tasks) for x in children(tasks,t['id']))
 
 
 def counts(items, tasks):
-    active = [t for t in items if t['state'] != 'cancelled']
+    active = [t for t in items if t['state'] not in RETIRED]
     done = sum(effective_done(t, tasks) for t in active)
     return {'total': len(active), 'done': done, 'remaining': len(active) - done,
-            'cancelled': len(items) - len(active),
+            'cancelled': sum(t['state'] == 'cancelled' for t in items),
+            'deprecated': sum(t['state'] == 'deprecated' for t in items),
             'needs_recheck': sum(t['state'] == 'done' and not effective_done(t,tasks) for t in active),
-            'states': {s: sum(t['state'] == s for t in active) for s in sorted(STATES - {'cancelled'})}}
+            'states': {s: sum(t['state'] == s for t in active) for s in sorted(STATES - RETIRED)}}
 
 
 def validation(t, tasks):
@@ -173,6 +207,9 @@ def validation(t, tasks):
     require(type(t['slots']) is int and 0 <= t['slots'] <= 64, 'invalid slots')
     require(type(t['human_required']) is bool, 'human_required must be boolean')
     require(type(t['expanded']) is bool, 'expanded must be boolean')
+    require('project_level' not in t or type(t['project_level']) is bool, 'project_level must be boolean')
+    hashes = t.get('artifact_digests', {})
+    require(isinstance(hashes, dict) and all(nonempty(k) and re.fullmatch(r'[a-f0-9]{64}', str(v)) for k,v in hashes.items()), 'artifact_digests must map paths to sha256')
     for dep in t['dependencies']:
         require(dep in tasks and dep != t['id'], 'unknown or self dependency: ' + dep)
     # Completion prerequisites: work may start before them, but cannot complete until they are done.
@@ -228,6 +265,8 @@ def basis(t, tasks):
     def desc(k):
         return [(x['id'], x['work_revision'], x['state'], x['evidence'], desc(x['id'])) for x in children(tasks, k)]
     data = {k: t[k] for k in ['work_revision', 'inputs', 'outputs', 'criteria', 'evidence', 'human_required']}
+    if t.get('artifact_digests'):
+        data['artifact_digests'] = t['artifact_digests']
     data['dependencies'] = [(d, tasks[d]['work_revision'], tasks[d]['state']) for d in t['dependencies']]
     data['children'] = desc(t['id'])
     if t.get('completion_requires'):
@@ -257,26 +296,36 @@ def reasons(t, tasks, cfg):
 def snapshot(db):
     cfg, tasks = config(db), task_map(db)
     seq = db.execute('SELECT COALESCE(MAX(seq),0) FROM events').fetchone()[0]
+    root = Path(db.execute('PRAGMA database_list').fetchone()[2]).parent.parent.parent
+    gates = {tid: integrity.blockers(api(), root, db, tasks, tid) for tid in tasks}
+    for tid, t in tasks.items():
+        t['_current_gate'] = bool(integrity.blockers(api(), root, db, tasks, tid, closing=True))
     return {'schema': SCHEMA, 'config': cfg, 'revision': seq, 'observed_at': now(),
+            'integrity': {k: integrity.records(db,k) for k in ['instance','scope','change','pause']},
             'top_level': counts(children(tasks, None), tasks),
-            'tasks': [dict(t, child_counts=counts(children(tasks, t['id']), tasks),
+            'tasks': [dict(t, state_label=STATE_NAMES[t['state']], child_counts=counts(children(tasks, t['id']), tasks),
                            needs_recheck=t['state'] == 'done' and not effective_done(t,tasks),
-                           ready=t['state'] == 'planned' and not reasons(t, tasks, cfg),
-                           readiness_issues=reasons(t, tasks, cfg),
+                           ready=t['state'] == 'planned' and not reasons(t, tasks, cfg) and not gates[t['id']],
+                           integrity_issues=gates[t['id']],
+                           readiness_issues=reasons(t, tasks, cfg)+[x['code'] for x in gates[t['id']]],
                            completion_pending=[d for d in t.get('completion_requires', []) if not effective_done(tasks[d], tasks)],
                            review_current=bool(t.get('review') and t['review']['basis'] == basis(t, tasks)))
                       for t in tasks.values()]}
 
 
-def execute(project, cmd):
+def execute(project, cmd, _db=None, _applying=None):
     root = Path(project).resolve()
     require(root.is_dir(), 'project directory missing')
-    db = connect(root)
+    owns_db = _db is None
+    db = connect(root, readonly=cmd.get('op') in ({'status','events'} | integrity.READ_OPS)) if owns_db else _db
     try:
         op = cmd.get('op')
-        if op in {'status', 'events'}:
-            db.execute('BEGIN')
-            if op == 'status':
+        if op in {'status', 'events'} | integrity.READ_OPS:
+            if owns_db:
+                db.execute('BEGIN')
+            if op in integrity.READ_OPS:
+                result = integrity.execute(api(), root, db, cmd)
+            elif op == 'status':
                 result = snapshot(db)
             else:
                 config(db)
@@ -285,15 +334,18 @@ def execute(project, cmd):
                 require(type(after) is int and after >= 0 and type(limit) is int and 1 <= limit <= 1000, 'invalid cursor/limit')
                 rows = db.execute('SELECT * FROM events WHERE seq > ? ORDER BY seq LIMIT ?', (after, limit)).fetchall()
                 result = {'events': [{k: json.loads(r[k]) if k in {'command', 'before_data', 'after_data', 'result'} and r[k] else r[k] for k in r.keys()} for r in rows]}
-            db.commit()
+            if owns_db:
+                db.commit()
             return result
-        require(op in {'init', 'configure', 'create', 'update', 'transition', 'review', 'human_review', 'report', 'handoff'}, 'unknown operation')
+        require(op in {'init', 'configure', 'create', 'update', 'transition', 'review', 'human_review', 'report', 'handoff'} | integrity.WRITE_OPS, 'unknown operation')
         require(nonempty(cmd.get('event_id')) and nonempty(cmd.get('actor')), 'event_id and actor required')
-        db.execute('BEGIN IMMEDIATE')
+        if owns_db:
+            db.execute('BEGIN IMMEDIATE')
         old = db.execute('SELECT command,result FROM events WHERE event_id=?', (cmd['event_id'],)).fetchone()
         if old:
             require(old['command'] == canon(cmd), 'event id reused with different content')
-            db.commit()
+            if owns_db:
+                db.commit()
             return json.loads(old['result'])
         before, after = None, None
         if op == 'init':
@@ -305,6 +357,8 @@ def execute(project, cmd):
             require(cmd['actor'] == cfg['pm_actor'], 'init actor must be PM')
             db.execute('INSERT INTO meta VALUES (?,?)', ('config', canon(cfg)))
             result = {'initialized': True, 'schema': SCHEMA}
+        elif op in integrity.WRITE_OPS:
+            result = integrity.execute(api(), root, db, cmd)
         elif op == 'configure':
             # The front desk faces people; PM may let it record their real decisions.
             cfg = config(db)
@@ -329,9 +383,11 @@ def execute(project, cmd):
                     require(parent in tasks, 'parent missing')
                     require(tasks[parent]['state'] not in TERMINAL, 'closed parent; reopen explicitly first')
                     manager = tasks[parent]['owner']
+                if data.get('project_level'):
+                    manager = cfg['pm_actor']
                 require(actor == manager, 'only responsible manager may create this level')
                 allowed = {'id','parent','title','owner','checker','goal','inputs','outputs','criteria','dependencies','completion_requires','resources','slots','executor','human_required','expanded','next_action','source',
-                           'kind','stage','direction','people','derived_from','awaiting'}
+                           'kind','stage','direction','people','derived_from','awaiting','project_level','role','artifact_digests'}
                 require(set(data) <= allowed, 'unknown create fields')
                 after = dict(data, parent=parent, manager=manager, state='planned', revision=1,
                              work_revision=1, evidence=[], review=None, human_review=None,
@@ -340,6 +396,11 @@ def execute(project, cmd):
                 for key, default in [('dependencies',[]),('completion_requires',[]),('resources',[]),('slots',1),('executor',None),('human_required',False),('expanded',False),('source',''),
                                      ('kind','work'),('stage',None),('direction',''),('people',{}),('derived_from',[]),('awaiting',[])]:
                     after.setdefault(key, default)
+                instance = integrity.records(db, 'instance').get(after['owner'])
+                if instance:
+                    require(not after.get('role') or after['role'] == instance['role'], 'instance role mismatch')
+                    after['role'] = instance['role']
+                integrity.observe(api(), root, after)
                 tasks[tid] = after
                 validation(after, tasks)
                 check_people(after, people)
@@ -354,12 +415,15 @@ def execute(project, cmd):
                 if op == 'update':
                     require(after['state'] not in TERMINAL, 'reopen before editing terminal task')
                     changes = cmd['changes']
-                    allowed = {'next_action','evidence','executor','expanded','source','reason','title','goal','inputs','outputs','criteria','dependencies','completion_requires','resources','slots','human_required','checker'} | COORDINATION
+                    allowed = {'next_action','evidence','executor','expanded','source','reason','title','goal','inputs','outputs','criteria','dependencies','completion_requires','resources','slots','human_required','checker','artifact_digests'} | COORDINATION
                     require(set(changes) <= allowed, 'immutable/unknown field')
                     require(nonempty(cmd.get('reason')), 'change reason required')
                     if set(changes) & {'goal','inputs','outputs','criteria','dependencies','completion_requires','human_required','checker','people','derived_from'}:
                         require(actor == after['manager'] or nonempty(cmd.get('scope_authorization')), 'scope/interface change needs manager authorization reference')
+                    if before['state'] == 'running' and changes.get('executor', before.get('executor')) != before.get('executor'):
+                        require(False, 'stop current executor before reassignment')
                     after.update(changes)
+                    integrity.observe(api(), root, after)
                     require(not before['human_required'] or after['human_required'] or nonempty(cmd.get('scope_authorization')), 'cannot silently remove human review')
                     if set(changes) - {'next_action','executor','source','reason'} - COORDINATION:
                         after['work_revision'] += 1
@@ -367,14 +431,23 @@ def execute(project, cmd):
                     after['reason'] = cmd['reason']
                 elif op == 'transition':
                     state = cmd['state']
+                    change_id = cmd.get('change_id') or _applying
+                    if state in RETIRED and not change_id:
+                        linked = [c['id'] for c in integrity.records(db, 'change').values()
+                                  if c['state'] not in {'closed', 'superseded'} and tid in c['affected_tasks']]
+                        require(len(linked) <= 1, 'multiple changes affect this task; explicit change_id required')
+                        change_id = linked[0] if linked else None
+                    if state == 'cancelled' and change_id:
+                        state = 'deprecated'
                     require(state in STATES and state != after['state'], 'invalid/no-op transition')
-                    require(nonempty(cmd.get('reason')), 'transition reason required')
+                    retirement = integrity.deprecation(api(), db, tid, change_id, _applying) if state == 'deprecated' else None
+                    require(retirement or nonempty(cmd.get('reason')), 'transition reason required')
                     if state == 'running':
                         require(not reasons(after, tasks, cfg), '; '.join(reasons(after, tasks, cfg)))
                         require(nonempty(cmd.get('execution_receipt')), 'actual execution/start receipt required')
                     if before['state'] == 'running' and state != 'running':
                         require(nonempty(cmd.get('stop_evidence')), 'actual stop/yield evidence required before releasing resources')
-                    if before['state'] in TERMINAL:
+                    if before['state'] in TERMINAL and state != 'deprecated':
                         require(state in {'planned','blocked'} and actor == after['manager'], 'only manager may reopen closed task')
                         # Reopen from ancestors downwards; cannot hide new work under done.
                         parent = after['parent']
@@ -383,6 +456,7 @@ def execute(project, cmd):
                             parent = tasks[parent]['parent']
                         after['work_revision'] += 1
                         after['review'] = after['human_review'] = None
+                        after.pop('deprecation', None)
                     if state in TERMINAL:
                         require(actor == after['manager'], 'responsible manager closes task after owner reports')
                         require(all(x['state'] in TERMINAL for x in children(tasks, tid)), 'open children remain')
@@ -391,7 +465,7 @@ def execute(project, cmd):
                         require(all(effective_done(tasks[d],tasks) for d in after['dependencies']), 'dependencies not complete/current')
                         pending = [d for d in after.get('completion_requires', []) if not effective_done(tasks[d], tasks)]
                         require(not pending, 'completion prerequisites not complete/current: ' + ','.join(pending))
-                        require(all(x['state'] == 'cancelled' or effective_done(x,tasks) for x in children(tasks,tid)), 'child verification stale')
+                        require(all(x['state'] in RETIRED or effective_done(x,tasks) for x in children(tasks,tid)), 'child verification stale')
                         b = basis(after, tasks)
                         require(after['review'] and after['review']['basis'] == b and after['review']['outcome'] == 'passed', 'current professional verification required')
                         if after['human_required']:
@@ -399,8 +473,11 @@ def execute(project, cmd):
                     if before['state'] == 'done' and state != 'done':
                         # Downstream completed work is kept as historical fact;
                         # record stale dependency visibility rather than rewriting it.
-                        after['reason'] = cmd['reason']
-                    after['state'], after['reason'] = state, cmd['reason']
+                        after['reason'] = cmd.get('reason', '')
+                    after['state'], after['reason'] = state, cmd.get('reason', '')
+                    if retirement:
+                        after['deprecation'] = retirement
+                        after['reason'] = retirement['remark']
                 elif op == 'review':
                     require(after['state'] not in TERMINAL, 'reopen closed task before new verification')
                     require(actor == after['checker'], 'designated checker only')
@@ -450,6 +527,12 @@ def execute(project, cmd):
                 check_people(after, people)
                 if after['state'] == 'running':
                     require(not reasons(after,tasks,cfg), '; '.join(reasons(after,tasks,cfg)))
+            if op == 'transition' and after['state'] in {'running', 'done'}:
+                problems = integrity.blockers(api(), root, db, tasks, tid, closing=after['state']=='done', applying=_applying)
+                require(not problems, 'integrity gate: ' + canon(problems))
+            for key in list(after):
+                if key.startswith('_'):
+                    after.pop(key)
             db.execute('INSERT OR REPLACE INTO tasks VALUES (?,?)', (tid,canon(after)))
             result = {'task': after}
         occurred = cmd.get('occurred_at', now())
@@ -457,13 +540,16 @@ def execute(project, cmd):
                          (cmd['event_id'],canon(cmd),after['id'] if after else None,cmd['actor'],occurred,now(),canon(before) if before else None,canon(after) if after else None,canon(result)))
         result['event_seq'] = cur.lastrowid
         db.execute('UPDATE events SET result=? WHERE seq=?',(canon(result),cur.lastrowid))
-        db.commit()
+        if owns_db:
+            db.commit()
         return result
     except Exception:
-        db.rollback()
+        if owns_db:
+            db.rollback()
         raise
     finally:
-        db.close()
+        if owns_db:
+            db.close()
 
 
 def atomic(path, text):
@@ -529,7 +615,7 @@ def render(project):
         line += '；影响完成：' + '、'.join(esc(x['title']) for x in finishing) if finishing else ''
         return line + '\n'
     summary = data['top_level']
-    head = f"# 项目任务总览\n\n只读派生视图。任务事实由 `management/runtime/tasks.sqlite3` 维护；专业内容仍在原源。\n\n项目：{esc(data['config']['project'])}。读取时间：{data['observed_at']}。事件修订：{data['revision']}。\n\n顶层完成 {summary['done']}/{summary['total']}，剩余 {summary['remaining']}；仅统计已登记范围，未登记远期不计入。\n\n另见：[全程计划表](plan.md)｜[项目总入口](project.md)｜[群摘要](digest.md)\n\n"
+    head = f"# 项目任务总览\n\n只读派生视图。任务事实由 `management/runtime/tasks.sqlite3` 维护；专业内容仍在原源。\n\n项目：{esc(data['config']['project'])}。读取时间：{data['observed_at']}。事件修订：{data['revision']}。\n\n顶层完成 {summary['done']}/{summary['total']}，剩余 {summary['remaining']}；已弃用 {summary['deprecated']}，已取消 {summary['cancelled']}。仅统计已登记范围，未登记远期不计入。\n\n另见：[全程计划表](plan.md)｜[项目总入口](project.md)｜[群摘要](digest.md)｜[需求变更流水](changes.md)\n\n"
     head += '| 编号 | 任务 | 责任方 | 状态 | 本层子项 | 下一步 | 详情 |\n|---|---|---|---|---|---|---|\n'
     for t in children(tasks,None):
         c=t['child_counts']
@@ -552,7 +638,10 @@ def render(project):
         c=t['child_counts']
         body=f"# {t['id']} {esc(t['title'])}\n\n[项目总览](../index.md) | [完整事件](../events.md)\n\n只读；快照修订 {data['revision']}，任务修订 {t['revision']}，源更新时间 {t['updated_at']}。\n\n"
         for label,key in [('责任','owner'),('执行实例','executor'),('检验责任','checker'),('状态','state'),('目标','goal'),('下一步','next_action'),('原因','reason')]:
-            body+=f"- {label}：{esc(t.get(key))}\n"
+            body+=f"- {label}：{state_of(t) if key == 'state' else esc(t.get(key))}\n"
+        if t.get('deprecation'):
+            body+='- 变更编号：'+esc(t['deprecation']['change_no'])+'（[需求变更流水](../changes.md)）\n'
+            body+='- 备注：'+esc(t['deprecation']['remark'])+'\n'
         if t.get('source'):
             body+='- 专业有效源：'+link(t['source'])+'\n'
         if t.get('stage'):
@@ -585,7 +674,7 @@ def render(project):
             body+='\n当前前置/资源提示（不等同于已停止）：\n\n'+''.join('- '+esc(x)+'\n' for x in t['readiness_issues'])
         body+='\n子任务：\n\n'
         for child in children(tasks,t['id']):
-            body+=f"- [{child['id']} {esc(child['title'])}]({child['id']}.md)：{child['state']}；下一步：{esc(child['next_action'])}\n"
+            body+=f"- [{child['id']} {esc(child['title'])}]({child['id']}.md)：{state_of(child)}；下一步：{esc(child['next_action'])}\n"
         body+='\n本任务时间线：\n\n'
         for e in events:
             if e['task_id']==t['id']:
@@ -596,7 +685,17 @@ def render(project):
         event_text+=f"- #{e['seq']} {e['recorded_at']}｜{esc(e['task_id'])}｜{esc(e['actor'])}｜{e['command']['op']}｜{esc(e['command'].get('reason',e['command'].get('summary','')))}\n"
     atomic(local(root,'management/views/events.md'),event_text)
     atomic(local(root,'management/views/index.md'),head)
-    written = ['index.md', 'events.md']
+    ledger = data['integrity']['change']
+    change_text = '# 需求变更流水\n\n只读派生视图；编号在本项目内唯一，完整修订见[事件时间线](events.md)。\n\n'
+    change_text += '| 变更编号 | 需求 | 类型 | 状态 | 登记时间 | 来源 | 关联任务 |\n|---|---|---|---|---|---|---|\n'
+    for change in sorted(ledger.values(), key=lambda c: (c.get('sequence', 0), c['id'])):
+        ids = set(change['affected_tasks']) | {d['task_id'] for d in change.get('dispositions', [])}
+        refs = '；'.join(tlink(tasks[tid])+'（'+state_of(tasks[tid])+'）' for tid in sorted(ids) if tid in tasks)
+        change_text += '| '+ ' | '.join([esc(change.get('change_no', change['id'])), esc(change.get('title', change['quote'])),
+                      esc(change['type']), esc(change['state']), esc(change.get('created_at', '历史记录未登记')),
+                      link(change['source']), refs or '待分析'])+' |\n'
+    atomic(local(root, 'management/views/changes.md'), change_text)
+    written = ['index.md', 'events.md', 'changes.md']
 
     # Whole-lifecycle plan: stage milestones in dependency order, near stages expanded.
     stages = [t for t in tasks.values() if t.get('kind') == 'stage']
@@ -657,7 +756,7 @@ def render(project):
 
     # Personal and group views exist only when two or more people take part.
     def scoped_view(title, members, intro, prefix='../tasks/'):
-        mine = [t for t in tasks.values() if t['state'] != 'cancelled' and any(set(rels(m, t)) - {'inform'} for m in members)]
+        mine = [t for t in tasks.values() if t['state'] not in RETIRED and any(set(rels(m, t)) - {'inform'} for m in members)]
         ids = {t['id'] for t in mine}
         waiting = [(t, a) for t, a in awaiting if a['person'] in members]
         counts_by = {s: sum(t['state'] == s for t in mine) for s in ['done', 'running', 'waiting_review', 'blocked', 'planned']}

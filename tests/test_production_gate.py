@@ -16,7 +16,7 @@ class PublishingGateTests(unittest.TestCase):
      raw=directory/(str(n)+'.md');raw.write_text('simulated fixture; not actual behavior evidence')
      events=directory/(str(n)+'.jsonl');events.write_text('{"type":"turn.completed"}\n')
      turns.append({'user':user,'reply':raw.name,'events':events.name,'sha256':p.sha(raw)})
-    run=directory/'run.json';run.write_text(json.dumps({'runner':'codex exec','source_hash':h,'suite_hash':p.sha(suite),'cases':[{'id':c['id'],'turns':turns}]}))
+    run=directory/'run.json';run.write_text(json.dumps({'runner':'codex exec','source_hash':h,'suite_hash':p.sha(suite),'cases':[{'id':c['id'],'turns':turns,**({'fixture_sha256':c['fixture_sha256']} if c.get('fixture') else {})}]}))
     case[side+'_run']=str(run.relative_to(self.root));case[side+'_evidence']=[{'path':str(f.relative_to(self.root)),'sha256':p.sha(f)} for f in directory.iterdir()]
    cases[c['id']]=case
   self.data={'baseline_ref':baseline,'baseline_hash':bh,'candidate_hash':ch,'suite_hash':p.sha(suite),'cases':cases,'reviewer':'test fixture','limitations':['simulated mechanism check, not real behavior']};self.report=self.root/'report.json'

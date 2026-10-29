@@ -29,12 +29,14 @@
  ".agents/skills/engineering-build-agent/GUIDANCE-INDEX.md": [
   "04fd8dcc644ca545932a7f4e239061fdce35edfca3ef29797043a929377303fc",
   "812db4fdcb595ffcf056777b335a6fe85c96834d00477ddb7b62584e0c40ef6b",
-  "8b1371898eb2faf69ed3540195ba355f57b12edbd4ab423ffcbaf92223f90eca"
+  "8b1371898eb2faf69ed3540195ba355f57b12edbd4ab423ffcbaf92223f90eca",
+  "6a4e98c21c1b9ff8162758e898ce724e7236c17267eb7af01457f1ccaf632c65"
  ],
  ".agents/skills/engineering-build-agent/SKILL.md": [
   "a9273223616cd7b131cce03effc3ef65340ed737069ed9f437639bec031fabb4",
   "da3d4d2d71c2c321b8229ea1eff3afb3fb29bcebe19ea5af2993fea835876298",
-  "ee3e567ce5f8735b0c66fdeeb00091404e4012c76b8574d12d6784b52e1eacae"
+  "ee3e567ce5f8735b0c66fdeeb00091404e4012c76b8574d12d6784b52e1eacae",
+  "9e1960a54c2ec06b8e4d5ef034691baee9eda3550ac748be6ee7201f6d9b6610"
  ],
  ".agents/skills/engineering-build-agent/agents/openai.yaml": [
   "5e3c03f2645aa25063ce7ed28d5f7f43603459e6437a0443bf7a82a3a95e753c",
@@ -45,17 +47,21 @@
   "e75c016a4fcbd462dcdc786d1aa34de77d19a6b3420493c99187986abed42c26"
  ],
  ".agents/skills/engineering-build-agent/assets/release-workspace-template.md": [
-  "99e9d5e8cd4491fe9b2f74b713358fdf5d84a5bf92a4f1d50770a2dd55b379a7"
+  "99e9d5e8cd4491fe9b2f74b713358fdf5d84a5bf92a4f1d50770a2dd55b379a7",
+  "86d1751e59c3ab50051c509286d6a7eadc3d765b3010451805df1604503470b7"
  ],
  ".agents/skills/engineering-build-agent/references/handoff.md": [
-  "f83eaebd623c0ed16547cefca85803ac3d38bd41d8026d530f745e2fafc40a56"
+  "f83eaebd623c0ed16547cefca85803ac3d38bd41d8026d530f745e2fafc40a56",
+  "b8d442df5b663c35ecf9841bcce5af9c9e863e63dacf5283351c64e4d046d9dd"
  ],
  ".agents/skills/engineering-build-agent/references/increments.md": [
   "4ac3aa1a6897012565ec1573cfd500ff5c9607063692caea7e05fca75aa2a831",
-  "94a04696206b90700a24874a790ef15a4ba9a3d9796c8a100d41fb17466e7e06"
+  "94a04696206b90700a24874a790ef15a4ba9a3d9796c8a100d41fb17466e7e06",
+  "3a668c248818926b2b67039a978db96004b5943e34a7bd4578d2818e5e5baba4"
  ],
  ".agents/skills/engineering-build-agent/references/release.md": [
-  "0c9e147e9b025be20c15bea5136db63537266aaed164f3924570ce481ddbb2dd"
+  "0c9e147e9b025be20c15bea5136db63537266aaed164f3924570ce481ddbb2dd",
+  "1bd653ac4f3fbaba8bc0f3276046e20abd0c841831ed752029e2dbbedce89452"
  ],
  ".agents/skills/engineering-build-agent/references/scope-complete.md": [
   "1c5625a4a99cfdb53b9e73566d0d14e804ea212a6ba47d6eea822fbc5f628bcd",
@@ -63,13 +69,15 @@
  ],
  ".agents/skills/engineering-build-agent/references/verification.md": [
   "32f8dcc07534e2cd924ceba7ab28f646bab5f6951c743453065d92c567cd676d",
-  "f9409cbab5918721a79ae43a688fe2c87547f80b61288276f707557ae3d045cf"
+  "f9409cbab5918721a79ae43a688fe2c87547f80b61288276f707557ae3d045cf",
+  "71a1e1523f673c1420eaad00b9adcc6876c2a80a23775d2cacef16aee9a08682"
  ],
  ".agents/skills/engineering-intake-agent/GUIDANCE-INDEX.md": [
   "1639c4fabb82d72b9d76c4feb26789dc363d5cc6d94693ebd1ac661fbd594062",
   "40ba70d8d3a276e69d21148f8d9bd0b9c915a4d461a3bd7a16656a61467e26a3",
   "4e8a85c4094388d7a5deb3113c0d3a0422d0aa20f3d5f7fc2f437d90c8d4def8",
-  "fab6533b544962cc357f1282af180e76079149533964d042f926ffd0f2288ce8"
+  "fab6533b544962cc357f1282af180e76079149533964d042f926ffd0f2288ce8",
+  "5f8549bb063c9cb65ef1c3ef1dca8330c590d110a38fc98d7099ad1a78e4ec9b"
  ],
  ".agents/skills/engineering-intake-agent/SKILL.md": [
   "28a8c16826d3cc25bcef05d7499fb198aad5826805fb8dc35eb5ca47b810849b",
@@ -84,7 +92,8 @@
   "c77ddfe333a557c47b67404a6c480425ac21a645d97f4d99181ceced4192f8ef",
   "d1654ccc2b449f5c198768d05a615eea3de61941c80ba62b21e5664ee5906535",
   "e1487534fdeaf23559325d29e476e7973afd0004cee7770ae61c48f349f606c9",
-  "f53c5574d1558f8cee3b2f83c5cfd69879c94aeec9d891377cd7d37518a2d4f4"
+  "f53c5574d1558f8cee3b2f83c5cfd69879c94aeec9d891377cd7d37518a2d4f4",
+  "9452e19b03e0353cd2ae8a6a77158fa85521e19ddd7da4ec7b6b3ba58edc7ce5"
  ],
  ".agents/skills/engineering-intake-agent/agents/openai.yaml": [
   "750a52d4ca6a64fb3ce16e89ee97161b2af69c2d849cc4023165834577b2f00d"
@@ -96,7 +105,8 @@
   "b56214d067a5935e8ec025a984a403189ed16ac6b14308c35f07ac98294e21f3",
   "c4fa406995ef5dfcaafd32d6381b13e275a62512e2814f8eeda3978512fd5b20",
   "d884322a22c6da6c6fa4362eee16136f617d3565f9906c040be88896c10d256f",
-  "ecea957d522601b06e0267b0910af6a063d21f518dbaf9005a71eb0c4e64c739"
+  "ecea957d522601b06e0267b0910af6a063d21f518dbaf9005a71eb0c4e64c739",
+  "f6e11fb9119d999e33a7aa129a2f7c8d0e4ead353617a9b15c95be3382a5442f"
  ],
  ".agents/skills/engineering-intake-agent/references/collaboration.md": [
   "26de8915b04fef455d6ea623cf54ba02a1f416c533192fcce14f103f371bc0f4",
@@ -113,7 +123,8 @@
   "c1360f637c7ec29e8d73e22e07af19b6c8f7385972c3f4da935ec0274cd319f9",
   "ebbaf18642e78a25636917f908fe419034fbfd0ff65b64e222c183c3fd50348a",
   "ebfe7a172516b09ab35a40fa82eef17856ab632d3aff66ded505ae1f62d364cd",
-  "fd4570556f6a053027612422349a59600c3964fa1ce1534cd5ebcaa6b4f24641"
+  "fd4570556f6a053027612422349a59600c3964fa1ce1534cd5ebcaa6b4f24641",
+  "82172fec2d4e67c708c645c392291cb2e8524172667384d6adefd26639d81032"
  ],
  ".agents/skills/engineering-intake-agent/references/review-and-handoff.md": [
   "26423782190e94ed2cb192b24f57dfb4f6f506f792514c9490463b2b09c809a7",
@@ -130,13 +141,15 @@
  ".agents/skills/engineering-solution-agent/GUIDANCE-INDEX.md": [
   "2b51c3e9f197485a808d66cf03cb47ef36e0b97debfc62b119ef9e6132afed51",
   "337bfb56ed8138223544119c9e8455702b9c221ec0b3c05aa0ad911b3d6d86ae",
-  "75067c699ec90f5a08d885af759679dbea4bea91a075041546aef1d324c8cb2f"
+  "75067c699ec90f5a08d885af759679dbea4bea91a075041546aef1d324c8cb2f",
+  "a7dba2a0c606ccb1c10ec928c20105ce0f62c406ab167d576e8a0f528be6277e"
  ],
  ".agents/skills/engineering-solution-agent/SKILL.md": [
   "16914436f272dddceae5bf5b12f0b025b5dd68dfbdbc8da66e2f275cf78bd339",
   "3e0a50b454f8fbd8c225b6bf887088f0af1a958e654b950842db46d44cae0e15",
   "ad22aadf090c4106305d92096cfb16dd5f5bf7d089e97fa0578b2444c2fc3aab",
-  "e73d87b8e15bf5d9ec65046dc0179d38549fec8f866765b21c8cd5b287f36dd0"
+  "e73d87b8e15bf5d9ec65046dc0179d38549fec8f866765b21c8cd5b287f36dd0",
+  "adb7856608c2026f6cd05d962c6828e90c5a5839494cfc0eb844249d50bfad73"
  ],
  ".agents/skills/engineering-solution-agent/agents/openai.yaml": [
   "172e8de7fe723890c718a6c2d48b12f44b46b3f7defe3d9c72cb60a4e36e3a48"
@@ -145,7 +158,8 @@
   "657f551f28474fdbd97abbee6ce8260dda6b4ef09c59c2eaf2ea4e44c2210eb2",
   "7a1906057f312d0ff7ab441e327d58d79431da9990a0fc6019d2733dcdcc5d88",
   "d3739034d8a228a545e445f03c7a6bb381fc7deda6c441a0b3041008d56f9317",
-  "da51130833fe226d6d8ebd0ab3e21f4f236313e28458c719b2b2039b60d7bd3c"
+  "da51130833fe226d6d8ebd0ab3e21f4f236313e28458c719b2b2039b60d7bd3c",
+  "3d1961e3fef6f38ea3dce462f9c56e8e6b6d35ee3b910ee2df0dba0f83b71bfd"
  ],
  ".agents/skills/engineering-solution-agent/references/decisions.md": [
   "5e4751ae114b23e1bfe924a03828ca73c583f13881cf6aea84628b1df6c2ddd1",
@@ -154,7 +168,8 @@
  ],
  ".agents/skills/engineering-solution-agent/references/proof-and-skeleton.md": [
   "460434661700f760bec432e63e46ec9023a01d5f6b348ea535cd8f37d2ae09ea",
-  "e41be3402a85a4b4ce110e0e2c6e1e312c462a7c6cdc101aeb5f68273d0e6720"
+  "e41be3402a85a4b4ce110e0e2c6e1e312c462a7c6cdc101aeb5f68273d0e6720",
+  "64028a57a0937fe615f73d2dad36915ac599827b3cec5749c58c19dd3d3a163e"
  ],
  ".agents/skills/engineering-solution-agent/references/technical-review.md": [
   "3fa4600c2074fc3d4efd2d014d7bc5ee3b2a870e7fb4302f1a24761b0455b1d5",
@@ -197,7 +212,8 @@
   "d39fe12a4f60fa978906ab175662323e939bd1f6ebf50eea7d95cae12dce4487",
   "d441a053c8e88474558c80f710b97b0dc8741e903f3f30bb048cbc712d31904d",
   "e26c8a3a4336d6912ff27b0fa3489ef4fda41ebdc9894c1dfe294c40c2965ba8",
-  "f2828c81fe8271fdb8b2dbadffafd1c4362831b1d95a31b68e14176755f238e4"
+  "f2828c81fe8271fdb8b2dbadffafd1c4362831b1d95a31b68e14176755f238e4",
+  "96b54f2d9dc543e34579721b2503f7e2de076c61cec7462bd4a1d3382d0849a7"
  ],
  ".agents/skills/experience-design-agent/agents/openai.yaml": [
   "a175a44a449cab04aa46321553cfad944c105edd997aeca3a9f99a96938dc915",
@@ -227,7 +243,8 @@
  ".agents/skills/experience-design-agent/references/assets.md": [
   "773fddcaa915da0cc42201c078833555d60020b9b08e1f99295500b82d98c4b9",
   "ac748e3ff45573c93c1e783a57d31de5e5e9c83d86c1d78b0b607b95bf81a70f",
-  "da220b15e72a0922519cfc4dc68978238c60e8b518f554a66da5a87700592f8d"
+  "da220b15e72a0922519cfc4dc68978238c60e8b518f554a66da5a87700592f8d",
+  "fb2c1a2eb1e7497cd6ed1d65feceedb57041a98f7f0830084206310971f0c9f1"
  ],
  ".agents/skills/experience-design-agent/references/capability-index.md": [
   "b44a5128493ac4d091678d470439909ffde52113ee06b4e3285f171a2029f231",
@@ -389,10 +406,10 @@
   "ee16851a034a1f13c9dc25c6a539fe713a59dd5a706e4e8359573470a08713e8",
   "fdbd4e117ae20889a9315938977f265d9967466db7904565462d86795ccf4b0c"
  ],
- ".agents/skills/experience-design-agent/sources/\u300a\u4ea7\u54c1\u9886\u57df\u4e13\u5bb6\u80fd\u529b\u8981\u6c42\u6a21\u578b\u300b\u9879\u76ee\u80cc\u666f\u4e0e\u6a21\u578b\u5f62\u6210\u8bf4\u660e.pdf": [
+ ".agents/skills/experience-design-agent/sources/《产品领域专家能力要求模型》项目背景与模型形成说明.pdf": [
   "fa7889767e510cb03423005ce5f1050239d77142e1567f16cdf69fe193946983"
  ],
- ".agents/skills/experience-design-agent/sources/\u4ea7\u54c1\u9886\u57df\u4e13\u5bb6\u80fd\u529b\u8981\u6c42\u6a21\u578b_\u5b8c\u6574\u7248_\u6700\u65b0.md": [
+ ".agents/skills/experience-design-agent/sources/产品领域专家能力要求模型_完整版_最新.md": [
   "a20d8eaac40a858af8fdd847834febcc3b5fb2b5372dd7b0bc319d9a67a3dde4"
  ],
  ".agents/skills/product-agent/GUIDANCE-INDEX.md": [
@@ -583,10 +600,10 @@
   "c92147c9813e7955d0b32b065296151ab301288b9220e2e0a639b4e5147f0cca",
   "e6ba48151c0304f1a735bf3d529c292bff56601de4b21da41bedb6d3c4ce8120"
  ],
- ".agents/skills/product-agent/sources/\u300a\u4ea7\u54c1\u9886\u57df\u4e13\u5bb6\u80fd\u529b\u8981\u6c42\u6a21\u578b\u300b\u9879\u76ee\u80cc\u666f\u4e0e\u6a21\u578b\u5f62\u6210\u8bf4\u660e.pdf": [
+ ".agents/skills/product-agent/sources/《产品领域专家能力要求模型》项目背景与模型形成说明.pdf": [
   "fa7889767e510cb03423005ce5f1050239d77142e1567f16cdf69fe193946983"
  ],
- ".agents/skills/product-agent/sources/\u4ea7\u54c1\u9886\u57df\u4e13\u5bb6\u80fd\u529b\u8981\u6c42\u6a21\u578b_\u5b8c\u6574\u7248_\u6700\u65b0.md": [
+ ".agents/skills/product-agent/sources/产品领域专家能力要求模型_完整版_最新.md": [
   "a20d8eaac40a858af8fdd847834febcc3b5fb2b5372dd7b0bc319d9a67a3dde4"
  ],
  ".agents/skills/product-capability-model/SKILL.md": [
@@ -944,11 +961,13 @@
  ],
  ".agents/skills/quality-verification-agent/GUIDANCE-INDEX.md": [
   "7545cef31bfb87f5e6d5e57054b4f2cad3ab7c3af2a4e6ae8038c700c8ee083c",
-  "f1cb8fe410beb140f8775a84981178e3776e8aa1cfed520057ce8d577dbe4830"
+  "f1cb8fe410beb140f8775a84981178e3776e8aa1cfed520057ce8d577dbe4830",
+  "8c2cd77e0f82079c89d8625b257f05c0fea445e274112cba4ca7af245651df50"
  ],
  ".agents/skills/quality-verification-agent/SKILL.md": [
   "80e1638a01e7c0e9e0bc06d886d0e0a41e70f05140872c79c0b7b20966f6c189",
-  "c331f9f828c3aa9b4e6644569afebd24c77556c78acf51d0f21683943de79543"
+  "c331f9f828c3aa9b4e6644569afebd24c77556c78acf51d0f21683943de79543",
+  "dd537eb2637b09b9906ca950e020c4b861030beca5a9cac5ce4c2d47346e490e"
  ],
  ".agents/skills/quality-verification-agent/agents/openai.yaml": [
   "7e00c7b99be0e63b663ab20c3d3a9994ad2e90a2937d5db71e4102e784ec38d9",
@@ -959,7 +978,8 @@
   "b2a74320f97e1230002770e5b1bc675e62cdaefb182954ad6270cde3539679d6"
  ],
  ".agents/skills/quality-verification-agent/references/acceptance.md": [
-  "135c603009b7c1607aac9d2ae64caf2713df1f7a96b04dc1bfc9c557cfe14f17"
+  "135c603009b7c1607aac9d2ae64caf2713df1f7a96b04dc1bfc9c557cfe14f17",
+  "148cf567c99417a2e00ae3b419c48731678891cd1ffed53f71d9b787a5fe15cc"
  ],
  ".agents/skills/quality-verification-agent/references/defects.md": [
   "6417a9327f18bc7421ca0f5edb7641e9190ec9fd9f32e6aa07f46089bd428ac1",
@@ -967,14 +987,16 @@
  ],
  ".agents/skills/quality-verification-agent/references/verification.md": [
   "2f6ad22e11b041016157f7edebaa3f79a2d2ac1f6a197622cb6a813bf4828946",
-  "8ad5a4b953ae3c43c69d2a1ba0ba9c4920a1f5c2309a75a9918feb556683b63a"
+  "8ad5a4b953ae3c43c69d2a1ba0ba9c4920a1f5c2309a75a9918feb556683b63a",
+  "4f7ae2f0722e3673057e9ab9cd3db9e9462e6ea8eb16a1227396dfd8d73c1094"
  ],
  "DEMO-TEST.md": [
   "459e4680734afb9112aab62e0f46482a6c0fa4fef37383a5c38bdf362b817448"
  ],
  "START.md": [
   "31a9f8ed2af9f0c6f14a9284bf25ec55b50ffcdcef1816bc49caa77a2df3c661",
-  "dcfe6aa0a1459c1db100c0fd527f2b27b831f41eab1bd41247d061811ab543f2"
+  "dcfe6aa0a1459c1db100c0fd527f2b27b831f41eab1bd41247d061811ab543f2",
+  "7b65ddb60fac8f66a1b84f0d978edf12bba2293df7c8cbaaeb12ee5c99f8a245"
  ],
  "VALIDATION.md": [
   "37d93c3c0f13cd3e899239b16eb64d43183df7d82d0bc8509f56489d1d9d9c6e",
@@ -1004,14 +1026,16 @@
   "4826ca90f207b740f5570df6ed5203858326d786c8603fd9be75d0eedccd9a24",
   "9fa91b0ba23c1abeb15755b103bccb1a25c88877f2184b6207028c07374a6e79",
   "c5f36bea2c821fb053fd45cc6c205e6f62f0cf17c3355c25af52db6f484c9105",
-  "ecc34cc2867e9b4ac4918d828e71d17a94c180ff62be5f6a4fe36c78b4d0848a"
+  "ecc34cc2867e9b4ac4918d828e71d17a94c180ff62be5f6a4fe36c78b4d0848a",
+  "3fa795d51a6ed60b93ad928158a98d2bcd0d2b45cc5ec6b67ea17d83f3c63f21"
  ],
  "collaboration/ENGINEERING-FLOW.md": [
   "0dc7767268f3c92a0c3088b34c32e32d7953e0cbf789c322b1686947ba848bc1",
   "994d4be71d8ddc4eb09a440950510fdad098ba32266e8b856f266d3cbdb0202e",
   "c7e6298786e9a7abc358af2085b3ae2833eb90cb31c75ed7f24ace8f552d6e48",
   "e569e153cf4fbaa0e09b9263e4c5610083b82f578f77051062dcb992f8187989",
-  "f3e5f23715c06b230616228e356b49de8d6045d47b362db7a9f842e462ee6754"
+  "f3e5f23715c06b230616228e356b49de8d6045d47b362db7a9f842e462ee6754",
+  "7e73fba508c105a98469b20c913dc852b31932d0b119c1b42e81a2c0682d26fb"
  ],
  "collaboration/ENGINEERING-INTAKE-ROLE.md": [
   "08aa89253bc3beeda598a4a7aacf01ab053335895cb55752969b71231db44ce6",
@@ -1039,7 +1063,8 @@
   "93cef6dd905e3aadc6bdc041689fc455378621608a5928c7f806f3ee0c075355",
   "d61d9b4a00dfeb88ad331da2c81d1cd61684ceb895c3e542c242fce5f5ebbfb5",
   "dd5ad1620cef94b7bbe31a58752099663e9b9697832bcc540e7f925785eb19a6",
-  "f9b2a6181de56ed751ced1d79e5639cb77cb9a686180112d6cf5fb2c5173f728"
+  "f9b2a6181de56ed751ced1d79e5639cb77cb9a686180112d6cf5fb2c5173f728",
+  "4dd7f211acbe374c15127212949a6f9381cae77f9ab7155cfc38358a6bc0f840"
  ],
  "collaboration/PRODUCT-EXPERIENCE.md": [
   "36b78a37e40dac7f6df92694a0d3ff9fd586edfb58acd214e1eb68a33705aa42",
@@ -1074,7 +1099,8 @@
   "e987ca697847b24c640cc8722a770281736ab6e55e536442362dbd54c663eb66",
   "f2ba9e29fe3597a5eafff5e8c3fdd46e825a46e4ea449df7e220a26f7c04f542",
   "f89277f7fce426c83d4e71b86fe7e0cd6538480217f4dab58feeb83fd57a1928",
-  "fd5b5aa2381ef99c7a5fbdf8ccff3269abec89acbc30e92f905500b850f05336"
+  "fd5b5aa2381ef99c7a5fbdf8ccff3269abec89acbc30e92f905500b850f05336",
+  "024361ab17bf429ef65929d60f04c9c0a0ad8fd3071d18d7f319abb070f1697f"
  ],
  "collaboration/RUNTIME.md": [
   "583265c565517771bc7b6bfa9f13d20e2fec7a7314f47231348955cd8163b614",
@@ -1100,7 +1126,8 @@
  "collaboration/TEAM.md": [
   "3cdd2c7a860c48165412b1a97ded7a73ebb1fc8d9ad3c8beab490b38343b0704",
   "7ad4d38961b253a5587183d543c08ec2b1da4ff19b0d845b67fb061b0bcb5103",
-  "a7c6fcc96b6cd7bd18dd333945d64390aed7e4102274c965677e2c7e6f8f924c"
+  "a7c6fcc96b6cd7bd18dd333945d64390aed7e4102274c965677e2c7e6f8f924c",
+  "5e7192eb5f5db3faa9de2314f34542790f03fdfc7dd814748d611c76e7494517"
  ],
  "collaboration/USER-INTERACTION.md": [
   "08892cafea2ea880606b154152e32f1894499031ad371d923b463be49a21937b",
@@ -1129,15 +1156,16 @@
  ],
  "install.py": [
   "166ca64c1cbb62bac08c202539ab2325d8171d8f1395a45b5225d4785a007776",
-  "efae0aa25f46edb8898dba265e5d3f3a7baee7fb25a3dfd2d659a6c83a0cb63c"
+  "efae0aa25f46edb8898dba265e5d3f3a7baee7fb25a3dfd2d659a6c83a0cb63c",
+  "869ce0f7a8d3bfe82ffbf34f9b6641e9f0ad3be2f8922fb01aa61a22a4d14c97"
  ],
  "shared/review.html": [
   "3bbfaec22a2b1e2d811b7f2ba943341cd3366fd793550dd46d7d197772142dd1"
  ],
- "shared/sources/\u300a\u4ea7\u54c1\u9886\u57df\u4e13\u5bb6\u80fd\u529b\u8981\u6c42\u6a21\u578b\u300b\u9879\u76ee\u80cc\u666f\u4e0e\u6a21\u578b\u5f62\u6210\u8bf4\u660e.pdf": [
+ "shared/sources/《产品领域专家能力要求模型》项目背景与模型形成说明.pdf": [
   "fa7889767e510cb03423005ce5f1050239d77142e1567f16cdf69fe193946983"
  ],
- "shared/sources/\u4ea7\u54c1\u9886\u57df\u4e13\u5bb6\u80fd\u529b\u8981\u6c42\u6a21\u578b_\u5b8c\u6574\u7248_\u6700\u65b0.md": [
+ "shared/sources/产品领域专家能力要求模型_完整版_最新.md": [
   "a20d8eaac40a858af8fdd847834febcc3b5fb2b5372dd7b0bc319d9a67a3dde4"
  ],
  "shared/stage_gate.py": [
@@ -1175,5 +1203,23 @@
  ],
  "tests/test_product_contract.py": [
   "adf25a953e94e002fc6b6130b13099a6250b7067740d804b44bc28e50b4d09c0"
+ ],
+ "BEHAVIOR-CHECKS.md": [
+  "c8686b270016d49889feea60b7d7b9422eb06c4c0576ac94bb74570506362292"
+ ],
+ "collaboration/OPERATIONS.md": [
+  "a78d8834fc9e6eee6a57e7b13dd763d88d961a2d815ea2b971ddd5f01812e68f"
+ ],
+ "collaboration/PERFORMANCE.md": [
+  "2d5c0640a30c907f8fc4eb15ac69b3572621cd22253244d95cfd472878a7e948"
+ ],
+ "collaboration/SECURITY.md": [
+  "bf920ad16d8b5c3df8fbc7b58a7caf0a10476fc8e42098c4c8b2e37d02c9a45b"
+ ],
+ "collaboration/TASK-PACKET.md": [
+  "7b6e1117b35348a868cc8266cdf3d52e6c669b8dc821ca68b84cf01d67ea8f8a"
+ ],
+ "upgrade-bases.json": [
+  "0c4a33303cab631d76f797707d87d7a0e02d17ea098080e957c06d558886f629"
  ]
 }

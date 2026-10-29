@@ -79,6 +79,7 @@ def check_evidence(report,files):
    runners.add(run['runner'])
    records=[r for r in run['cases'] if r['id']==cid]
    if len(records)!=1 or [t['user'] for t in records[0]['turns']]!=specs[cid]['turns']:raise ValueError('actual user turns incomplete')
+   if specs[cid].get('fixture') and records[0].get('fixture_sha256')!=specs[cid].get('fixture_sha256'):raise ValueError('run fixture mismatch: '+cid)
    reuse=records[0].get('reused_from')
    if reuse:
     # Carried over from the previous release's run: allowed only for a role whose files are unchanged.

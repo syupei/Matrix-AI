@@ -65,3 +65,7 @@
 ## 专业交付证据
 
 文案、结构化交付、定位落实分别按 [COPY-QUALITY](../../../../collaboration/COPY-QUALITY.md)、[STRUCTURED-HANDOFF](../../../../collaboration/STRUCTURED-HANDOFF.md)、[PRODUCT-EXPERIENCE](../../../../collaboration/PRODUCT-EXPERIENCE.md) 中 PM 的职责写入完成条件，关闭前核对实际覆盖、快照与采用版本。
+
+## 范围完整性与计划生效
+
+按 [任务完整性](../../../../collaboration/PM-INTEGRITY.md) 从专业源接管集合、绑定交付出口；父项全量关闭同时检查对象覆盖，取消子项不取消必要义务。口述变更先建分析任务，组织各 owner 准备自己的调整，再合批生效；失败保留未同步、重试不重复执行。项目层按岗位或实例查询，专业内部任务分层展开，不混算数量。

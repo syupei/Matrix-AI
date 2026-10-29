@@ -2,7 +2,7 @@
 """Run fixed multi-turn skill probes with an actual local agent CLI (Codex or Claude Code).
 Results are ungraded raw evidence; no canned response is treated as model behavior.
 """
-import argparse,hashlib,json,os,shutil,subprocess,tempfile,time
+import argparse,hashlib,json,os,shutil,subprocess,tempfile,time,importlib.util
 from pathlib import Path
 
 def fingerprint(root):
@@ -20,6 +20,13 @@ def main():
    roles=case['role'] if isinstance(case['role'],list) else [case['role']]
    role=next((r for r in roles if (source/'.agents/skills'/r/'SKILL.md').is_file()),roles[-1])
    history=[];record={'id':case['id'],'role':role,'turns':[]}
+   if case.get('fixture'):
+    fixture=Path(__file__).parent/'fixtures'/(case['fixture']+'.py')
+    if fixture.parent.resolve()!=(Path(__file__).parent/'fixtures').resolve():raise ValueError('invalid fixture')
+    digest=hashlib.sha256(fixture.read_bytes()).hexdigest()
+    if case.get('fixture_sha256')!=digest:raise ValueError('fixture changed; update suite')
+    fspec=importlib.util.spec_from_file_location('fixed_fixture',fixture);fmod=importlib.util.module_from_spec(fspec);fspec.loader.exec_module(fmod)
+    fmod.populate(work.resolve(),case['id']);record['fixture_sha256']=digest
    for n,user in enumerate(case['turns']):
     prompt=f"在此临时项目中使用 kit/.agents/skills/{role}/SKILL.md 处理用户请求。读取所需本地规则。仅在此目录写本轮必要成果，不访问外部业务项目、不联网、不启动其他Agent。这里没有可用原生提问控件，使用技能允许的回退方式。只处理当前用户输入，等真实下一条消息，不替用户回答。\n"
     if history:prompt+='此前真实对话：\n'+json.dumps(history,ensure_ascii=False)+'\n'

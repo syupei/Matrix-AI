@@ -13,3 +13,4 @@
 | R01 | [回答问询](references/answering.md) | 有人问进展、待办或决定时 | |
 | R02 | [登记、转交与展示](references/routing.md) | 收到要求、反馈或需要人决定的事时 | |
 | X01 | [任务工具](../project-management-agent/references/task-runtime.md) | 刷新视图；录入人工决定时 | |
+| C07 | [任务完整性与多实例](../../../collaboration/PM-INTEGRITY.md) | 变更接收、交付覆盖、实例分派与按层问询 | |

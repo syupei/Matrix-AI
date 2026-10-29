@@ -31,7 +31,7 @@
 ## 更新与流转
 
 - `update`（owner）：`task_id,expected_revision,changes,reason`，不能改 id、parent、owner、kind。非 manager 改 goal、inputs、outputs、criteria、dependencies、completion_requires、human_required、checker、people、derived_from 时，需用 `scope_authorization` 引用实际决定或委托；撤销 human_required 一律需要。除 next_action、executor、source 与规划协作字段（stage、direction、people、derived_from、awaiting）外，其他修改都会递增 work_revision，已有检验与人工决定随之失效；外部成果变了就显式更新 evidence 或 inputs。
-- `transition`（owner 或 manager）：`task_id,expected_revision,state,reason`，state 为 planned/running/waiting_review/blocked/done/cancelled。
+- `transition`（owner 或 manager）：`task_id,expected_revision,state,reason`，state 为 planned/running/waiting_review/blocked/done/cancelled/deprecated。需求变更导致的弃用与关联编号，按[任务完整性](../../../../collaboration/PM-INTEGRITY.md)办理。
   - 进 running：真实 executor、依赖已完成（完成前置不要求）、槽位与资源可用、`execution_receipt`；准备派发不算运行。
   - 离开 running：`stop_evidence`（成果已返回可用该返回），防止执行者仍在写时释放槽位。
   - done/cancelled 由 manager 记录，子项须已结束。done 另需 evidence、依赖与完成前置都已完成、checker 对当前基线的 passed、适用的 approved。取消写明原因并处理在途执行，不代替必要验收。
@@ -50,3 +50,7 @@
 - seq 定读取顺序，revision 防写冲突，work_revision 绑定核验；迟到事件不覆盖新修订。
 - 槽位与资源只在已登记任务间检查，不是进程锁或文件隔离；进程停止与单写者由编排者核对。
 - 日志只记行动、事实与结果，不存模型推理。试跑用临时目录和标明模拟的回执；模拟的人工决定或投递证据不写进真实项目。
+
+## 交付与计划扩展
+
+需要接管交付清单、登记需求变更、按实例/岗位查询或暂停恢复时，读取 [任务完整性](../../../../collaboration/PM-INTEGRITY.md) 的字段说明。所有关系仍在同一任务库的 pm_records 中，沿用事件幂等和修订校验；未显式接管的任务保持兼容，不推断已确认或已完成。新增项目层标记 project_level、岗位 role 与成果摘要 artifact_digests 只在实际需要时登记。

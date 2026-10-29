@@ -13,3 +13,4 @@
 | C06 | [多人协作](../../../collaboration/TEAM.md) | 名单中有两人及以上；分发待人事项、记录决定时 | |
 | R01 | [编排](references/workflow.md) | 阶段 1–6 | |
 | R02 | [任务工具](references/task-runtime.md) | 调用 `pm_tasks.py` 前 | |
+| C07 | [任务完整性与多实例](../../../collaboration/PM-INTEGRITY.md) | 变更接收、交付覆盖、实例分派与按层问询 | |
