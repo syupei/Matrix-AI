@@ -14,3 +14,7 @@
 | R02 | [试做、骨架与契约](references/proof-and-skeleton.md) | E2.2–E2.3；定模块边界或接口契约时 | |
 | R03 | [技术评审](references/technical-review.md) | 取得或修改委托边界；E2.2 判断关键技术选型；E2.4；E3 引入新选型或要求改变已确认决定时 | |
 | T01 | [工作区模板](assets/solution-workspace-template.md) | 建立 `engineering/solution/` 文件时 | |
+
+| C90 | [团队任职与执行](../../../collaboration/TEAM-EXECUTION.md) | 接入团队、收到任务包、派发或换实例 | |
+| C91 | [工具授权](../../../collaboration/TOOL-ACCESS.md) | 指定工具、外部调用、换工具或撤权 | |
+| C92 | [委托检查](../../../collaboration/DELEGATED-REVIEW.md) | 已有明确阶段委托 | |

@@ -1,4 +1,4 @@
-# professional-agents-kit 0.26
+# professional-agents-kit 0.28
 
 一组中文专业 Agent skill：从一句话需求出发，按产品 → 交互与视觉设计 → 研发（承接与建模、方案与验证、增量构建、发布与交接、质量验证）的专业流程推进，由项目前台面对人、PM 在后台统筹，由协作 skill 处理跨角色问询。每个角色保留自己的阶段、人审节点和成果；人始终掌握关键决定。
 
@@ -61,7 +61,7 @@ python3 install.py --target "<项目路径>" --skills-dir .claude/skills --entry
 - **新项目**：直接向宿主描述需求；需要全流程统筹时说"请用 project-management-agent 统筹这个项目"。
 - **已有成果的项目**：让当前负责角色读取本角色 skill 和 `collaboration/CORE.md`，从当前有效阶段继续；保留有效确认与人的修改，只补受影响的范围，不重新访谈。
 - **项目调整**：在各 skill 的 `GUIDANCE-INDEX.md` "项目说明"列写补充、替换或停用（见 `collaboration/GUIDANCE-RESOLUTION.md`）。
-- **多人参与**：在 `collaboration/people.json` 登记参与的人及其决定权（格式见 `collaboration/TEAM.md`；可由你们的成员管理系统同步）。之后 PM 会把事项发给对应的人，并在 `management/views/` 生成全程计划表、项目总入口、群摘要、个人视图与专业组视图。只有一个人时不需要这份名单。
+- **多人参与**：在 `collaboration/people.json` 登记参与的人及其决定权（格式见 `collaboration/TEAM.md`；可由你们的成员管理系统同步）。之后 PM 会把事项发给对应的人，并在 `management/views/` 生成全程计划表、项目总入口、群摘要、个人视图与专业组视图。仅个人独立项目可不建名单；受邀专业成员即使只有一人也按名单中实际权限判断。
 - **运行方式**：多人或中型以上项目，建议主对话使用 project-front-desk-agent。它启动时检测宿主能否创建子 Agent，经你一次授权后，在各角色第一项任务就绪时为它创建子 Agent；主对话只保留问询与结论。宿主不支持时在主对话里切换角色。
 
 ## 按需加载
@@ -71,3 +71,7 @@ python3 install.py --target "<项目路径>" --skills-dir .claude/skills --entry
 ## 检验
 
 发布说明记录本版做过的检查与行为评测结果。`BEHAVIOR-CHECKS.md` 列出需要在真实项目中观察的行为，供人工试用时对照；执行角色不需要预读它。格式、安装和脚本测试通过，不代表 Agent 的实际判断与体验质量已经过验证。
+
+## 多实例团队
+
+负责人、执行者和工作流 PM 按 [项目任职](collaboration/TEAM-EXECUTION.md) 接入，共用专业核心与唯一任务源。负责人在委托内组织日常交付，真人保留关键判断和必要干预；没有团队配置时保持单实例方式。先核对实际宿主派发/接续能力和 [工具授权边界](collaboration/TOOL-ACCESS.md)，安装不启动服务或取得外部权限。

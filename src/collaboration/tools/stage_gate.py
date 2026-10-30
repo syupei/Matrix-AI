@@ -3,6 +3,8 @@
 import argparse
 import hashlib
 import json
+import importlib.util
+from types import SimpleNamespace
 from pathlib import Path
 
 STAGES={'product':['S1','S2','S3','S4','S5','S6','S7','complete'], 'design':['D1','D2','D3','D4','D5','D6','D7','complete'], 'engineering':['E1.1','E1.2','E1.3','E1.4','complete'], 'solution':['E2.1','E2.2','E2.3','E2.4','complete'], 'build':['E3.1','E3.2','E3.3','complete'], 'release':['E4.1','E4.2','E4.3','complete']}
@@ -39,7 +41,7 @@ def deciding_person(root,role,reply):
     path=Path(root).resolve()/ROSTER
     if not path.is_file():return None
     people={p.get('id'):p for p in json.loads(path.read_text(encoding='utf-8')).get('people',[]) if isinstance(p,dict)}
-    if len(people)<2:return None
+    if not people:raise ValueError('explicit people registry is empty')
     pid=reply.get('person_id')
     if pid not in people:raise ValueError('team project: reply must name a listed person (person_id)')
     allowed=AUTHORITY.get(role) or set(CHAIN[:CHAIN.index(role)+1])
@@ -61,7 +63,12 @@ def check(root,state,conversation=True):
         if not any(current+arrow+following in record for arrow in ('→','->')):raise ValueError('conversation check record has no entry for '+current+' → '+following)
     content_hash=artifact_digest(root,state['artifacts'])
     # Review/evidence files are projections of existing sources, not a new authority.
-    if current in REVIEW[role]:
+    delegated={};person=None
+    if current in REVIEW[role] and state.get('delegated_decision'):
+        spec=importlib.util.spec_from_file_location('delegation_gate',Path(__file__).with_name('delegation_gate.py'))
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        delegated=module.check(SimpleNamespace(**globals()),root,state,content_hash)
+    elif current in REVIEW[role]:
         req=json.loads(checked_file(root,state['request']).read_text())
         reply=json.loads(checked_file(root,state['response']).read_text())
         if not req.get('request_id') or req.get('stage')!=current or req.get('role')!=role:raise ValueError('request does not match stage')
@@ -81,6 +88,7 @@ def check(root,state,conversation=True):
         try:check(root,up,conversation=False)
         except (ValueError,KeyError,TypeError) as e:raise ValueError('upstream review not confirmed or changed: '+str(e))
     result={'allowed':True,'role':role,'from':current,'to':following,'scope':scope,'artifact_sha256':content_hash,'limitation':'Validates records and files, not human identity or professional quality.'}
+    result.update(delegated)
     if current in REVIEW[role] and person:result['confirmed_by']=person
     if need:result['upstream']=state['upstream']
     return result

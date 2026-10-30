@@ -15,10 +15,10 @@
 需要审阅记录的切换：产品每个阶段（S1–S7）；设计 D1（设计基础）、D2（审阅 A）、D4（审阅 B）、D6（审阅 C）；研发承接 E1.4；技术方案 E2.4（核心评审）；增量构建 E3.3（范围完成评审）；发布与交接 E4.2（发布决定）。
 
 - **request**：`request_id`、`role`、`stage`、`scope`、`artifact_sha256`、`display_evidence`（实际展示给用户的内容或其记录的路径）。
-- **response**：`request_id`、`scope`、`artifact_sha256`、`actor`、`choice: "confirm"`、`source`（原话与时间的记录路径）。`actor` 在只有一个人的项目写 `"user"`；名单中有两人及以上时写 `"person"`，并加 `person_id`。检查会核对此人是否对该流程或其上游流程有决定权（见 [TEAM](TEAM.md) §3）；发布决定只认项目级决定人或 `decides` 含 release 的人。
+- **response**：`request_id`、`scope`、`artifact_sha256`、`actor`、`choice: "confirm"`、`source`（原话与时间的记录路径）。`actor` 在只有一个人的项目写 `"user"`；有人员名单时（含单人）写 `"person"`，并加 `person_id`。检查会核对此人是否对该流程或其上游流程有决定权（见 [TEAM](TEAM.md) §3）；发布决定只认项目级决定人或 `decides` 含 release 的人。
 - 用户通过选项工具或文字回复时，把原话照录进 `source` 指向的记录；用离线审阅页 `collaboration/tools/review.html` 时，保存它导出的回复文件。不能凭推测写 `confirm`。
 
 ## 例外与限制
 
-- 用户明确授权免审、合并或裁剪时，默认序列之外的切换会被判为阻断：保留授权原文与范围，人工核对后报告"授权例外，未经默认关卡"，不伪造确认记录。
+- 用户明确授权免审、合并或裁剪时，相邻阶段的授权内决定可按 [委托检查](DELEGATED-REVIEW.md) 提供 delegated_decision；工具校验实际委托、范围、版本及独立检查，不记为人工确认。合并/裁剪造成跳步仍报告授权例外，不伪造默认关卡通过。
 - 检查只能发现缺文件、版本变化、范围不符、未答或部分答复、跳步、缺对话核对和明确的阻断；不证明记录真实、材料充分或专业判断正确。

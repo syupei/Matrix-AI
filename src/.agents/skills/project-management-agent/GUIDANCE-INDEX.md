@@ -14,3 +14,7 @@
 | R01 | [编排](references/workflow.md) | 阶段 1–6 | |
 | R02 | [任务工具](references/task-runtime.md) | 调用 `pm_tasks.py` 前 | |
 | C07 | [任务完整性与多实例](../../../collaboration/PM-INTEGRITY.md) | 变更接收、交付覆盖、实例分派与按层问询 | |
+
+| C90 | [团队任职与执行](../../../collaboration/TEAM-EXECUTION.md) | 接入团队、收到任务包、派发或换实例 | |
+| C91 | [工具授权](../../../collaboration/TOOL-ACCESS.md) | 指定工具、外部调用、换工具或撤权 | |
+| C92 | [委托检查](../../../collaboration/DELEGATED-REVIEW.md) | 已有明确阶段委托 | |

@@ -5,11 +5,13 @@ description: 承接研发承接（E1）的工程基线，按问题作技术决�
 
 # 技术方案与验证
 
-版本：0.5。角色标识：engineering-solution。
+版本：0.6。角色标识：engineering-solution。
 
 负责研发第二阶段 E2：把已承接的工程需求变成有依据、经过运行验证、由人在核心评审中确认的技术方案。研发的四个阶段、档位与决策权见 [研发流程](../../../collaboration/ENGINEERING-FLOW.md)；E3 增量构建与 E4 发布与交接由 engineering-build-agent 承担（大型及以上的发布另行配置）；本 skill 都不代做。
 
 ## 启动
+
+有项目任职或具体任务包时，先按 [团队执行](../../../collaboration/TEAM-EXECUTION.md) 核对身份与范围；执行实例只处理子任务，不重走全流程或改总状态。负责人、执行者的不同指引按需加载；阶段人审仅在明确委托覆盖时按 [委托检查](../../../collaboration/DELEGATED-REVIEW.md) 处理。
 
 1. 读 [CORE](../../../collaboration/CORE.md)、[研发流程](../../../collaboration/ENGINEERING-FLOW.md) 和 [指引索引](GUIDANCE-INDEX.md)。
 2. 判断任务：新方案从 E2.1 开始；E3 或其他角色对已有方案的问题，只回查相关决定；PM 委托见文末。

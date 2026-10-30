@@ -17,6 +17,9 @@ from datetime import datetime, timezone
 _spec = importlib.util.spec_from_file_location('pm_integrity', Path(__file__).with_name('pm_integrity.py'))
 integrity = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(integrity)
+_team_spec = importlib.util.spec_from_file_location('pm_team', Path(__file__).with_name('pm_team.py'))
+team = importlib.util.module_from_spec(_team_spec)
+_team_spec.loader.exec_module(team)
 
 
 def api():
@@ -297,11 +300,11 @@ def snapshot(db):
     cfg, tasks = config(db), task_map(db)
     seq = db.execute('SELECT COALESCE(MAX(seq),0) FROM events').fetchone()[0]
     root = Path(db.execute('PRAGMA database_list').fetchone()[2]).parent.parent.parent
-    gates = {tid: integrity.blockers(api(), root, db, tasks, tid) for tid in tasks}
+    gates = {tid: integrity.blockers(api(), root, db, tasks, tid) + team.blockers(api(), root, db, tasks, tid) for tid in tasks}
     for tid, t in tasks.items():
-        t['_current_gate'] = bool(integrity.blockers(api(), root, db, tasks, tid, closing=True))
+        t['_current_gate'] = bool(integrity.blockers(api(), root, db, tasks, tid, closing=True) + team.blockers(api(), root, db, tasks, tid, closing=True))
     return {'schema': SCHEMA, 'config': cfg, 'revision': seq, 'observed_at': now(),
-            'integrity': {k: integrity.records(db,k) for k in ['instance','scope','change','pause']},
+            'integrity': {k: integrity.records(db,k) for k in ['instance','scope','change','pause','appointment','participation_rule','participation_obligation']},
             'top_level': counts(children(tasks, None), tasks),
             'tasks': [dict(t, state_label=STATE_NAMES[t['state']], child_counts=counts(children(tasks, t['id']), tasks),
                            needs_recheck=t['state'] == 'done' and not effective_done(t,tasks),
@@ -317,13 +320,15 @@ def execute(project, cmd, _db=None, _applying=None):
     root = Path(project).resolve()
     require(root.is_dir(), 'project directory missing')
     owns_db = _db is None
-    db = connect(root, readonly=cmd.get('op') in ({'status','events'} | integrity.READ_OPS)) if owns_db else _db
+    db = connect(root, readonly=cmd.get('op') in ({'status','events'} | integrity.READ_OPS | team.READ_OPS)) if owns_db else _db
     try:
         op = cmd.get('op')
-        if op in {'status', 'events'} | integrity.READ_OPS:
+        if op in {'status', 'events'} | integrity.READ_OPS | team.READ_OPS:
             if owns_db:
                 db.execute('BEGIN')
-            if op in integrity.READ_OPS:
+            if op in team.READ_OPS:
+                result = team.execute(api(), root, db, cmd)
+            elif op in integrity.READ_OPS:
                 result = integrity.execute(api(), root, db, cmd)
             elif op == 'status':
                 result = snapshot(db)
@@ -337,7 +342,7 @@ def execute(project, cmd, _db=None, _applying=None):
             if owns_db:
                 db.commit()
             return result
-        require(op in {'init', 'configure', 'create', 'update', 'transition', 'review', 'human_review', 'report', 'handoff'} | integrity.WRITE_OPS, 'unknown operation')
+        require(op in {'init', 'configure', 'create', 'update', 'transition', 'review', 'human_review', 'report', 'handoff'} | integrity.WRITE_OPS | team.WRITE_OPS, 'unknown operation')
         require(nonempty(cmd.get('event_id')) and nonempty(cmd.get('actor')), 'event_id and actor required')
         if owns_db:
             db.execute('BEGIN IMMEDIATE')
@@ -357,6 +362,8 @@ def execute(project, cmd, _db=None, _applying=None):
             require(cmd['actor'] == cfg['pm_actor'], 'init actor must be PM')
             db.execute('INSERT INTO meta VALUES (?,?)', ('config', canon(cfg)))
             result = {'initialized': True, 'schema': SCHEMA}
+        elif op in team.WRITE_OPS:
+            result = team.execute(api(), root, db, cmd)
         elif op in integrity.WRITE_OPS:
             result = integrity.execute(api(), root, db, cmd)
         elif op == 'configure':
@@ -372,6 +379,7 @@ def execute(project, cmd, _db=None, _applying=None):
             cfg, tasks = config(db), task_map(db)
             people = roster(root)
             actor = cmd['actor']
+            team.authorize(api(), root, db, cmd, tasks)
             if op == 'create':
                 data = dict(cmd['task'])
                 tid = data['id']
@@ -384,7 +392,7 @@ def execute(project, cmd, _db=None, _applying=None):
                     require(tasks[parent]['state'] not in TERMINAL, 'closed parent; reopen explicitly first')
                     manager = tasks[parent]['owner']
                 if data.get('project_level'):
-                    manager = cfg['pm_actor']
+                    manager = actor if team.workflow_manager(api(), root, db, actor, parent, tasks) else cfg['pm_actor']
                 require(actor == manager, 'only responsible manager may create this level')
                 allowed = {'id','parent','title','owner','checker','goal','inputs','outputs','criteria','dependencies','completion_requires','resources','slots','executor','human_required','expanded','next_action','source',
                            'kind','stage','direction','people','derived_from','awaiting','project_level','role','artifact_digests'}
@@ -481,6 +489,8 @@ def execute(project, cmd, _db=None, _applying=None):
                 elif op == 'review':
                     require(after['state'] not in TERMINAL, 'reopen closed task before new verification')
                     require(actor == after['checker'], 'designated checker only')
+                    if any(team.within(tid, a['root_tasks'], tasks) for a in integrity.records(db, 'appointment').values()):
+                        require(actor not in {after['owner'], after.get('executor')}, 'team delivery requires an independent checker')
                     require(cmd.get('outcome') in {'passed','failed'}, 'invalid verification outcome')
                     require(strings(cmd.get('evidence')) and cmd['evidence'], 'verification evidence required')
                     require(cmd.get('criteria_checked') == after['criteria'], 'must explicitly check all listed criteria')
@@ -492,7 +502,7 @@ def execute(project, cmd, _db=None, _applying=None):
                     require(cmd.get('outcome') in {'approved','changes_requested','deferred'}, 'invalid human decision')
                     require(all(nonempty(cmd.get(k)) for k in ['presented_ref','source','quote','scope']), 'actual presentation, reply source, exact quote and scope required')
                     person = cmd.get('person')
-                    if team_mode(people):
+                    if people:
                         require(nonempty(person) and person in people['people'], 'team project: record which listed person decided')
                         ranks = deciders(tid, tasks, people)
                         require(person in ranks, 'person has no decision authority for this task or its upstream')
@@ -529,6 +539,7 @@ def execute(project, cmd, _db=None, _applying=None):
                     require(not reasons(after,tasks,cfg), '; '.join(reasons(after,tasks,cfg)))
             if op == 'transition' and after['state'] in {'running', 'done'}:
                 problems = integrity.blockers(api(), root, db, tasks, tid, closing=after['state']=='done', applying=_applying)
+                problems += team.blockers(api(), root, db, tasks, tid, closing=after['state']=='done')
                 require(not problems, 'integrity gate: ' + canon(problems))
             for key in list(after):
                 if key.startswith('_'):
@@ -810,11 +821,16 @@ def render(project):
 if __name__ == '__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--project',required=True)
-    parser.add_argument('--command',help='JSON file; omit to read stdin')
-    parser.add_argument('--render',action='store_true')
+    mode=parser.add_mutually_exclusive_group()
+    mode.add_argument('--command',help='JSON file; omit to read stdin')
+    mode.add_argument('--render',action='store_true',help='render existing state only; run mutations separately')
     args=parser.parse_args()
     try:
-        command=json.loads(Path(args.command).read_text() if args.command else sys.stdin.read()) if not args.render else None
+        if args.render:
+            require(sys.stdin.isatty() or not sys.stdin.read().strip(), 'render does not execute commands; execute the JSON command first, then render separately')
+            command=None
+        else:
+            command=json.loads(Path(args.command).read_text() if args.command else sys.stdin.read())
         print(json.dumps(render(args.project) if args.render else execute(args.project,command),ensure_ascii=False,indent=2))
     except (ValueError,OSError,KeyError,TypeError,sqlite3.Error) as exc:
         print(json.dumps({'error':str(exc)},ensure_ascii=False))

@@ -5,11 +5,13 @@ description: 承接技术方案（E2）已确认的约束与可运行骨架，�
 
 # 增量构建与发布（技术负责人）
 
-版本：0.4。角色标识：engineering-build。
+版本：0.5。角色标识：engineering-build。
 
 负责研发第三阶段 E3：把已确认的技术方案做成发布范围内可演示、经过检验的软件，并对整体集成结果负责。小型、中型项目还负责第四阶段 E4：把人决定发布的版本按计划交到用户手中，并交出运行所需的东西。研发的四个阶段、档位与决策权见 [研发流程](../../../collaboration/ENGINEERING-FLOW.md)；大型及以上的发布另行配置。
 
 ## 启动
+
+有项目任职或具体任务包时，先按 [团队执行](../../../collaboration/TEAM-EXECUTION.md) 核对身份与范围；执行实例只处理子任务，不重走全流程或改总状态。负责人、执行者的不同指引按需加载；阶段人审仅在明确委托覆盖时按 [委托检查](../../../collaboration/DELEGATED-REVIEW.md) 处理。
 
 1. 读 [CORE](../../../collaboration/CORE.md)、[研发流程](../../../collaboration/ENGINEERING-FLOW.md) 和 [指引索引](GUIDANCE-INDEX.md)。
 2. 判断任务：

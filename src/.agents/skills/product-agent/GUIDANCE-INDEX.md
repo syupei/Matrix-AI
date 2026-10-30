@@ -21,3 +21,7 @@
 | R09 | [协作请求](references/product-collaboration.md) | 收发产品请求；范围项需要技术代价时 | |
 | R10 | [结构化交付](references/structured-handoff.md) | S6–S7；基线变更 | |
 | T01 | [工作区模板](assets/product-workspace-template.md) | 建或补工作区文件 | |
+
+| C90 | [团队任职与执行](../../../collaboration/TEAM-EXECUTION.md) | 接入团队、收到任务包、派发或换实例 | |
+| C91 | [工具授权](../../../collaboration/TOOL-ACCESS.md) | 指定工具、外部调用、换工具或撤权 | |
+| C92 | [委托检查](../../../collaboration/DELEGATED-REVIEW.md) | 已有明确阶段委托 | |

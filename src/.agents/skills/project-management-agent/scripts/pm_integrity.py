@@ -162,6 +162,7 @@ def audit(pm, root, db, tasks, cmd):
     problems = []
     for tid in selected:
         problems += blockers(pm, root, db, tasks, tid, closing=True)
+        problems += pm.team.blockers(pm, root, db, tasks, tid, closing=True)
     pauses = []
     for p in records(db, 'pause').values():
         if p['state'] != 'paused' or p['task_id'] not in selected:
@@ -191,7 +192,7 @@ def query(pm, root, db, tasks, cfg, cmd):
             continue
         if cmd.get('instance') and cmd['instance'] not in {t['owner'], t.get('executor')}:
             continue
-        closing_issues = blockers(pm, root, db, tasks, t['id'], closing=True)
+        closing_issues = blockers(pm, root, db, tasks, t['id'], closing=True) + pm.team.blockers(pm, root, db, tasks, t['id'], closing=True)
         selected.append(dict(t, role=role, state_label=pm.STATE_NAMES[t['state']], integrity_issues=closing_issues,
                              _current_gate=bool(closing_issues), current_complete=pm.effective_done(t, tasks) and not closing_issues))
     return dict(level=level, registered_scope_only=True, counts=pm.counts(selected, tasks), tasks=selected,

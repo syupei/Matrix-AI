@@ -5,11 +5,13 @@ description: 从产品验收标准、研发承接的质量要求、设计的 QA 
 
 # 质量验证
 
-版本：0.4。角色标识：quality-verification。
+版本：0.5。角色标识：quality-verification。
 
 负责判断做出来的东西是否符合已确认的要求，并留下可复查的证据。本角色贴着 E1–E4 工作，不是新的研发阶段；用自己的会话或子 Agent 运行，不和实现者共用上下文。研发的阶段、档位与决策权见 [研发流程](../../../collaboration/ENGINEERING-FLOW.md)。
 
 ## 启动
+
+有项目任职或具体任务包时，先按 [团队执行](../../../collaboration/TEAM-EXECUTION.md) 核对身份与范围；执行实例只处理子任务，不重走全流程或改总状态。负责人、执行者的不同指引按需加载；阶段人审仅在明确委托覆盖时按 [委托检查](../../../collaboration/DELEGATED-REVIEW.md) 处理。
 
 1. 读 [CORE](../../../collaboration/CORE.md)、[研发流程](../../../collaboration/ENGINEERING-FLOW.md) 和 [指引索引](GUIDANCE-INDEX.md)。
 2. 判断任务：研发承接已交接、还没有验收条目 → Q1；收到增量构建的检验请求 → Q2；范围完成前 → Q3；收到发布验收请求 → Q4；收到变更通知或来源摘要不符 → 只复核受影响的条目（R01）。

@@ -21,7 +21,7 @@
 
 ## 4. 确认的含义
 
-- 确认 = 有权决定该范围的人对"某版本、某范围的具体内容"的真实回应。项目只有一个人时就是用户本人；多人时按 [TEAM](TEAM.md) 认定决定人，其他人的意见记为反馈。沉默、超时、控件预选、自检通过、Agent 之间的共识、协作方采纳、文件已保存，都不算确认。
+- 确认 = 有权决定该范围的人对"某版本、某范围的具体内容"的真实回应。有人员名单时按 [TEAM](TEAM.md) 的实际权限认定决定人（包括只有一名成员时）；无名单的个人项目为用户本人，其他人的意见记为反馈。沉默、超时、控件预选、自检通过、Agent 之间的共识、协作方采纳、文件已保存，都不算确认。
 - 用户只提修改或只确认一部分时，只更新对应范围，其余保持待决。
 - 已有的有效确认不重复索取。用户明确委托的范围按委托执行并留下依据；局部委托不扩大到其他范围。
 - 不要求固定口令，也不要求用户证明已打开文件。上下文清楚表明是在确认该成果时，"没有调整，继续"即为有效确认。
@@ -59,3 +59,5 @@
 - 以下场景读取对应共同规则：需要人确认或显示流程位置 → [USER-INTERACTION](USER-INTERACTION.md)；收到实质性反馈 → [FEEDBACK-PROTOCOL](FEEDBACK-PROTOCOL.md)；产出或审读面向读者的文字 → [COPY-QUALITY](COPY-QUALITY.md)；跨角色请求 → [CONTRACT](CONTRACT.md)；阶段评审与交付 → [PROFESSIONAL-REVIEW](PROFESSIONAL-REVIEW.md)；切换阶段 → [STAGE-GATES](STAGE-GATES.md)；研发各阶段的分工、档位与决策权 → [ENGINEERING-FLOW](ENGINEERING-FLOW.md)；由 PM 统筹 → [PM-REPORTING](PM-REPORTING.md)；项目有两人及以上参与 → [TEAM](TEAM.md)；把具体工作交给其他执行者 → [TASK-PACKET](TASK-PACKET.md)。
 
 - PM 统筹下的实质变更、已知交付集合、实例分派与任务问询 → [任务完整性](PM-INTEGRITY.md)。先登记影响分析，再按专业结论同步计划；尚未同步的受影响范围不派发或关闭。
+
+- 项目任职、分层委派、实例工作区和新增专业介入 → [团队执行](TEAM-EXECUTION.md)；实际工具调用与替代 → [工具授权](TOOL-ACCESS.md)。有明确阶段委托时按 [委托检查](DELEGATED-REVIEW.md)，代理决定与人工确认分别记录。

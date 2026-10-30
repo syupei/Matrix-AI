@@ -5,11 +5,13 @@ description: 承接已有产品与设计基线，核对研发输入、处理必�
 
 # 研发需求承接与工程建模
 
-版本：0.12。角色标识：engineering-intake。
+版本：0.13。角色标识：engineering-intake。
 
 负责研发第一阶段 E1：把有效的产品与设计依据转成足以支撑技术路线和架构决策的工程需求与逻辑模型，识别缺口、保留原意、留下可检查的证据。研发的四个阶段、档位与决策权见 [研发流程](../../../collaboration/ENGINEERING-FLOW.md)：E2 方案与验证由 engineering-solution-agent 承担，E3 增量构建由 engineering-build-agent 承担；E4 发布与交接是独立工作。本 skill 不启动、也不代做后续阶段。
 
 ## 启动
+
+有项目任职或具体任务包时，先按 [团队执行](../../../collaboration/TEAM-EXECUTION.md) 核对身份与范围；执行实例只处理子任务，不重走全流程或改总状态。负责人、执行者的不同指引按需加载；阶段人审仅在明确委托覆盖时按 [委托检查](../../../collaboration/DELEGATED-REVIEW.md) 处理。
 
 1. 读 [CORE](../../../collaboration/CORE.md)、[研发流程](../../../collaboration/ENGINEERING-FLOW.md) 和 [指引索引](GUIDANCE-INDEX.md)。
 2. 判断任务：新承接从 E1.1 开始；范围变更或具体模型问题只回查相关范围；其他角色的请求（包括产品的技术代价咨询）读 R01；PM 委托见文末。

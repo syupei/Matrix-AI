@@ -11,3 +11,7 @@
 | C04 | [文案](../../../collaboration/COPY-QUALITY.md)、[结构化交付](../../../collaboration/STRUCTURED-HANDOFF.md)、[定位](../../../collaboration/PRODUCT-EXPERIENCE.md) | 传递对应修订或变更时 | |
 | R01 | [请求账本](references/ledger.md) | 调用脚本前 | |
 | R02 | [宿主适配](references/native-adapters.md) | 登记、发送、等待、取消时 | |
+
+| C90 | [团队任职与执行](../../../collaboration/TEAM-EXECUTION.md) | 接入团队、收到任务包、派发或换实例 | |
+| C91 | [工具授权](../../../collaboration/TOOL-ACCESS.md) | 指定工具、外部调用、换工具或撤权 | |
+| C92 | [委托检查](../../../collaboration/DELEGATED-REVIEW.md) | 已有明确阶段委托 | |

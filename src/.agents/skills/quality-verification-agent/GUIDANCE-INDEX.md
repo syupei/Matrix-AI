@@ -15,3 +15,7 @@
 | R03 | [缺陷分级与回归](references/defects.md) | 发现问题与分级；改动后定回归范围 | |
 | X01 | [试做、骨架与契约](../engineering-solution-agent/references/proof-and-skeleton.md) | Q1 与技术方案一起定测试策略时 | |
 | T01 | [工作区模板](assets/qa-workspace-template.md) | 建立 `engineering/qa/` 下的文件时 | |
+
+| C90 | [团队任职与执行](../../../collaboration/TEAM-EXECUTION.md) | 接入团队、收到任务包、派发或换实例 | |
+| C91 | [工具授权](../../../collaboration/TOOL-ACCESS.md) | 指定工具、外部调用、换工具或撤权 | |
+| C92 | [委托检查](../../../collaboration/DELEGATED-REVIEW.md) | 已有明确阶段委托 | |

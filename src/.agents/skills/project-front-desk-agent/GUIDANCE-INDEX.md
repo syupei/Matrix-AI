@@ -14,3 +14,7 @@
 | R02 | [登记、转交与展示](references/routing.md) | 收到要求、反馈或需要人决定的事时 | |
 | X01 | [任务工具](../project-management-agent/references/task-runtime.md) | 刷新视图；录入人工决定时 | |
 | C07 | [任务完整性与多实例](../../../collaboration/PM-INTEGRITY.md) | 变更接收、交付覆盖、实例分派与按层问询 | |
+
+| C90 | [团队任职与执行](../../../collaboration/TEAM-EXECUTION.md) | 接入团队、收到任务包、派发或换实例 | |
+| C91 | [工具授权](../../../collaboration/TOOL-ACCESS.md) | 指定工具、外部调用、换工具或撤权 | |
+| C92 | [委托检查](../../../collaboration/DELEGATED-REVIEW.md) | 已有明确阶段委托 | |
