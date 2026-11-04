@@ -22,6 +22,17 @@ class PublishingGateTests(unittest.TestCase):
   self.data={'baseline_ref':baseline,'baseline_hash':bh,'candidate_hash':ch,'suite_hash':p.sha(suite),'cases':cases,'reviewer':'test fixture','limitations':['simulated mechanism check, not real behavior']};self.report=self.root/'report.json'
  def check(self):self.report.write_text(json.dumps(self.data));return p.check_evidence(self.report,self.files)
  def test_complete_fixture_validates_schema(self):self.assertTrue(self.check())
+ def waiver(self,**changes):
+  config=json.loads((p.ROOT/'package.json').read_text())
+  data={'package':'professional-agents-kit-v'+config['package'].split('/')[1],'source_hash':p.fingerprint(self.files),'authorized_by':'user','date':'2026-11-04','authorization':'explicit human authorization to skip the comparison','scope':'behavior comparison for this version','existing_evidence':['simulated'],'limitations':['simulated']}
+  data.update(changes);path=self.root/'waiver.json';path.write_text(json.dumps(data));return path
+ def test_explicit_waiver_for_this_source_passes(self):self.assertTrue(p.check_waiver(self.waiver(),self.files))
+ def test_waiver_for_other_source_blocks(self):
+  with self.assertRaises(ValueError):p.check_waiver(self.waiver(source_hash='other'),self.files)
+ def test_waiver_without_authorization_blocks(self):
+  with self.assertRaises(ValueError):p.check_waiver(self.waiver(authorization=''),self.files)
+ def test_waiver_for_other_version_blocks(self):
+  with self.assertRaises(ValueError):p.check_waiver(self.waiver(package='professional-agents-kit-v0.0'),self.files)
  def test_source_change_blocks(self):
   self.files['file']='1'*64
   with self.assertRaises(ValueError):self.check()

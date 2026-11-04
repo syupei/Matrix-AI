@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build only canonical consumer sources; require real comparison evidence to publish."""
+"""Build only canonical consumer sources; require real comparison evidence, or an explicit human waiver, to publish."""
 import argparse,hashlib,json,os,re,shutil,subprocess,sys
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
@@ -97,6 +97,15 @@ def check_evidence(report,files):
  if not data.get('reviewer') or not data.get('limitations'):raise ValueError('review attribution and limits required')
  return data
 
+WAIVER_FIELDS=('authorized_by','date','authorization','scope','existing_evidence','limitations')
+def check_waiver(path,files):
+ # Only an explicit human authorization to skip verification waives the comparison; a plain request to publish does not.
+ data=json.loads(path.read_text());config=json.loads((ROOT/'package.json').read_text())
+ if data.get('package')!='professional-agents-kit-v'+config['package'].split('/')[1]:raise ValueError('waiver names a different version')
+ if data.get('source_hash')!=fingerprint(files):raise ValueError('waiver belongs to different source')
+ if any(not data.get(k) for k in WAIVER_FIELDS):raise ValueError('waiver requires '+', '.join(WAIVER_FIELDS))
+ return data
+
 def build(destination):
  files,links=check_sources();config=json.loads((ROOT/'package.json').read_text());name='professional-agents-kit-v'+config['package'].split('/')[1]
  destination=destination/name
@@ -111,16 +120,18 @@ def build(destination):
  return destination,files,links
 
 def main():
- p=argparse.ArgumentParser();p.add_argument('--build-dir',type=Path,required=True);p.add_argument('--publish',action='store_true');p.add_argument('--evidence',type=Path);p.add_argument('--notes',type=Path);a=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('--build-dir',type=Path,required=True);p.add_argument('--publish',action='store_true');p.add_argument('--evidence',type=Path);p.add_argument('--waiver',type=Path);p.add_argument('--notes',type=Path);a=p.parse_args()
  try:
   package,files,links=build(a.build_dir.resolve())
   env=dict(os.environ,MATRIX_TEST_KIT=str(package))
   for folder in ['tests/legacy','tests','tools']:
    subprocess.run([sys.executable,'-B','-m','unittest','discover','-s',str(ROOT/folder),'-p','test_*.py','-q'],env=env,check=True)
   if a.publish:
-   if not a.evidence or not a.notes:raise ValueError('publish requires behavior evidence and release notes')
-   check_evidence(a.evidence.resolve(),files)
-   subprocess.run([sys.executable,str(ROOT/'tools/release.py'),'build',str(package),'--notes',str(a.notes.resolve()),'--latest'],check=True,env=dict(os.environ,MATRIX_BEHAVIOR_REPORT=str(a.evidence.resolve())))
+   if not a.notes or bool(a.evidence)==bool(a.waiver):raise ValueError('publish requires release notes and either behavior evidence or an explicit human waiver')
+   release_env={k:v for k,v in os.environ.items() if k not in ('MATRIX_BEHAVIOR_REPORT','MATRIX_BEHAVIOR_WAIVER')}
+   if a.waiver:check_waiver(a.waiver.resolve(),files);release_env['MATRIX_BEHAVIOR_WAIVER']=str(a.waiver.resolve())
+   else:check_evidence(a.evidence.resolve(),files);release_env['MATRIX_BEHAVIOR_REPORT']=str(a.evidence.resolve())
+   subprocess.run([sys.executable,str(ROOT/'tools/release.py'),'build',str(package),'--notes',str(a.notes.resolve()),'--latest'],check=True,env=release_env)
    distribution=a.build_dir.resolve().parent/'dist';distribution.mkdir(exist_ok=True)
    shutil.copy2(package.with_name(package.name+'.zip'),distribution/(package.name+'.zip'))
   print(json.dumps({'package':str(package),'files':len(files),'links':links,'source_hash':fingerprint(files),'published':a.publish}))

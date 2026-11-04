@@ -242,16 +242,25 @@ def build_and_publish(source, notes, latest=False):
     # lower-level CLI is invoked directly. Historical retries remain supported.
     metadata = json.loads((source / 'MANIFEST.json').read_text()) if (source / 'MANIFEST.json').exists() else {}
     canonical = 'stage-gates/0.1' in metadata.get('extensions', [])
+    waiver_path = None
     if canonical:
         import importlib.util
         spec = importlib.util.spec_from_file_location('production_gate', ROOT / 'tools/production.py')
         gate = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(gate)
         report = os.environ.get('MATRIX_BEHAVIOR_REPORT')
-        if not report:
-            raise ValueError('Real behavioral comparison report required for this release')
+        waiver = os.environ.get('MATRIX_BEHAVIOR_WAIVER')
+        if bool(report) == bool(waiver):
+            raise ValueError('Real behavioral comparison report, or an explicit human waiver, required for this release')
         runtime_files = {k: v for k, v in expected.items() if k != 'MANIFEST.json'}
-        gate.check_evidence(Path(report).resolve(), runtime_files)
+        if report:
+            gate.check_evidence(Path(report).resolve(), runtime_files)
+        else:
+            # A waiver is a committed record of a person's explicit authorization to skip verification.
+            waiver_path = Path(waiver).resolve()
+            if not waiver_path.is_relative_to(ROOT / 'release-waivers') or git('ls-files', '--error-unmatch', str(waiver_path.relative_to(ROOT)), check=False).returncode:
+                raise ValueError('Waiver must be committed under release-waivers/')
+            gate.check_waiver(waiver_path, runtime_files)
         if gate.source_files() != runtime_files:
             raise ValueError('Build differs from canonical source')
     # Validate executable package checks before publishing a new version.
@@ -274,6 +283,8 @@ def build_and_publish(source, notes, latest=False):
         note_path.parent.mkdir(exist_ok=True)
         note_path.write_text(notes.read_text())
         entry = {'tag': source.name, 'title': source.name, 'source': 'packages/' + source.name, 'notes': str(note_path.relative_to(ROOT)), 'latest': latest, 'archive_origin': 'build', 'assets': [{'name': archive.name, 'sha256': sha(archive), 'bytes': archive.stat().st_size}]}
+        if waiver_path:
+            entry['behavior_evidence'] = {'waived': True, 'waiver': str(waiver_path.relative_to(ROOT)), 'sha256': sha(waiver_path)}
         if canonical:
             manifest_path = ROOT / 'release-manifests' / (source.name + '.json')
             manifest_path.parent.mkdir(exist_ok=True)
