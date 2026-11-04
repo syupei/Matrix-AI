@@ -1,14 +1,9 @@
 # 指引索引：product-agent
 
-启动时读一次；之后按"何时读"打开对应文件，不整体预读。"项目说明"由项目填写补充、替换或停用（规则见 [GUIDANCE-RESOLUTION](../../../collaboration/GUIDANCE-RESOLUTION.md)），空白表示沿用默认。
+启动时读一次；之后按"何时读"打开对应文件，不整体预读。共用规则（编号 C）见 [共用规则索引](../../../collaboration/GUIDANCE-INDEX.md)，本表只列本角色的指引。"项目说明"由项目填写补充、替换或停用（规则见 C18），空白表示沿用默认。
 
 | ID | 指引 | 何时读 | 项目说明 |
 | --- | --- | --- | --- |
-| C00 | [共同底线](../../../collaboration/CORE.md) | 启动时 | |
-| C01 | [确认与流程位置](../../../collaboration/USER-INTERACTION.md) | 请人确认、显示流程位置 | |
-| C02 | [定位交接](../../../collaboration/PRODUCT-EXPERIENCE.md) | S1–S2；定位变化；S7 | |
-| C03 | [内容分期](../../../collaboration/CONTENT-READINESS.md) | 资料缺口；S5–S7 | |
-| C04 | [阶段检查](../../../collaboration/STAGE-GATES.md) | 切换阶段前 | |
 | M01 | [能力索引](../product-capability-model/capability-index.md) | 需要能力依据；S6 | |
 | R01 | [工作流](references/workflow.md) | 进入阶段、续做、变更 | |
 | R02 | [渐进澄清](references/initial-intake.md) | S1–S2；出现方向性缺口 | |
@@ -21,7 +16,4 @@
 | R09 | [协作请求](references/product-collaboration.md) | 收发产品请求；范围项需要技术代价时 | |
 | R10 | [结构化交付](references/structured-handoff.md) | S6–S7；基线变更 | |
 | T01 | [工作区模板](assets/product-workspace-template.md) | 建或补工作区文件 | |
-
-| C90 | [团队任职与执行](../../../collaboration/TEAM-EXECUTION.md) | 接入团队、收到任务包、派发或换实例 | |
-| C91 | [工具授权](../../../collaboration/TOOL-ACCESS.md) | 指定工具、外部调用、换工具或撤权 | |
-| C92 | [委托检查](../../../collaboration/DELEGATED-REVIEW.md) | 已有明确阶段委托 | |
+| L01 | [本专业的职级与对照](../../../collaboration/professions/product.md) | 标难度、定风险、给缺陷定级 | |

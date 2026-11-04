@@ -19,7 +19,9 @@ def main():
    # Keep the same conditions and user turns for both revisions; history is actual output.
    roles=case['role'] if isinstance(case['role'],list) else [case['role']]
    role=next((r for r in roles if (source/'.agents/skills'/r/'SKILL.md').is_file()),roles[-1])
-   history=[];record={'id':case['id'],'role':role,'turns':[]}
+   # A case may start from a kit entry file instead of one skill: the first entry present in the tested kit is used.
+   entry=next((e for e in case.get('entry',[]) if (source/e).is_file()),None)
+   history=[];record={'id':case['id'],'role':role,'turns':[]}|({'entry':entry} if entry else {})
    if case.get('fixture'):
     fixture=Path(__file__).parent/'fixtures'/(case['fixture']+'.py')
     if fixture.parent.resolve()!=(Path(__file__).parent/'fixtures').resolve():raise ValueError('invalid fixture')
@@ -28,7 +30,8 @@ def main():
     fspec=importlib.util.spec_from_file_location('fixed_fixture',fixture);fmod=importlib.util.module_from_spec(fspec);fspec.loader.exec_module(fmod)
     fmod.populate(work.resolve(),case['id']);record['fixture_sha256']=digest
    for n,user in enumerate(case['turns']):
-    prompt=f"在此临时项目中使用 kit/.agents/skills/{role}/SKILL.md 处理用户请求。读取所需本地规则。仅在此目录写本轮必要成果，不访问外部业务项目、不联网、不启动其他Agent。这里没有可用原生提问控件，使用技能允许的回退方式。只处理当前用户输入，等真实下一条消息，不替用户回答。\n"
+    start=f'kit/{entry}' if entry else f'kit/.agents/skills/{role}/SKILL.md'
+    prompt=f"在此临时项目中使用 {start} 处理用户请求。读取所需本地规则。仅在此目录写本轮必要成果，不访问外部业务项目、不联网、不启动其他Agent。这里没有可用原生提问控件，使用技能允许的回退方式。只处理当前用户输入，等真实下一条消息，不替用户回答。\n"
     if history:prompt+='此前真实对话：\n'+json.dumps(history,ensure_ascii=False)+'\n'
     prompt+='用户：'+user
     last=args.output/(case['id']+f'-{n}.md');events=args.output/(case['id']+f'-{n}.jsonl');err=args.output/(case['id']+f'-{n}.stderr')

@@ -1,24 +1,33 @@
-# professional-agents-kit 0.28
+# professional-agents-kit 0.29
 
-一组中文专业 Agent skill：从一句话需求出发，按产品 → 交互与视觉设计 → 研发（承接与建模、方案与验证、增量构建、发布与交接、质量验证）的专业流程推进，由项目前台面对人、PM 在后台统筹，由协作 skill 处理跨角色问询。每个角色保留自己的阶段、人审节点和成果；人始终掌握关键决定。
+一组中文专业 Agent skill，按专业组织：一个共同底座，加上产品、内容设计与审读、交互与视觉设计、代码工程、质量工程，以及项目管理、项目前台两个调度专业。项目启动时由人决定用哪些专业、多大规模；每个专业保留自己的阶段、人审节点和成果，人始终掌握关键决定。小任务也可以不分实例，在一个对话里按各专业的要求完成。
 
 ## 包含什么
 
 | skill | 作用 |
 | --- | --- |
-| project-front-desk-agent | 项目前台：主对话入口，启动检测并按需拉起角色，按文件回答问询，登记并转交要求，展示待决事项 |
-| project-management-agent | 统筹：顶层任务、依赖、子任务上报、集中人审、进度视图 |
+| project-front-desk-agent | 项目前台（调度）：主对话入口，启动检测并按需拉起角色，按专业登记推荐专业组合，按文件回答问询，登记并转交要求，展示待决事项 |
+| project-management-agent | 项目管理（调度）：顶层任务、依赖、子任务上报、集中人审、进度视图 |
 | product-agent | 产品：澄清、目标与范围、对象与规则、功能流程、体验要求、评审与交付（S1–S7） |
+| content-design-review | 内容设计与审读：用户看到的文字（界面文案、提示与错误提示、通知、引导）与带键的文案表 |
 | experience-design-agent | 交互与视觉设计：设计基础、粗结构、细交互、代表视觉、完整设计、验证与交付（D1–D7） |
-| engineering-intake-agent | 研发承接：输入核对与澄清、逻辑工程模型、档位与技术风险、评审与交接（E1） |
-| engineering-solution-agent | 技术方案与验证：按问题作技术决定、风险试做、可运行骨架与工程基础、委托优先的技术评审，关键技术选型由人确认（E2） |
-| engineering-build-agent | 增量构建与发布（技术负责人）：按用户可见能力切增量、任务卡、检验与集成、范围完成评审（E3）；小型、中型项目的发布准备、发布决定包、逐批发布与交接（E4） |
-| quality-verification-agent | 质量验证：验收条目与覆盖、非实现者检验、质量测量、发布验收、缺陷分级与回归（贯穿 E1–E4） |
+| engineering-intake-agent | 代码工程的承接：输入核对与澄清、逻辑工程模型、档位与技术风险、评审与交接（E1） |
+| engineering-solution-agent | 代码工程的方案：按问题作技术决定、风险试做、可运行骨架与工程基础、委托优先的技术评审，关键技术选型由人确认（E2） |
+| engineering-build-agent | 代码工程的构建与发布（技术负责人）：按用户可见能力切增量、检验与集成、范围完成评审（E3）；小型、中型项目的发布准备、发布决定包、逐批发布与交接（E4） |
+| quality-verification-agent | 质量工程：验收条目与覆盖、非实现者检验、质量测量、发布验收、缺陷定级与回归（贯穿 E1–E4） |
 | professional-agent-collaboration | 协作：真实请求、唤醒、应答、人工答复与恢复 |
-| content-design-review | 产品与设计共用的文案写作与审读方法 |
+| profession-builder | 专业创建：按专业规范新建或修改专业，带登记检查与总入口生成脚本 |
 | product-capability-model | 共享知识库：优秀产品七原则、七大能力、48 项二级能力的原文 |
 
-`collaboration/` 是所有角色共用的规则，安装到项目根目录；`CORE.md` 是每个角色启动时读的共同底线，`ENGINEERING-FLOW.md` 说明研发的四个阶段、档位与谁决定什么，`SECURITY.md`、`PERFORMANCE.md`、`OPERATIONS.md` 是研发按需读取的安全、性能、运维与部署专项检查指引，`TASK-PACKET.md` 规定把具体工作交给其他执行者（外部 Agent 或人）时的任务包与回交，`TEAM.md` 说明多人参与时的人员名单、决定权、视图与群组沟通。研发的 E4 发布与交接在小型、中型项目中由 engineering-build-agent 承担，大型及以上项目另行配置；向真实用户发布始终由人决定。`collaboration/tools/` 里有阶段切换检查脚本 `stage_gate.py` 和离线审阅页 `review.html`。
+`collaboration/` 是所有专业共用的底座，安装到项目根目录：
+
+- `MATRIX.md` 是总入口：专业目录、项目启动时怎样选专业、在一个对话里完成任务的用法。
+- `CORE.md` 是每个角色启动时读的共同底线；`GUIDANCE-INDEX.md` 是共用规则索引，列出其余规则何时读。
+- `LEVELS.md` 规定职级 T1–T9（T10 归人）；`RISK-DEFECT-LEVELS.md` 规定风险 F0–F5 与缺陷 Q0–Q5 的定级与处理。
+- `professions/` 是各专业的登记、职级表与风险、缺陷对照；`PROFESSION-SPEC.md` 是新建专业要遵守的规范。
+- 其余是按需读取的专项规则，例如研发流程、安全、性能、运维与部署、任务包、多人协作。
+
+`collaboration/tools/` 里有阶段切换检查脚本 `stage_gate.py`（阶段与人审点从各专业的登记读取）和离线审阅页 `review.html`。
 
 安装不会启动任何 Agent、初始化数据库或批准任何成果。
 
@@ -31,9 +40,9 @@
 
 宿主提供选项式提问工具时，确认节点会用它展示两个选项；没有时自动退回文本。跨角色的子任务或消息工具在项目的 `collaboration/runtime/host.md` 中登记（见 `collaboration/RUNTIME.md`）。
 
-## 安装与升级
+## 安装
 
-需要 Python 3.10 或更高版本。在本包目录运行，先预检再安装：
+需要 Python 3.10 或更高版本。本包只装进新项目：项目里装有 0.29 之前的版本时，安装器在写入任何文件前停止，不升级、不迁移。在本包目录运行，先预检再安装：
 
 ```sh
 python3 install.py --target "<项目路径>"
@@ -48,25 +57,26 @@ python3 install.py --target "<项目路径>" --skills-dir .claude/skills --entry
 
 安装器会：
 
-- 复制本包的 11 个 skill 与共用规则；在说明文件中写入或更新一个受管入口块，块外内容原样保留。
-- 按文件哈希识别本包发布过的版本：与已知发布版一致的文件直接更新；本版不再使用、且未被改动的文件在备份后移除；项目改过的 `GUIDANCE-INDEX.md` 原样保留并在结果中列出，供人对照合并。
+- 复制本包的 12 个 skill 与共用规则；在说明文件中写入或更新一个受管入口块，块外内容原样保留。
+- 以后在同一项目里装更新的版本时，按文件哈希识别 0.29 起发布过的文件：与已知发布版一致的直接更新；不再使用、且未被改动的在备份后移除；项目改过的指引索引（各 skill 的 `GUIDANCE-INDEX.md` 与共用规则索引）原样保留并在结果中列出，供人对照合并。
 - 发现关键共同规则（`CORE.md`、`USER-INTERACTION.md` 等）或 skill 文件被改过且无法识别时，在写入任何文件前停止，先人工合并。
 - 不修改 `product/`、`design/`、`engineering/`、`collaboration/feedback.md`、运行数据库等业务成果；原文件备份在 `management/install-backups/`，回执在 `management/install-receipt.json`。
-- 说明文件中若有早期单独安装留下的入口文字，在结果中列出（`legacy_entry_review`）供人工查看，不自动删除。
 
 逐文件原子写入，可以中断后重跑，但不是全项目事务。
 
 ## 安装之后
 
-- **新项目**：直接向宿主描述需求；需要全流程统筹时说"请用 project-management-agent 统筹这个项目"。
-- **已有成果的项目**：让当前负责角色读取本角色 skill 和 `collaboration/CORE.md`，从当前有效阶段继续；保留有效确认与人的修改，只补受影响的范围，不重新访谈。
-- **项目调整**：在各 skill 的 `GUIDANCE-INDEX.md` "项目说明"列写补充、替换或停用（见 `collaboration/GUIDANCE-RESOLUTION.md`）。
+- **新项目**：先决定用哪些专业、多大规模。可以请 project-front-desk-agent 按项目描述和专业登记推荐组合，由你决定；需要全流程统筹时说"请用 project-management-agent 统筹这个项目"。
+- **单对话**：只想在一个对话里完成小任务时，说明使用本技能包；模型按 `collaboration/MATRIX.md` 的单对话用法，依次按各专业的要求工作，并如实标注"同一实例检验"。
+- **已有成果、没有装过本包的项目**：让当前负责角色读取本角色 skill 和 `collaboration/CORE.md`，从当前有效阶段继续；保留有效确认与人的修改，只补受影响的范围，不重新访谈。
+- **项目调整**：在各 skill 的 `GUIDANCE-INDEX.md` 或共用规则索引的"项目说明"列写补充、替换或停用（见 `collaboration/GUIDANCE-RESOLUTION.md`）。
+- **新建专业**：用 profession-builder，按 `collaboration/PROFESSION-SPEC.md` 写登记、职级表与对照、技能和评测情境，用它的检查脚本核对，再重新生成总入口的专业目录。
 - **多人参与**：在 `collaboration/people.json` 登记参与的人及其决定权（格式见 `collaboration/TEAM.md`；可由你们的成员管理系统同步）。之后 PM 会把事项发给对应的人，并在 `management/views/` 生成全程计划表、项目总入口、群摘要、个人视图与专业组视图。仅个人独立项目可不建名单；受邀专业成员即使只有一人也按名单中实际权限判断。
 - **运行方式**：多人或中型以上项目，建议主对话使用 project-front-desk-agent。它启动时检测宿主能否创建子 Agent，经你一次授权后，在各角色第一项任务就绪时为它创建子 Agent；主对话只保留问询与结论。宿主不支持时在主对话里切换角色。
 
 ## 按需加载
 
-启动时只加载：说明文件中的入口块、当前角色的 SKILL.md、`collaboration/CORE.md` 和本角色的 GUIDANCE-INDEX.md。其余指引按索引中的"何时读"打开；能力标准按二级能力逐份打开（每份一千多字），不整体加载。
+启动时只加载：说明文件中的入口块、当前角色的 SKILL.md、`collaboration/CORE.md`、共用规则索引和本角色的 GUIDANCE-INDEX.md。其余指引按索引中的"何时读"打开；能力标准按二级能力逐份打开（每份一千多字），不整体加载。
 
 ## 检验
 

@@ -1,16 +1,9 @@
 # 指引索引：engineering-build-agent
 
-启动时读一次；之后按"何时读"打开对应文件，不整体预读。"项目说明"由项目填写补充、替换或停用（规则见 [GUIDANCE-RESOLUTION](../../../collaboration/GUIDANCE-RESOLUTION.md)），空白表示沿用默认。
+启动时读一次；之后按"何时读"打开对应文件，不整体预读。共用规则（编号 C）见 [共用规则索引](../../../collaboration/GUIDANCE-INDEX.md)，本表只列本角色的指引。"项目说明"由项目填写补充、替换或停用（规则见 C18），空白表示沿用默认。
 
 | ID | 指引 | 何时读 | 项目说明 |
 | --- | --- | --- | --- |
-| C00 | [共同底线](../../../collaboration/CORE.md) | 启动时 | |
-| C01 | [用户确认与流程位置](../../../collaboration/USER-INTERACTION.md) | 评审、发布决定等需要人决定时 | |
-| C02 | [研发流程与决策权](../../../collaboration/ENGINEERING-FLOW.md) | 启动时；判断档位、决策权、待决规则时 | |
-| C03 | [反馈处理](../../../collaboration/FEEDBACK-PROTOCOL.md) | 收到反馈；续做、评审前 | |
-| C04 | [协作约定](../../../collaboration/CONTRACT.md) | 请设计走查、回查上游时 | |
-| C05 | [阶段检查](../../../collaboration/STAGE-GATES.md) | 切换子环节、标记完成前 | |
-| C06 | [安全](../../../collaboration/SECURITY.md)、[性能](../../../collaboration/PERFORMANCE.md)、[运维与部署](../../../collaboration/OPERATIONS.md)指引 | 引入依赖、演练与交接时 | |
 | R01 | [增量与任务卡](references/increments.md) | E3.1；开始增量前 | |
 | R02 | [实现、检验与上报](references/verification.md) | E3.2；上报时 | |
 | R03 | [集成与范围完成](references/scope-complete.md) | E3.3 | |
@@ -20,7 +13,4 @@
 | X02 | [缺陷分级与回归](../quality-verification-agent/references/defects.md) | 判断能否发布 | |
 | T01 | [工作区模板](assets/build-workspace-template.md) | 建立 `engineering/build/` 时 | |
 | T02 | [发布工作区模板](assets/release-workspace-template.md) | 建立 `engineering/release/` 时 | |
-
-| C90 | [团队任职与执行](../../../collaboration/TEAM-EXECUTION.md) | 接入团队、收到任务包、派发或换实例 | |
-| C91 | [工具授权](../../../collaboration/TOOL-ACCESS.md) | 指定工具、外部调用、换工具或撤权 | |
-| C92 | [委托检查](../../../collaboration/DELEGATED-REVIEW.md) | 已有明确阶段委托 | |
+| L01 | [本专业的职级与对照](../../../collaboration/professions/code-engineering.md) | 标难度、定风险、给缺陷定级 | |

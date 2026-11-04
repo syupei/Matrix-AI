@@ -3,14 +3,16 @@
 
 Installs the skills and shared collaboration rules into a project, adds or
 updates one managed entry block in the project's instruction file(s), retires
-unmodified files from earlier releases, and never touches business outputs.
-Run without --apply first to preview.
+unmodified files from earlier releases of the same line, and never touches
+business outputs. Releases before 0.29 used another structure: a project that
+has one installed is refused, not migrated. Run without --apply first to preview.
 """
 import argparse
 import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 from datetime import datetime, timezone
 
@@ -18,13 +20,15 @@ ROOT = Path(__file__).resolve().parent
 PKG_SKILLS = '.agents/skills/'
 BEGIN = '<!-- professional-agents:begin -->'
 END = '<!-- professional-agents:end -->'
-LEGACY_MARKERS = [('<!-- pm-agent-test:begin -->', '<!-- pm-agent-test:end -->')]
-# Entry text written by earlier standalone kits; reported for manual review, never removed.
-LEGACY_HEADINGS = ['# 产品与设计联合试验入口', '# 产品 Agent 试验项目', '<!-- professional-agent-collaboration:begin -->']
+# The first release of the current structure; projects with an earlier release installed are refused.
+FIRST_RELEASE = (0, 29)
+KIT_VERSION = re.compile(r'professional-agents-kit/(\d+)\.(\d+)')
+# Entry text written by earlier standalone kits.
+LEGACY_MARKERS = ['<!-- pm-agent-test:begin -->', '# 产品与设计联合试验入口', '# 产品 Agent 试验项目',
+                  '<!-- professional-agent-collaboration:begin -->']
 ROLES = ['project-front-desk-agent', 'project-management-agent', 'product-agent', 'experience-design-agent',
          'engineering-intake-agent', 'engineering-solution-agent', 'engineering-build-agent', 'quality-verification-agent',
-         'professional-agent-collaboration',
-         'content-design-review']
+         'professional-agent-collaboration', 'content-design-review', 'profession-builder']
 # Shared rules that every role depends on: a custom copy must be merged by hand first.
 CRITICAL_COMMON = ['collaboration/CORE.md', 'collaboration/USER-INTERACTION.md',
                    'collaboration/PM-REPORTING.md', 'collaboration/COPY-QUALITY.md',
@@ -32,21 +36,22 @@ CRITICAL_COMMON = ['collaboration/CORE.md', 'collaboration/USER-INTERACTION.md',
 BLOCK_TEMPLATE = BEGIN + '''
 ## 专业 Agent（{package}）
 
-按当前任务选择一个角色并读取它的 skill，不要同时加载所有角色。每个角色启动时先读 [collaboration/CORE.md](collaboration/CORE.md)。
+按任务选一个角色，读它的 SKILL.md，不同时加载所有角色；专业目录、选专业与单对话用法见 [总入口](collaboration/MATRIX.md)。
 
 | 任务 | 角色 |
 | --- | --- |
-| 主对话：问询、登记与转交（多人或中型以上项目） | [project-front-desk-agent]({skills}/project-front-desk-agent/SKILL.md) |
+| 主对话：问询、转交、启动引导 | [project-front-desk-agent]({skills}/project-front-desk-agent/SKILL.md) |
 | 项目统筹与调度 | [project-management-agent]({skills}/project-management-agent/SKILL.md) |
-| 产品需求、续做与问题 | [product-agent]({skills}/product-agent/SKILL.md) |
-| 空间、交互与视觉设计；设计续做与问题 | [experience-design-agent]({skills}/experience-design-agent/SKILL.md) |
-| 研发 E1：需求承接与逻辑建模 | [engineering-intake-agent]({skills}/engineering-intake-agent/SKILL.md) |
-| 研发 E2：技术决定、试做、骨架与技术评审 | [engineering-solution-agent]({skills}/engineering-solution-agent/SKILL.md) |
-| 研发 E3–E4：增量构建、发布与交接 | [engineering-build-agent]({skills}/engineering-build-agent/SKILL.md) |
-| 研发验收、独立检验、质量测量与发布验收 | [quality-verification-agent]({skills}/quality-verification-agent/SKILL.md) |
-| 跨角色问询与接续 | [professional-agent-collaboration]({skills}/professional-agent-collaboration/SKILL.md) |
+| 产品 | [product-agent]({skills}/product-agent/SKILL.md) |
+| 用户看到的文字 | [content-design-review]({skills}/content-design-review/SKILL.md) |
+| 交互与视觉设计 | [experience-design-agent]({skills}/experience-design-agent/SKILL.md) |
+| 代码工程 E1：承接与建模 | [engineering-intake-agent]({skills}/engineering-intake-agent/SKILL.md) |
+| 代码工程 E2：方案与骨架 | [engineering-solution-agent]({skills}/engineering-solution-agent/SKILL.md) |
+| 代码工程 E3–E4：构建与发布 | [engineering-build-agent]({skills}/engineering-build-agent/SKILL.md) |
+| 质量工程 | [quality-verification-agent]({skills}/quality-verification-agent/SKILL.md) |
+| 新建或修改专业 | [profession-builder]({skills}/profession-builder/SKILL.md) |
 
-文案写作与审读、能力模型原文由各角色按需调用。安装本包不代表任何 Agent 已在运行。
+跨专业的请求与接续、能力标准原文由各角色按需调用。安装本包不代表任何 Agent 已在运行。
 ''' + END + '\n'
 
 
@@ -114,13 +119,33 @@ def target_path(rel, skills_dir):
 
 
 def update_entry(content, new_block):
-    """Replace the managed block (current or legacy markers) or prepend a new one."""
-    for begin, end in [(BEGIN, END), *LEGACY_MARKERS]:
-        if begin in content or end in content:
-            if content.count(begin) != 1 or content.count(end) != 1 or content.index(begin) > content.index(end):
-                raise ValueError('malformed managed block')
-            return content[:content.index(begin)] + new_block.rstrip('\n') + content[content.index(end) + len(end):]
+    """Replace the managed block or prepend a new one."""
+    if BEGIN in content or END in content:
+        if content.count(BEGIN) != 1 or content.count(END) != 1 or content.index(BEGIN) > content.index(END):
+            raise ValueError('malformed managed block')
+        return content[:content.index(BEGIN)] + new_block.rstrip('\n') + content[content.index(END) + len(END):]
     return new_block + '\n' + content
+
+
+def earlier_release(root):
+    """What shows that a release before FIRST_RELEASE, or an earlier standalone kit, is installed."""
+    found = []
+    receipt = root / 'management/install-receipt.json'
+    if receipt.is_file() and not receipt.is_symlink():
+        package = str(json.loads(receipt.read_text()).get('package', ''))
+        m = KIT_VERSION.fullmatch(package)
+        if not m or (int(m[1]), int(m[2])) < FIRST_RELEASE:
+            found.append('management/install-receipt.json: ' + (package or 'unknown package'))
+    for entry in sorted(root.glob('*.md')):
+        if not entry.is_file() or entry.is_symlink():
+            continue
+        text = entry.read_text(errors='replace')
+        if BEGIN in text and END in text and text.index(BEGIN) < text.index(END):
+            for m in KIT_VERSION.finditer(text[text.index(BEGIN):text.index(END)]):
+                if (int(m[1]), int(m[2])) < FIRST_RELEASE:
+                    found.append(f'{entry.name}: {m[0]}')
+        found += [f'{entry.name}: {marker}' for marker in LEGACY_MARKERS if marker in text]
+    return found
 
 
 def install(target, apply=False, skills_dir='.agents/skills', entries=('AGENTS.md',)):
@@ -129,10 +154,14 @@ def install(target, apply=False, skills_dir='.agents/skills', entries=('AGENTS.m
         raise ValueError('target project must exist')
     skills_dir = check_skills_dir(skills_dir)
     entries = [check_entry(e) for e in (entries or ['AGENTS.md'])]
+    earlier = earlier_release(root)
+    if earlier:
+        raise ValueError('an earlier release is installed (' + '; '.join(earlier) + '); this release is for new projects '
+                         'only and does not upgrade or migrate them')
     bases = json.loads((ROOT / 'upgrade-bases.json').read_text())
     manifest = json.loads((ROOT / 'MANIFEST.json').read_text())
-    guidance_keys = {PKG_SKILLS + r + '/GUIDANCE-INDEX.md' for r in ROLES}
-    plans, preserved, guidance, retire, retired_kept, legacy = [], [], [], [], [], []
+    guidance_keys = {PKG_SKILLS + r + '/GUIDANCE-INDEX.md' for r in ROLES} | {'collaboration/GUIDANCE-INDEX.md'}
+    plans, preserved, guidance, retire, retired_kept = [], [], [], [], []
 
     for rel, expected in sorted(manifest['files'].items()):
         if not managed(rel):
@@ -174,8 +203,6 @@ def install(target, apply=False, skills_dir='.agents/skills', entries=('AGENTS.m
         before = dest.read_bytes() if dest.exists() else None
         content = (before or b'').decode()
         updated = update_entry(content, new_block)
-        outside = updated.replace(new_block.rstrip('\n'), '')
-        legacy += [f'{entry}: {h}' for h in LEGACY_HEADINGS if h in outside]
         if updated.encode() != before:
             plans.append((entry, before, updated.encode()))
 
@@ -188,8 +215,7 @@ def install(target, apply=False, skills_dir='.agents/skills', entries=('AGENTS.m
     safe(root, 'management/install-receipt.json')
     report = {'package': package, 'target': str(root), 'skills_dir': skills_dir, 'entries': entries,
               'preserved_custom_common': preserved, 'preserved_custom_guidance': guidance,
-              'guidance_review_required': guidance, 'retired_modified_kept': retired_kept,
-              'legacy_entry_review': legacy}
+              'guidance_review_required': guidance, 'retired_modified_kept': retired_kept}
     if not apply:
         return {'dry_run': True, 'changes': [x[0] for x in plans], 'retire': [x[0] for x in retire], **report}
 

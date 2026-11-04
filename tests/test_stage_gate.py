@@ -3,6 +3,12 @@ from pathlib import Path
 P=Path(__file__).resolve().parents[1]/'src/collaboration/tools/stage_gate.py'
 s=importlib.util.spec_from_file_location('gate',P);g=importlib.util.module_from_spec(s);s.loader.exec_module(g)
 class GateTests(unittest.TestCase):
+ def test_flows_from_registries_match_previous_gate(self):
+  self.assertEqual(g.STAGES,{'product':['S1','S2','S3','S4','S5','S6','S7','complete'],'design':['D1','D2','D3','D4','D5','D6','D7','complete'],'engineering':['E1.1','E1.2','E1.3','E1.4','complete'],'solution':['E2.1','E2.2','E2.3','E2.4','complete'],'build':['E3.1','E3.2','E3.3','complete'],'release':['E4.1','E4.2','E4.3','complete']})
+  self.assertEqual(g.REVIEW,{'product':{'S1','S2','S3','S4','S5','S6','S7'},'design':{'D1','D2','D4','D6'},'engineering':{'E1.4'},'solution':{'E2.4'},'build':{'E3.3'},'release':{'E4.2'}})
+  self.assertEqual(g.CHAIN,['project','product','design','engineering','solution','build'])
+  self.assertEqual(g.AUTHORITY,{'release':{'project','release'}})
+  self.assertEqual(g.UPSTREAM,{('build','E3.1'):('solution','E2.4'),('release','E4.1'):('build','E3.3')})
  def test_digest_helper_matches_gate(self):
   out=g.digests(self.root,['artifact.md'])
   self.assertEqual(out['artifact_sha256'],g.artifact_digest(self.root,out['artifacts']))

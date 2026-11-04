@@ -7,14 +7,25 @@ import importlib.util
 from types import SimpleNamespace
 from pathlib import Path
 
-STAGES={'product':['S1','S2','S3','S4','S5','S6','S7','complete'], 'design':['D1','D2','D3','D4','D5','D6','D7','complete'], 'engineering':['E1.1','E1.2','E1.3','E1.4','complete'], 'solution':['E2.1','E2.2','E2.3','E2.4','complete'], 'build':['E3.1','E3.2','E3.3','complete'], 'release':['E4.1','E4.2','E4.3','complete']}
-REVIEW={'product':{'S1','S2','S3','S4','S5','S6','S7'},'design':{'D1','D2','D4','D6'},'engineering':{'E1.4'},'solution':{'E2.4'},'build':{'E3.3'},'release':{'E4.2'}}
-# Upstream first: a confirmation may come from a decider of this flow or of any flow above it.
-CHAIN=['project','product','design','engineering','solution','build']
-# Release to real users is a project-level decision: not inherited from professional flows.
-AUTHORITY={'release':{'project','release'}}
-# Implementation starts only on a still-valid confirmed technical review; the release decision only on a still-valid scope review.
-UPSTREAM={('build','E3.1'):('solution','E2.4'),('release','E4.1'):('build','E3.3')}
+PROFESSIONS=Path(__file__).resolve().parent.parent/'professions'
+
+def load_flows(directory=PROFESSIONS):
+    """Stage flows are declared in the profession registries; the gate holds no per-profession lists."""
+    stages,review,authority,upstream,rank={},{},{},{},{}
+    for f in sorted(Path(directory).glob('*.json')):
+        for flow in json.loads(f.read_text(encoding='utf-8')).get('stage_flows',[]):
+            key=flow['key']
+            if key in stages:raise ValueError('duplicate stage flow: '+key)
+            stages[key]=list(flow['stages'])+['complete']
+            review[key]=set(flow.get('review',[]))
+            if flow.get('authority'):authority[key]=set(flow['authority'])
+            if 'authority_rank' in flow:rank[key]=flow['authority_rank']
+            for stage,(up,up_stage) in flow.get('upstream',{}).items():upstream[(key,stage)]=(up,up_stage)
+    # Upstream first: a confirmation may come from a decider of this flow or of any flow above it.
+    chain=['project']+sorted(rank,key=rank.get)
+    return stages,review,chain,authority,upstream
+
+STAGES,REVIEW,CHAIN,AUTHORITY,UPSTREAM=load_flows()
 ROSTER='collaboration/people.json'
 
 def digest(path):return hashlib.sha256(path.read_bytes()).hexdigest()

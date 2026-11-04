@@ -1,15 +1,9 @@
 # 指引索引：experience-design-agent
 
-启动时读一次；之后按“何时读”打开对应文件，不整体预读。“项目说明”由项目填写补充、替换或停用（规则见 [GUIDANCE-RESOLUTION](../../../collaboration/GUIDANCE-RESOLUTION.md)），空白表示沿用默认。
+启动时读一次；之后按"何时读"打开对应文件，不整体预读。共用规则（编号 C）见 [共用规则索引](../../../collaboration/GUIDANCE-INDEX.md)，本表只列本角色的指引。"项目说明"由项目填写补充、替换或停用（规则见 C18），空白表示沿用默认。
 
 | ID | 指引 | 何时读 | 项目说明 |
 | --- | --- | --- | --- |
-| C00 | [共同底线](../../../collaboration/CORE.md) | 启动时 | |
-| C01 | [用户确认](../../../collaboration/USER-INTERACTION.md) | 审阅节点；流程位置 | |
-| C02 | [反馈处理](../../../collaboration/FEEDBACK-PROTOCOL.md) | 实质反馈；续做、切阶段、审阅、交接前 | |
-| C03 | [全量文案](../../../collaboration/COPY-QUALITY.md) | D2 起制作或审读文字 | |
-| C04 | [定位接力](../../../collaboration/PRODUCT-EXPERIENCE.md) | D1；定位或风格变化；D6/D7 | |
-| C05 | [阶段检查](../../../collaboration/STAGE-GATES.md) | 切换阶段前 | |
 | R01 | [工作流](references/workflow.md) | 首次接手；进入或恢复阶段 | |
 | R02 | [设计方向](references/design-direction.md) | D1；核对或调整方向 | |
 | R03 | [设计基础](references/foundation-review.md) | D1 展示前；基础变更 | |
@@ -25,6 +19,4 @@
 | R13 | [实现走查](references/walkthrough.md) | 研发请求实现走查 | |
 | R14 | [外观目标](references/visual-target.md) | 风格词或样稿；D4 锚点；画面做法与外观对照 | |
 | T01 | [工作区模板](assets/design-workspace-template.md) | 创建设计文件时 | |
-| C90 | [团队任职与执行](../../../collaboration/TEAM-EXECUTION.md) | 接入团队、收到任务包、派发或换实例 | |
-| C91 | [工具授权](../../../collaboration/TOOL-ACCESS.md) | 指定工具、外部调用、换工具或撤权 | |
-| C92 | [委托检查](../../../collaboration/DELEGATED-REVIEW.md) | 已有明确阶段委托 | |
+| L01 | [本专业的职级与对照](../../../collaboration/professions/experience-design.md) | 标难度、定风险、给缺陷定级 | |

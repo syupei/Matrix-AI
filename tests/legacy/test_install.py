@@ -92,8 +92,10 @@ class InstallTests(unittest.TestCase):
 
     def test_all_roles_installed_without_runtime_initialization(self):
         result=mod.install(self.root,True)
-        for role in ['project-front-desk-agent','product-agent','experience-design-agent','engineering-intake-agent','engineering-solution-agent','engineering-build-agent','quality-verification-agent','project-management-agent','professional-agent-collaboration','content-design-review','product-capability-model']:
+        for role in ['project-front-desk-agent','product-agent','experience-design-agent','engineering-intake-agent','engineering-solution-agent','engineering-build-agent','quality-verification-agent','project-management-agent','professional-agent-collaboration','content-design-review','product-capability-model','profession-builder']:
             self.assertTrue((self.root/'.agents/skills'/role/'SKILL.md').is_file())
+        self.assertTrue((self.root/'collaboration/MATRIX.md').is_file())
+        self.assertTrue((self.root/'collaboration/professions/product.json').is_file())
         self.assertFalse(result['runtime_initialized'])
         self.assertFalse(list(self.root.rglob('*.sqlite3')))
         self.assertFalse((self.root/'product').exists())
@@ -133,10 +135,11 @@ class InstallTests(unittest.TestCase):
 
     def test_all_six_fresh_guidance_indexes_installed(self):
         result=mod.install(self.root,True)
-        roles=['project-front-desk-agent','product-agent','experience-design-agent','engineering-intake-agent','engineering-solution-agent','engineering-build-agent','quality-verification-agent','project-management-agent','professional-agent-collaboration','content-design-review']
+        roles=['project-front-desk-agent','product-agent','experience-design-agent','engineering-intake-agent','engineering-solution-agent','engineering-build-agent','quality-verification-agent','project-management-agent','professional-agent-collaboration','content-design-review','profession-builder']
         for role in roles:
             rel=Path('.agents/skills')/role/'GUIDANCE-INDEX.md'
             self.assertEqual((self.root/rel).read_bytes(),(KIT/rel).read_bytes())
+        self.assertEqual((self.root/'collaboration/GUIDANCE-INDEX.md').read_bytes(),(KIT/'collaboration/GUIDANCE-INDEX.md').read_bytes())
         self.assertEqual(result['preserved_custom_guidance'],[])
 
     def test_known_old_guidance_default_upgrades_and_is_backed_up(self):
@@ -181,14 +184,35 @@ class InstallTests(unittest.TestCase):
         (package/'upgrade-bases.json').write_text(json.dumps(bases))
         return package
 
-    def test_legacy_marker_block_is_migrated(self):
+    def assert_refused_without_change(self,*args):
+        before={str(x.relative_to(self.root)):x.read_bytes() for x in self.root.rglob('*') if x.is_file()}
+        for apply in (False,True):
+            with self.assertRaisesRegex(ValueError,'earlier release.*new projects only'):
+                mod.install(self.root,apply,*args)
+        self.assertEqual(before,{str(x.relative_to(self.root)):x.read_bytes() for x in self.root.rglob('*') if x.is_file()})
+
+    def test_legacy_marker_block_is_refused(self):
         self.put('AGENTS.md','intro\n<!-- pm-agent-test:begin -->\nold entry\n<!-- pm-agent-test:end -->\noutro\n')
+        self.assert_refused_without_change()
+
+    def test_earlier_release_receipt_is_refused(self):
+        self.put('management/install-receipt.json',json.dumps({'package':'professional-agents-kit/0.28'}))
+        self.assert_refused_without_change()
+
+    def test_earlier_release_entry_block_in_any_root_file_is_refused(self):
+        self.put('CLAUDE.md','notes\n'+mod.BEGIN+'\n## 专业 Agent（professional-agents-kit/0.27）\n'+mod.END+'\n')
+        self.assert_refused_without_change('.agents/skills',['AGENTS.md'])
+
+    def test_same_line_receipt_and_block_are_accepted(self):
         mod.install(self.root,True)
-        text=(self.root/'AGENTS.md').read_text()
-        self.assertNotIn('pm-agent-test',text)
-        self.assertNotIn('old entry',text)
-        self.assertTrue(text.startswith('intro\n') and text.endswith('\noutro\n'))
-        self.assertEqual(text.count(mod.BEGIN),1)
+        receipt=json.loads((self.root/'management/install-receipt.json').read_text())
+        self.assertEqual(receipt['package'],PACKAGE)
+        self.assertEqual(mod.earlier_release(self.root),[])
+        self.assertEqual(mod.install(self.root,True)['written'],[])
+
+    def test_entry_block_within_budget(self):
+        for skills in ['.agents/skills','.claude/skills']:
+            self.assertLessEqual(len(mod.block(PACKAGE,skills)),1200)
 
     def test_host_specific_skills_dir_and_entry(self):
         result=mod.install(self.root,True,'.claude/skills',['CLAUDE.md'])
@@ -256,10 +280,9 @@ class InstallTests(unittest.TestCase):
             mod.install(self.root,True)
         self.assertFalse((self.root/'.agents').exists())
 
-    def test_legacy_entry_text_is_reported_not_removed(self):
+    def test_legacy_entry_text_is_refused(self):
         self.put('AGENTS.md','# 产品与设计联合试验入口\nlegacy text\n')
-        result=mod.install(self.root,True)
-        self.assertEqual(result['legacy_entry_review'],['AGENTS.md: # 产品与设计联合试验入口'])
+        self.assert_refused_without_change()
         self.assertIn('legacy text',(self.root/'AGENTS.md').read_text())
 
 

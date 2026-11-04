@@ -1,6 +1,8 @@
 # Maintenance
 
-Edit only `src/`. The version is in `package.json`. Keep role entry points (`SKILL.md`) at or below 3500 characters, common rules in `collaboration/`, and on-demand material behind each role's `GUIDANCE-INDEX.md`.
+Edit only `src/`. The version is in `package.json`. Keep role entry points (`SKILL.md`) at or below 3500 characters, common rules in `collaboration/` (listed in its shared `GUIDANCE-INDEX.md`), and on-demand material behind each role's `GUIDANCE-INDEX.md`. The content and size rules are in `src/collaboration/PROFESSION-SPEC.md` §3.
+
+Each profession has a registry in `src/collaboration/professions/` (the stage gate reads its stages from there). After changing a registry, regenerate the profession directory of the total entry with `src/.agents/skills/profession-builder/scripts/build_entry.py`; the registry check `profession_check.py` runs with the maintainer tests. The installer refuses projects that have a release before 0.29 installed.
 
 Consumer text must be host-neutral and publishable: no host or model names, no local absolute paths, no internal project names, no build history or decision IDs. `tools/production.py` enforces these checks (the quoted capability-model source text is exempt), together with link, size and privacy checks.
 

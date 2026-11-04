@@ -54,10 +54,8 @@
 
 ## 8. 按需读取与共同规则入口
 
-- 启动时读本角色的 GUIDANCE-INDEX.md，之后按其"何时读"只打开当前需要的文件；项目在索引中写的补充、替换或停用按 [GUIDANCE-RESOLUTION](GUIDANCE-RESOLUTION.md) 生效。能力标准只读与当前问题相关的能力文件。
+- 启动时读本角色的指引索引和[共用规则索引](GUIDANCE-INDEX.md)，之后按"何时读"只打开当前需要的文件；共用规则的编号（C00–C92）各专业通用。项目写在索引里的补充、替换或停用按 C18 生效。能力标准只读与当前问题相关的能力文件。
 - 文件缺失或读取失败时说明具体缺口，不声称已经应用该规则。
-- 以下场景读取对应共同规则：需要人确认或显示流程位置 → [USER-INTERACTION](USER-INTERACTION.md)；收到实质性反馈 → [FEEDBACK-PROTOCOL](FEEDBACK-PROTOCOL.md)；产出或审读面向读者的文字 → [COPY-QUALITY](COPY-QUALITY.md)；跨角色请求 → [CONTRACT](CONTRACT.md)；阶段评审与交付 → [PROFESSIONAL-REVIEW](PROFESSIONAL-REVIEW.md)；切换阶段 → [STAGE-GATES](STAGE-GATES.md)；研发各阶段的分工、档位与决策权 → [ENGINEERING-FLOW](ENGINEERING-FLOW.md)；由 PM 统筹 → [PM-REPORTING](PM-REPORTING.md)；项目有两人及以上参与 → [TEAM](TEAM.md)；把具体工作交给其他执行者 → [TASK-PACKET](TASK-PACKET.md)。
-
-- PM 统筹下的实质变更、已知交付集合、实例分派与任务问询 → [任务完整性](PM-INTEGRITY.md)。先登记影响分析，再按专业结论同步计划；尚未同步的受影响范围不派发或关闭。
-
-- 项目任职、分层委派、实例工作区和新增专业介入 → [团队执行](TEAM-EXECUTION.md)；实际工具调用与替代 → [工具授权](TOOL-ACCESS.md)。有明确阶段委托时按 [委托检查](DELEGATED-REVIEW.md)，代理决定与人工确认分别记录。
+- PM 统筹下的实质变更：先登记影响分析，再按专业结论同步计划；尚未同步的受影响范围不派发或关闭（C07）。
+- 有明确阶段委托时按 C92，代理决定与人工确认分别记录。
+- 任务的难度用职级 T 标注（C21），风险用 F、缺陷用 Q 定级（C22）。

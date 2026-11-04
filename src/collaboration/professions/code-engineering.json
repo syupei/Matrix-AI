@@ -1,0 +1,186 @@
+{
+  "schema": "profession/1",
+  "id": "code-engineering",
+  "name": "代码工程",
+  "class": "制作",
+  "version": "1.0",
+  "kit": "professional-agents-kit/0.29",
+  "skills": [
+    "engineering-intake-agent",
+    "engineering-solution-agent",
+    "engineering-build-agent"
+  ],
+  "handles": [
+    "研发承接与逻辑建模",
+    "技术方案、关键选型、试做与骨架",
+    "增量构建、集成、发布与交接",
+    "内部异常的处理，以及把它们归为产品定义的用户情境"
+  ],
+  "not_handles": [
+    "产品规则（交产品）",
+    "用户看到的文字（交内容）",
+    "验收的独立检验（交质量工程）"
+  ],
+  "participation": "需要写代码或交付可运行版本时参与",
+  "owns": [
+    {
+      "deliverable": "工程源码、技术决定与证据、增量与发布记录",
+      "source": "code/ 与 engineering/ 下的工程源"
+    }
+  ],
+  "standards": [
+    "研发流程（C13）与安全、性能、运维指引（C06）"
+  ],
+  "stage_flows": [
+    {
+      "key": "engineering",
+      "stages": [
+        "E1.1",
+        "E1.2",
+        "E1.3",
+        "E1.4"
+      ],
+      "review": [
+        "E1.4"
+      ],
+      "authority_rank": 3
+    },
+    {
+      "key": "solution",
+      "stages": [
+        "E2.1",
+        "E2.2",
+        "E2.3",
+        "E2.4"
+      ],
+      "review": [
+        "E2.4"
+      ],
+      "authority_rank": 4
+    },
+    {
+      "key": "build",
+      "stages": [
+        "E3.1",
+        "E3.2",
+        "E3.3"
+      ],
+      "review": [
+        "E3.3"
+      ],
+      "authority_rank": 5,
+      "upstream": {
+        "E3.1": [
+          "solution",
+          "E2.4"
+        ]
+      }
+    },
+    {
+      "key": "release",
+      "stages": [
+        "E4.1",
+        "E4.2",
+        "E4.3"
+      ],
+      "review": [
+        "E4.2"
+      ],
+      "authority": [
+        "project",
+        "release"
+      ],
+      "upstream": {
+        "E4.1": [
+          "build",
+          "E3.3"
+        ]
+      }
+    }
+  ],
+  "decisions": {
+    "own": [
+      "委托边界内的技术决定"
+    ],
+    "escalate": [
+      "关键技术选型、发布、接受风险、花钱交人",
+      "跨模块契约变更交架构负责人"
+    ],
+    "binding": [
+      "接口契约与资产规格中的技术部分"
+    ]
+  },
+  "interfaces": [
+    {
+      "with": "产品",
+      "needs": "规则、验收与用户情境",
+      "gives": "技术代价与风险"
+    },
+    {
+      "with": "交互与视觉设计",
+      "needs": "设计规格",
+      "gives": "实现走查请求"
+    },
+    {
+      "with": "质量工程",
+      "needs": "验收条目",
+      "gives": "可试用版本与运行记录"
+    },
+    {
+      "with": "内容设计与审读",
+      "needs": "文案表",
+      "gives": "情境与键的对照"
+    }
+  ],
+  "tools": [
+    "代码仓库与构建",
+    "自动检查（含依赖、凭证与危险命令检查）"
+  ],
+  "model_capabilities": [
+    "代码阅读与编写"
+  ],
+  "levels": {
+    "range": [
+      "T2",
+      "T9"
+    ],
+    "master_min": "T7",
+    "doc": "code-engineering.md"
+  },
+  "anchors": {
+    "risk": "code-engineering.md",
+    "defect": "code-engineering.md"
+  },
+  "verification": "按风险级别安排独立检验（C22）；单实例时记录写明同一实例检验",
+  "reporting": "向 PM 汇报进度、阻碍与需人决定的事项；F1、Q1 主动告知，Q0 立即告知（C01）",
+  "evals": [
+    "form_facts",
+    "tech_choice",
+    "delegation",
+    "trial_evidence",
+    "pending_rule",
+    "existing_audit",
+    "contract",
+    "build_plan",
+    "build_test_failure",
+    "build_done_claim",
+    "walkthrough_pending",
+    "release_known_p1",
+    "release_rollback_paper",
+    "release_trial_promote",
+    "release_rollout_stop",
+    "key_decisions_review",
+    "build_new_sdk",
+    "dep_vulnerability",
+    "service_targets",
+    "ops_handoff",
+    "skeleton_ops",
+    "prod_data_fix",
+    "packet_outsource",
+    "packet_return",
+    "team_intake_worker",
+    "team_solution_lead",
+    "team_build_worker",
+    "risk_destructive_script"
+  ]
+}

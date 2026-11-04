@@ -48,6 +48,7 @@ if carried and carried['source_hash'] != meta['source_hash']:
 for case in suite['cases']:
     roles = case['role'] if isinstance(case['role'], list) else [case['role']]
     role = next((r for r in roles if (a.source / '.agents/skills' / r / 'SKILL.md').is_file()), roles[-1])
+    entry = next((e for e in case.get('entry', []) if (a.source / e).is_file()), None)
     if case['id'] in reuse or case['id'] in carry:
         src_run, src_dir = (previous, a.reuse_from) if case['id'] in reuse else (carried, a.carry_from)
         old = next((r for r in src_run['cases'] if r['id'] == case['id']), None)
@@ -72,7 +73,7 @@ for case in suite['cases']:
                 record['generated_on'] = chain
         meta['cases'].append(record)
         continue
-    record = {'id': case['id'], 'role': role, 'turns': []}
+    record = {'id': case['id'], 'role': role, 'turns': []} | ({'entry': entry} if entry else {})
     for n, user in enumerate(case['turns']):
         reply = a.output / f"{case['id']}-{n}.md"
         if not reply.is_file():
