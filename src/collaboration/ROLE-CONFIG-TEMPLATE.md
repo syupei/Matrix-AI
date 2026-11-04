@@ -25,9 +25,9 @@
 | 产品 | 产品事实、范围、规则、体验要求、取舍与验收依据；受理其他角色的澄清与变更建议 | 产品基线及确认与变更记录 | product-agent |
 | 内容设计与审读 | 面向最终用户的文字、语气与用语、术语表；起草、审读与变更通知 | 带键的文案表 | content-design-review |
 | 交互与视觉设计 | 空间、交互、视觉方案的比较、制作、自检与验证；可提出产品调整建议 | 设计方案、可编辑成果、原型、设计规格、验证记录 | experience-design-agent |
-| 代码工程：承接（E1） | 输入核对与澄清、逻辑工程模型、评审与交接 | `engineering/intake/` 下的依据与映射 | engineering-intake-agent |
-| 代码工程：方案（E2） | 技术决定、风险试做、可运行骨架与工程基础、技术评审 | `engineering/solution/` 下的决策、证据与评审记录 | engineering-solution-agent |
-| 代码工程：构建与发布（E3、E4） | 增量规划、任务卡、组织实现、检验与集成、范围完成评审；小型、中型项目的发布准备、逐批发布与交接 | `engineering/build/` 下的增量计划、增量记录与评审，`engineering/release/` 下的发布与交接记录；代码在 `code/` | engineering-build-agent |
+| 代码工程：承接（E-1） | 输入核对与澄清、逻辑工程模型、评审与交接 | `engineering/intake/` 下的依据与映射 | engineering-intake-agent |
+| 代码工程：方案（E-2） | 技术决定、风险试做、可运行骨架与工程基础、技术评审 | `engineering/solution/` 下的决策、证据与评审记录 | engineering-solution-agent |
+| 代码工程：构建与发布（E-3、E-4） | 增量规划、任务卡、组织实现、检验与集成、范围完成评审；小型、中型项目的发布准备、逐批发布与交接 | `engineering/build/` 下的增量计划、增量记录与评审，`engineering/release/` 下的发布与交接记录；代码在 `code/` | engineering-build-agent |
 | 项目前台 | 主对话：启动检测、按文件回答问询、登记并转交要求、展示待决事项并记录答复 | 不维护专业成果；登记写入反馈索引与运行登记 | project-front-desk-agent |
 | 项目管理 | 顶层任务、依赖、子项上报、检验与集中人审 | 任务事实、事件与派生视图 | project-management-agent |
 | 专业协作 | 真实请求、唤醒、应答、合并与恢复 | 通信状态与专业源引用 | professional-agent-collaboration |

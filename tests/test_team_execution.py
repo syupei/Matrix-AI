@@ -144,10 +144,10 @@ class ToolIsolation(unittest.TestCase):
     def setUp(self):
         t=tempfile.TemporaryDirectory();self.addCleanup(t.cleanup);self.root=Path(t.name);self.active=True
         self.adapter=gw.FileArtifactAdapter(self.root/'protected',{'file-a':'a.md','file-b':'b.md'})
-        self.grants={'GA':dict(instance='D2',tasks=['T2'],connection='design-A',operations=['read','write'],resources=['file-a'],expires_at=time.time()+1000,max_calls=10,revision=1),
-                     'GB':dict(instance='D3',tasks=['T3'],connection='design-A',operations=['read'],resources=['file-b'],expires_at=time.time()+1000,max_calls=10,revision=1)}
+        self.grants={'GA':dict(instance='D-2',tasks=['T2'],connection='design-A',operations=['read','write'],resources=['file-a'],expires_at=time.time()+1000,max_calls=10,revision=1),
+                     'GB':dict(instance='D-3',tasks=['T3'],connection='design-A',operations=['read'],resources=['file-b'],expires_at=time.time()+1000,max_calls=10,revision=1)}
         self.gateway=gw.Gateway(self.root/'host/db.sqlite3',self.grants,{'design-A':self.adapter},lambda s:self.active)
-        self.token=self.gateway.open_run('D2','T2','R2','baseline', ['GA'],time.time()+100)
+        self.token=self.gateway.open_run('D-2','T2','R2','baseline', ['GA'],time.time()+100)
     def call(self,cid='C1',**kw):
         d=dict(grant_id='GA',operation='write',resource='file-a',parameters={'content':'candidate'});d.update(kw)
         return self.gateway.call(self.token,cid,**d)
@@ -160,7 +160,7 @@ class ToolIsolation(unittest.TestCase):
         with self.assertRaisesRegex(gw.Denied,'outside grant'):self.call(resource='file-b')
         self.assertFalse((self.root/'protected').exists())
     def test_read_only_cannot_write(self):
-        token=self.gateway.open_run('D3','T3','R3','baseline',['GB'],time.time()+100)
+        token=self.gateway.open_run('D-3','T3','R3','baseline',['GB'],time.time()+100)
         with self.assertRaisesRegex(gw.Denied,'outside grant'):self.gateway.call(token,'C','GB','write','file-b',{'content':'wrong'})
     def test_parameters_cannot_override_target_or_run_script(self):
         for extra in ({'resource':'file-b'},{'script':'arbitrary'},{'url':'external'}):
@@ -172,12 +172,12 @@ class ToolIsolation(unittest.TestCase):
     def test_revoke_run_and_grant(self):
         self.gateway.revoke_run(self.token)
         with self.assertRaisesRegex(gw.Denied,'revoked'):self.call()
-        self.token=self.gateway.open_run('D2','T2','R3','baseline',['GA'],time.time()+100)
+        self.token=self.gateway.open_run('D-2','T2','R3','baseline',['GA'],time.time()+100)
         self.gateway.revoke_grant('GA')
         with self.assertRaisesRegex(gw.Denied,'revoked'):self.call()
     def test_quota_and_no_connection_fallback(self):
         self.gateway.grants['GA']['max_calls']=1
-        self.token=self.gateway.open_run('D2','T2','R-new','baseline',['GA'],time.time()+100);self.call()
+        self.token=self.gateway.open_run('D-2','T2','R-new','baseline',['GA'],time.time()+100);self.call()
         with self.assertRaisesRegex(gw.Denied,'quota'):self.call('C2')
         self.gateway.adapters={}
         with self.assertRaisesRegex(gw.Denied,'unavailable'):self.call('C3')
@@ -215,12 +215,12 @@ class ToolIsolation(unittest.TestCase):
 class DelegatedGate(unittest.TestCase):
     def setUp(self):
         t=tempfile.TemporaryDirectory();self.addCleanup(t.cleanup);self.root=Path(t.name);(self.root/'collaboration').mkdir()
-        for ref,text in {'authority.md':'SIM human delegates S3 for A to P1', 'artifact.md':'SIM rules A', 'decision.md':'SIM professional rationale', 'check.md':'SIM independent verification', 'conversation.md':'S3 → S4'}.items():(self.root/ref).write_text(text)
+        for ref,text in {'authority.md':'SIM human delegates P-3 for A to P1', 'artifact.md':'SIM rules A', 'decision.md':'SIM professional rationale', 'check.md':'SIM independent verification', 'conversation.md':'P-3 → P-4'}.items():(self.root/ref).write_text(text)
         art=gate.digests(self.root,['artifact.md'])
-        self.grant=dict(id='D',revision=1,person_id='user',instance_id='P1',role='product',stages=['S3'],scope=['A'],source='authority.md',source_sha256=gate.digest(self.root/'authority.md'),expires_at='2099-01-01T00:00:00+00:00',revoked=False)
-        self.decision=dict(delegation_id='D',delegation_revision=1,instance_id='P1',decision_kind='routine',role='product',stage='S3',scope=['A'],artifact_sha256=art['artifact_sha256'],source='decision.md',review='review.json',producers=['P1','AUTHOR'])
+        self.grant=dict(id='D',revision=1,person_id='user',instance_id='P1',role='product',stages=['P-3'],scope=['A'],source='authority.md',source_sha256=gate.digest(self.root/'authority.md'),expires_at='2099-01-01T00:00:00+00:00',revoked=False)
+        self.decision=dict(delegation_id='D',delegation_revision=1,instance_id='P1',decision_kind='routine',role='product',stage='P-3',scope=['A'],artifact_sha256=art['artifact_sha256'],source='decision.md',review='review.json',producers=['P1','AUTHOR'])
         self.review=dict(checker='P2',outcome='passed',scope=['A'],artifact_sha256=art['artifact_sha256'],evidence='check.md')
-        self.state=dict(role='product',current='S3',next='S4',scope=['A'],blockers=[],conversation_check='conversation.md',delegated_decision='decision.json',**art)
+        self.state=dict(role='product',current='P-3',next='P-4',scope=['A'],blockers=[],conversation_check='conversation.md',delegated_decision='decision.json',**art)
     def check(self):
         for ref,data in [('collaboration/delegations.json',{'delegations':[self.grant]}),('decision.json',self.decision),('review.json',self.review)]: (self.root/ref).write_text(json.dumps(data))
         return gate.check(self.root,self.state)
@@ -246,7 +246,7 @@ class DelegatedGate(unittest.TestCase):
         self.decision.pop('producers')
         with self.assertRaisesRegex(ValueError,'producers'):self.check()
     def test_release_cannot_use_proxy_decision(self):
-        self.state.update(role='release',current='E4.2',next='E4.3');(self.root/'conversation.md').write_text('E4.2 → E4.3')
+        self.state.update(role='release',current='E-4.2',next='E-4.3');(self.root/'conversation.md').write_text('E-4.2 → E-4.3')
         with self.assertRaisesRegex(ValueError,'cannot be delegated'):self.check()
     def test_single_listed_person_needs_actual_role_authority(self):
         (self.root/'collaboration/people.json').write_text(json.dumps({'people':[{'id':'designer','decides':['design']}]}))

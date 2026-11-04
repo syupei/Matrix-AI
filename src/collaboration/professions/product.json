@@ -2,6 +2,7 @@
   "schema": "profession/1",
   "id": "product",
   "name": "产品",
+  "abbr": "P",
   "class": "定义",
   "version": "1.0",
   "kit": "professional-agents-kit/0.29",
@@ -34,22 +35,22 @@
     {
       "key": "product",
       "stages": [
-        "S1",
-        "S2",
-        "S3",
-        "S4",
-        "S5",
-        "S6",
-        "S7"
+        "P-1",
+        "P-2",
+        "P-3",
+        "P-4",
+        "P-5",
+        "P-6",
+        "P-7"
       ],
       "review": [
-        "S1",
-        "S2",
-        "S3",
-        "S4",
-        "S5",
-        "S6",
-        "S7"
+        "P-1",
+        "P-2",
+        "P-3",
+        "P-4",
+        "P-5",
+        "P-6",
+        "P-7"
       ],
       "authority_rank": 1
     }

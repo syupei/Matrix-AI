@@ -2,6 +2,7 @@
   "schema": "profession/1",
   "id": "experience-design",
   "name": "交互与视觉设计",
+  "abbr": "D",
   "class": "制作",
   "version": "1.0",
   "kit": "professional-agents-kit/0.29",
@@ -32,19 +33,19 @@
     {
       "key": "design",
       "stages": [
-        "D1",
-        "D2",
-        "D3",
-        "D4",
-        "D5",
-        "D6",
-        "D7"
+        "D-1",
+        "D-2",
+        "D-3",
+        "D-4",
+        "D-5",
+        "D-6",
+        "D-7"
       ],
       "review": [
-        "D1",
-        "D2",
-        "D4",
-        "D6"
+        "D-1",
+        "D-2",
+        "D-4",
+        "D-6"
       ],
       "authority_rank": 2
     }

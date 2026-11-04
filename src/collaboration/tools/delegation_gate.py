@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 
 def check(gate, root, state, content_hash):
-    if state['role'] == 'release' and state['current'] == 'E4.2':
+    if state['role'] == 'release' and state['current'] == 'E-4.2':
         raise ValueError('release decision cannot be delegated')
     registry = json.loads(gate.checked_file(root, 'collaboration/delegations.json').read_text())
     grants = registry.get('delegations', [])

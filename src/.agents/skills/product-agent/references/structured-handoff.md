@@ -1,10 +1,10 @@
 # 结构化交付与自动核对
 
-何时读：S6/S7 整理交付范围；下游接收基线；基线变更回查；声明完成前。工具把引用、覆盖与证据要求变成可运行检查，只检查已登记的范围。参考来源：[ProductSpec](https://github.com/gokulrajaram/ProductSpec/blob/main/SPEC.md)；本格式 `product-contract/0.1` 不兼容 `.product-spec.md`。
+何时读：P-6/7 整理交付范围；下游接收基线；基线变更回查；声明完成前。工具把引用、覆盖与证据要求变成可运行检查，只检查已登记的范围。参考来源：[ProductSpec](https://github.com/gokulrajaram/ProductSpec/blob/main/SPEC.md)；本格式 `product-contract/0.1` 不兼容 `.product-spec.md`。
 
 ## 登记
 
-- 正文留在原 Markdown，每个源文件只加一个 `product-contract` JSON 代码块，登记已有条目的 ID、标题、引用、接收者和验证阶段，不复写正文。S6 首次只为当前授权的交付范围登记需要追溯的条目，之后随正文维护。标注和快照不产生批准；未登记的内容不能说已被检查，也不能靠删登记项消除有效要求。
+- 正文留在原 Markdown，每个源文件只加一个 `product-contract` JSON 代码块，登记已有条目的 ID、标题、引用、接收者和验证阶段，不复写正文。P-6 首次只为当前授权的交付范围登记需要追溯的条目，之后随正文维护。标注和快照不产生批准；未登记的内容不能说已被检查，也不能靠删登记项消除有效要求。
 - 条目地址是"项目相对路径#ID"（如 `product/specs/01-产品模型.md#R-1`），不是网页锚点；不同文件同 ID 不冲突，搬移文件要改引用。`heading` 须是独占一行的 ATX 标题，与文中标题完全相同且唯一，范围截到下一个同级或更高级标题。
 
 示例（假设位于 `product/01-产品定义.md`）：

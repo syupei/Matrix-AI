@@ -66,7 +66,7 @@ class ProfessionCheckTests(unittest.TestCase):
         root, mod = self.copy()
         self.edit_json(root / 'collaboration/professions/experience-design.json', lambda d: d['stage_flows'][0].update(key='product'))
         self.edit_json(root / 'collaboration/professions/code-engineering.json',
-                       lambda d: d['stage_flows'][2]['upstream'].update({'E3.1': ['solution', 'E9.9']}))
+                       lambda d: d['stage_flows'][2]['upstream'].update({'E-3.1': ['solution', 'E9.9']}))
         problems = mod.check(root)
         self.assertTrue(any('duplicated: product' in p for p in problems))
         self.assertTrue(any('invalid upstream' in p for p in problems))
@@ -79,6 +79,16 @@ class ProfessionCheckTests(unittest.TestCase):
         problems = mod.check(root)
         self.assertTrue(any('must link the level table' in p for p in problems))
         self.assertTrue(any('MATRIX.md is out of date' in p for p in problems))
+
+    def test_stage_codes_follow_the_abbreviation(self):
+        root, mod = self.copy()
+        self.edit_json(root / 'collaboration/professions/product.json', lambda d: d['stage_flows'][0]['stages'].__setitem__(0, 'S1'))
+        self.edit_json(root / 'collaboration/professions/experience-design.json', lambda d: d.update(abbr='P'))
+        self.edit_json(root / 'collaboration/professions/quality-engineering.json', lambda d: d.pop('abbr'))
+        problems = mod.check(root)
+        self.assertTrue(any('must look like P-1' in p for p in problems))
+        self.assertTrue(any('abbr P already used' in p for p in problems))
+        self.assertFalse(any('quality-engineering.json: abbr' in p for p in problems))  # no stages, so no abbreviation needed
 
     def test_unknown_eval_case_is_reported_with_suite(self):
         root, mod = self.copy()

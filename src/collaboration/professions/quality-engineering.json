@@ -2,6 +2,7 @@
   "schema": "profession/1",
   "id": "quality-engineering",
   "name": "质量工程",
+  "abbr": "Q",
   "class": "保障与审查",
   "version": "1.0",
   "kit": "professional-agents-kit/0.29",
@@ -81,7 +82,6 @@
     "qa_change",
     "idor_acceptance",
     "team_qa_worker",
-    "defect_wrong_path_delete",
     "defect_minor_copy"
   ]
 }

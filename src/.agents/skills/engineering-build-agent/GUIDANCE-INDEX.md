@@ -4,11 +4,11 @@
 
 | ID | 指引 | 何时读 | 项目说明 |
 | --- | --- | --- | --- |
-| R01 | [增量与任务卡](references/increments.md) | E3.1；开始增量前 | |
-| R02 | [实现、检验与上报](references/verification.md) | E3.2；上报时 | |
-| R03 | [集成与范围完成](references/scope-complete.md) | E3.3 | |
-| R04 | [发布准备与发布决定](references/release.md) | E4.1、E4.2；E3.1 列人办的事 | |
-| R05 | [发布、观察与交接](references/handoff.md) | E4.3；写交接包时 | |
+| R01 | [增量与任务卡](references/increments.md) | E-3.1；开始增量前 | |
+| R02 | [实现、检验与上报](references/verification.md) | E-3.2；上报时 | |
+| R03 | [集成与范围完成](references/scope-complete.md) | E-3.3 | |
+| R04 | [发布准备与发布决定](references/release.md) | E-4.1、E-4.2；E-3.1 列人办的事 | |
+| R05 | [发布、观察与交接](references/handoff.md) | E-4.3；写交接包时 | |
 | X01 | [技术评审与委托边界](../engineering-solution-agent/references/technical-review.md) | 越界、必须人审、新选型、改已确认决定时 | |
 | X02 | [缺陷分级与回归](../quality-verification-agent/references/defects.md) | 判断能否发布 | |
 | T01 | [工作区模板](assets/build-workspace-template.md) | 建立 `engineering/build/` 时 | |

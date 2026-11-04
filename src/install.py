@@ -45,9 +45,9 @@ BLOCK_TEMPLATE = BEGIN + '''
 | 产品 | [product-agent]({skills}/product-agent/SKILL.md) |
 | 用户看到的文字 | [content-design-review]({skills}/content-design-review/SKILL.md) |
 | 交互与视觉设计 | [experience-design-agent]({skills}/experience-design-agent/SKILL.md) |
-| 代码工程 E1：承接与建模 | [engineering-intake-agent]({skills}/engineering-intake-agent/SKILL.md) |
-| 代码工程 E2：方案与骨架 | [engineering-solution-agent]({skills}/engineering-solution-agent/SKILL.md) |
-| 代码工程 E3–E4：构建与发布 | [engineering-build-agent]({skills}/engineering-build-agent/SKILL.md) |
+| 代码工程 E-1：承接与建模 | [engineering-intake-agent]({skills}/engineering-intake-agent/SKILL.md) |
+| 代码工程 E-2：方案与骨架 | [engineering-solution-agent]({skills}/engineering-solution-agent/SKILL.md) |
+| 代码工程 E-3–4：构建与发布 | [engineering-build-agent]({skills}/engineering-build-agent/SKILL.md) |
 | 质量工程 | [quality-verification-agent]({skills}/quality-verification-agent/SKILL.md) |
 | 新建或修改专业 | [profession-builder]({skills}/profession-builder/SKILL.md) |
 

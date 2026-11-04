@@ -18,6 +18,7 @@ CLASSES = ['调度', '定义', '制作', '保障与审查']
 TEXT = ['id', 'name', 'class', 'version', 'kit', 'participation', 'verification', 'reporting']
 LISTS = ['skills', 'handles', 'not_handles', 'standards', 'tools', 'model_capabilities']
 LEVEL = re.compile(r'^T([1-9])$')
+ABBR = re.compile(r'^[A-Z]{1,3}$')
 ROW = re.compile(r'^\|\s*T(\d+)\s*\|(.*)\|\s*$')
 BUDGET = {'SKILL.md': 3500, 'GUIDANCE-INDEX.md': 1500, 'level doc': 3000, 'shared index': 2500}
 
@@ -61,7 +62,7 @@ def level_doc(doc, low, high, problems, name):
     links(doc, problems, name)
 
 
-def registry(path, problems, owners, flows):
+def registry(path, problems, owners, flows, abbrs):
     name = path.name
     try:
         r = json.loads(path.read_text(encoding='utf-8'))
@@ -95,6 +96,17 @@ def registry(path, problems, owners, flows):
         problems.append(f'{name}: evals must name the evaluation cases')
     if not isinstance(r.get('stage_flows'), list):
         problems.append(f'{name}: stage_flows must be a list (empty when the profession has no stage gate)')
+    abbr = r.get('abbr')
+    if abbr is not None:
+        if not isinstance(abbr, str) or not ABBR.match(abbr):
+            problems.append(f'{name}: abbr must be one to three capital letters')
+        elif abbr in abbrs:
+            problems.append(f'{name}: abbr {abbr} already used by {abbrs[abbr]}')
+        else:
+            abbrs[abbr] = name
+    elif r.get('stage_flows'):
+        problems.append(f'{name}: abbr is required when the profession has stages')
+    code = re.compile('^' + re.escape(str(abbr)) + r'-[1-9][0-9]*(?:\.[1-9][0-9]*)?$')
     for flow in r.get('stage_flows') or []:
         key, stages = flow.get('key'), flow.get('stages')
         if not key or key in flows:
@@ -103,6 +115,8 @@ def registry(path, problems, owners, flows):
         if not isinstance(stages, list) or not stages or len(set(stages)) != len(stages):
             problems.append(f'{name}: stage flow {key} needs distinct stages')
             continue
+        if not all(isinstance(s, str) and code.match(s) for s in stages):
+            problems.append(f'{name}: stage codes in {key} must look like {abbr}-1 or {abbr}-1.1')
         if not set(flow.get('review', [])) <= set(stages):
             problems.append(f'{name}: stage flow {key} reviews a stage it does not have')
         flows[key] = (name, flow)
@@ -146,9 +160,9 @@ def registry(path, problems, owners, flows):
 def check(root=ROOT, suite=None):
     root = Path(root)
     professions = root / 'collaboration/professions'
-    problems, owners, flows, found = [], {}, {}, []
+    problems, owners, flows, abbrs, found = [], {}, {}, {}, []
     for path in sorted(professions.glob('*.json')):
-        r = registry(path, problems, owners, flows)
+        r = registry(path, problems, owners, flows, abbrs)
         if r:
             found.append(r)
     if not found:
