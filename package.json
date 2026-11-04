@@ -47,7 +47,8 @@
     "specialist-participation/0.1",
     "delegated-review/0.1",
     "task-dispatch/0.1",
-    "scoped-tool-access/0.1"
+    "scoped-tool-access/0.1",
+    "visual-target/0.1"
   ],
   "baseline": "professional-agents-kit-v0.27"
 }

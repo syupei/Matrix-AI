@@ -23,8 +23,8 @@
 | R11 | [工作状态](references/review-and-state.md) | 续做；记录确认；人的编辑 | |
 | R12 | [素材元素](references/assets.md) | D2 占位；D4–D6 素材 | |
 | R13 | [实现走查](references/walkthrough.md) | 研发请求实现走查 | |
+| R14 | [外观目标](references/visual-target.md) | 风格词或样稿；D4 锚点；画面做法与外观对照 | |
 | T01 | [工作区模板](assets/design-workspace-template.md) | 创建设计文件时 | |
-
 | C90 | [团队任职与执行](../../../collaboration/TEAM-EXECUTION.md) | 接入团队、收到任务包、派发或换实例 | |
 | C91 | [工具授权](../../../collaboration/TOOL-ACCESS.md) | 指定工具、外部调用、换工具或撤权 | |
 | C92 | [委托检查](../../../collaboration/DELEGATED-REVIEW.md) | 已有明确阶段委托 | |

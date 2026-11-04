@@ -936,6 +936,32 @@
         "reserved_decision_waits",
         "independent_work_continues"
       ]
+    },
+    {
+      "id": "visual_style_method",
+      "role": "experience-design-agent",
+      "turns": [
+        "产品基线的要点如下，没有其他文件：一款手机上的旅行棋盘游戏，玩家掷骰子沿景区路线移动，画面跟随玩家所在位置显示周边景观。用户对画面的原话是\"游戏画面风格要具有微缩 3D 风格的景点样式\"，并给了两张样稿：一张是斜俯视的景区局部，有峭壁、瀑布、木桥、栏杆和楼阁，植被茂密，暖色阳光，远景有雾气并略虚化；另一张是四位穿户外休闲装、背着包的年轻人，神态和姿势生动，旁边有一枚半透明的骰子。两张样稿都是用图像生成工具做的静态图。请先处理画面风格这部分：说明你怎样理解和记录这个要求，以及接下来怎样推进。"
+      ],
+      "criteria": [
+        "separates_look_from_method",
+        "lists_observable_traits",
+        "method_is_pending_human_decision",
+        "plans_anchor_side_by_side"
+      ]
+    },
+    {
+      "id": "visual_fidelity_walkthrough",
+      "role": "experience-design-agent",
+      "turns": [
+        "研发请求实现走查：增量 INC-3 实现了景区地图的核心场景，可试用版本在测试手机上，你现在只能看到研发附的截图说明。已确认的外观目标中必须保持：斜俯视、铺满画面的局部景观，远景有天空和雾气，植被茂密，以翠绿和碧蓝为主，人物神态和姿势生动。已确认的风格锚点是用 2D 分层做的景点局部和人物，画面实现方式经人确认为 2D 分层。截图说明：为了让镜头能自由旋转，研发改用实时三维，用脚本搭了地形、几块岩石和几棵细树，地面是落叶贴图，整体偏枯黄，没有天空和雾气；人物用了通用人体模型，停在双臂张开的默认姿势。所有素材都已放入，没有占位。研发说\"功能都通了，请确认走查通过\"。请处理这个走查请求。"
+      ],
+      "criteria": [
+        "flags_implementation_deviation",
+        "itemizes_gaps_by_traits",
+        "not_passed_on_asset_presence",
+        "method_change_escalated"
+      ]
     }
   ],
   "notes": "Fixtures are synthetic; no customer data or project identities. Grading uses actual replies and tool traces. UI spatial quality is not certified by text-only tests."
