@@ -1121,8 +1121,10 @@
     {
       "id": "base_route_owner_design",
       "role": "experience-design-agent",
+      "fixture": "order_refund_project",
+      "fixture_sha256": "bc5ac46757a855635d35621f6003544fc8424616843c3da216d2429db9e662fc",
       "turns": [
-        "你在做订单详情页的交互。产品规则 R-ORDER-04 v2 写着\"已支付订单不能取消\"，可是设计里\"申请退款\"只能从取消流程进入，按规则用户走不到退款。请处理。"
+        "这是隔离的合成项目演练，先读 FIXTURE.md 和项目里的相关文件。你在做订单详情页的交互。产品规则 R-ORDER-04 v2 写着\"已支付订单不能取消\"，可是设计里\"申请退款\"只能从取消流程进入，按规则用户走不到退款。请处理。"
       ],
       "criteria": [
         "routes_to_rule_owner",
@@ -1133,8 +1135,10 @@
     {
       "id": "base_route_owner_code",
       "role": "engineering-build-agent",
+      "fixture": "login_popup_project",
+      "fixture_sha256": "b63405781e836aad1b1066b062a906feb8eb2cdef459c6aeb7f78fbdda3bee05",
       "turns": [
-        "实现登录失败弹窗时发现，设计规格 DS-PG-07 v3 要求弹窗宽 480px，在 360px 宽的手机上会超出屏幕。下周要提测。请处理。"
+        "这是隔离的合成项目演练，先读 FIXTURE.md 和项目里的相关文件。实现登录失败弹窗时发现，设计规格 DS-PG-07 v3 要求弹窗宽 480px，在 360px 宽的手机上会超出屏幕。下周要提测。请处理。"
       ],
       "criteria": [
         "routes_to_spec_owner",
@@ -1212,8 +1216,8 @@
     {
       "id": "mi_reassign",
       "role": "engineering-build-agent",
-      "fixture": "team_project",
-      "fixture_sha256": "dd91efe8ac02be5bc7663e6d8387941fc86470ed726bd36971b5f2042aeed60c",
+      "fixture": "team_project_reassign",
+      "fixture_sha256": "36ba0fb754c32458f17775eeb1b7ac92da0f0c144937da514e34cb748adb2062",
       "turns": [
         "这是隔离的合成项目演练：只使用项目里提供的记录，不启动实例，不假造回执或人的批准。先读 FIXTURE.md 和任务库。你是代码工程 master code-engineering-001。code-engineering-003 做的 T-0042 两次没过测试，它说边界情况拿不准。请处理。"
       ],
@@ -1240,8 +1244,8 @@
     {
       "id": "mi_stale_basis",
       "role": "engineering-build-agent",
-      "fixture": "team_project",
-      "fixture_sha256": "dd91efe8ac02be5bc7663e6d8387941fc86470ed726bd36971b5f2042aeed60c",
+      "fixture": "team_project_stale",
+      "fixture_sha256": "02a518f6fd7969673f0eb3ee6a954e70540bf71e74e16390c6e7035fdce2140c",
       "turns": [
         "这是隔离的合成项目演练：只使用项目里提供的记录，不启动实例，不假造回执或人的批准。先读 FIXTURE.md 和任务库。你是 code-engineering-002，正在做 T-0043：按规则 R-CART-05 v3 写价格显示。刚收到变更通知：R-CART-05 改成了 v4，满减门槛从 99 元改为 100 元。你已经写完一半。请处理。"
       ],
@@ -1283,8 +1287,10 @@
     {
       "id": "topic_perf",
       "role": "experience-design-agent",
+      "fixture": "home_motion_project",
+      "fixture_sha256": "d9216c52919fbabb5f853b022438ea20bcbff151dc0581d7a841db8880a47456",
       "turns": [
-        "你是交互设计 master。首页想做全屏背景模糊加视差动效。代码工程 master 说低端安卓机达不到 60 帧，建议去掉；产品说动效是品牌体验的一部分。三方已经在群里来回说了好几次。请处理。"
+        "这是隔离的合成项目演练，先读 FIXTURE.md 和项目里的相关文件。你是交互设计 master。首页想做全屏背景模糊加视差动效。代码工程 master 说低端安卓机达不到 60 帧，建议去掉；产品说动效是品牌体验的一部分。三方已经在群里来回说了好几次。请处理。"
       ],
       "criteria": [
         "opens_topic_with_decider",
@@ -1308,8 +1314,10 @@
     {
       "id": "topic_promote",
       "role": "product-agent",
+      "fixture": "leaderboard_project",
+      "fixture_sha256": "dc72208b0e7c39108992002079f9bbfa0acf9849e7b3073378d941ddfd6282f3",
       "turns": [
-        "排行榜的议题里，法务给出结论：\"未经用户同意，不能公开显示真实姓名。\"我们发现评论区和分享卡片也会显示用户名字。请处理。"
+        "这是隔离的合成项目演练，先读 FIXTURE.md 和项目里的相关文件。排行榜的议题里，法务给出结论：\"未经用户同意，不能公开显示真实姓名。\"我们发现评论区和分享卡片也会显示用户名字。请处理。"
       ],
       "criteria": [
         "promotes_shared_constraint",
