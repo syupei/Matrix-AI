@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 READ_OPS = {'tasks_for'}
 CLOSED = {'done': '已完成', 'cancelled': '已取消', 'deprecated': '已弃用'}
-ORDER = ['受阻', '等人审', '等检验', '返工中', '进行中', '未开始', '已完成', '已取消', '已弃用']
+ORDER = ['受阻', '等人审', '人工待办', '等检验', '返工中', '进行中', '未开始', '已完成', '已取消', '已弃用']
 CAUSES = {'execution': '执行问题', 'requirement_clarification': '需求澄清', 'basis_changed': '依据变化', 'other': '其他'}
 BORNE = {'requirement_clarification', 'basis_changed'}  # counted for the party that caused them, not the producer
 CHECKS = {'independent': '独立检验', 'not_independent': '非独立检验', 'same_instance': '同一实例检验'}
@@ -46,7 +46,7 @@ def when(value):
 def context(pm, root, db):
     data, people = pm.snapshot(db), pm.roster(root)
     return SimpleNamespace(pm=pm, root=root, db=db, data=data, cfg=data['config'], tasks={t['id']: t for t in data['tasks']},
-                           records=data['integrity'], instances=data['integrity']['instance'], regs=pm.team.registries(pm, root),
+                           records=data['integrity'], instances=data['integrity']['instance'], regs=pm.team.registries(pm, root), gaps=data['gaps'],
                            people=(people or {}).get('people', {}), names={pid: p['name'] for pid, p in (people or {}).get('people', {}).items()}, blocked={})
 
 
@@ -82,9 +82,15 @@ def waits(c, t):
     return sorted((k for k in kids(c, t) + [c.tasks[d] for d in t.get('completion_requires', []) if not done(c, d)] if k['state'] not in CLOSED), key=lambda k: k['id'])
 
 
+def unresolved(c, t):
+    """The expertise gap t waits on: no choice yet, or the expert's or person's result not in."""
+    g = c.gaps.get(t.get('gap'))
+    return g if g and g['status'] in {'open', 'expert', 'human'} and t['state'] not in CLOSED else None
+
+
 def blocked(c, t):
     if t['id'] not in c.blocked:
-        c.blocked[t['id']] = t['state'] == 'blocked' or any(blocked(c, k) for k in waits(c, t))
+        c.blocked[t['id']] = t['state'] == 'blocked' or bool(unresolved(c, t)) or any(blocked(c, k) for k in waits(c, t))
     return c.blocked[t['id']]
 
 
@@ -97,6 +103,16 @@ def blocker(c, t):
 
 
 def status(c, t):
+    """The status column. A linked expertise gap still waiting replaces it; after the person chose self, it is appended."""
+    g = c.gaps.get(t.get('gap'))
+    if unresolved(c, t):
+        if g['status'] == 'open':
+            return '受阻：缺 ' + g['domain'] + ' 专家，等人选择'
+        return '受阻：等 ' + g['decision']['expert'] + ' 的结论' if g['status'] == 'expert' else '人工待办：' + g['qualification']
+    return progress(c, t) + ('｜缺 ' + g['domain'] + ' 专家，人已知风险，由当前实例完成' if g and g['status'] == 'self' else '')
+
+
+def progress(c, t):
     if t['state'] in CLOSED:
         return CLOSED[t['state']] + ('（待复核）' if t['needs_recheck'] else '')
     hit = blocker(c, t)
@@ -125,9 +141,9 @@ def next_step(c, t, s, pm_list):
     """Computed actions for the asker; the recorded next_action otherwise."""
     # An instance checks and integrates what its children hand over; the PM, what its own tasks hand over to it.
     steps = [] if pm_list else ['检验并整合 ' + name(c, k['owner']) + ' 的 ' + k['id'] for k in sorted(kids(c, t), key=lambda k: k['id']) if handed(k)]
-    if pm_list and s == '等检验：' + name(c, c.cfg['pm_actor']):
+    if pm_list and s.split('｜')[0] == '等检验：' + name(c, c.cfg['pm_actor']):
         steps.append('检验并整合 ' + name(c, t['owner']) + ' 的 ' + t['id'])
-    if pm_list and t['state'] == 'planned' and t['dependencies'] and all(done(c, d) for d in t['dependencies']):
+    if pm_list and t['state'] == 'planned' and t['dependencies'] and all(done(c, d) for d in t['dependencies']) and not unresolved(c, t):
         steps.append('派出给 ' + name(c, t['owner']))
     for scope in c.records['scope'].values() if pm_list and t['state'] not in CLOSED else []:
         if scope['root_task'] == t['id']:
@@ -154,10 +170,10 @@ def task_list(c, asker, include_closed=False, link=None):
     counts, rows = {}, []
     for t in mine:
         s = status(c, t)
-        kind = re.split('[：（]', s)[0]
+        kind = re.split('[：（｜]', s)[0]
         counts[kind] = counts.get(kind, 0) + 1
         if include_closed or t['state'] not in CLOSED or t['needs_recheck']:
-            rows.append((0 if kind == '受阻' else 1 if kind == '等人审' else 2, t, s))
+            rows.append((0 if kind == '受阻' else 1 if kind in {'等人审', '人工待办'} else 2, t, s))
     rows.sort(key=lambda r: (r[0], r[1]['id']))
     columns = ['编号', '任务', '受领者' if pm_list else '上游', '难度 / 风险', '状态', '下一步', '完成后', '更新']
     cells = [[t['id'], t['title'] + ('（来自 ' + name(c, t['origin']['from']) + ' 的请求）' if t.get('origin') else ''),
@@ -335,9 +351,48 @@ def human_points(c):
             rows.append([t['id'] + ' ' + t['title'] + '（F0，由人判定后生效）', '任务风险 F0', deciders(c, t), status(c, t)])
         if t['human_required']:
             rows.append([t['id'] + ' ' + t['title'], '任务人审', deciders(c, t), status(c, t)])
+    gaps = sorted(c.gaps.values(), key=lambda g: g['id'])
+    rows += [[g['id'] + ' 缺 ' + g['domain'] + ' 专家（需要：' + g['qualification'] + '）：' + g['why'] + '；选择：指定专家、由当前实例完成或列为人工待办',
+              '专业缺口（' + c.pm.GAP_KINDS[g['kind']] + '，' + g['risk'] + '）', gap_deciders(c, g), '等人选择'] for g in gaps if g['status'] == 'open']
     rows += [[item, '保留给人的决定（C21 §3）', '、'.join(project) or '人', '常设'] for item in reserved(c)]
-    return ('# 人审点汇总\n\n只读派生视图：已确认配置与已登记任务涉及的专业的人审点（读登记）、F0 事项、要人审的任务，以及保留给人的决定。\n\n'
+    text = ('# 人审点汇总\n\n只读派生视图：已确认配置与已登记任务涉及的专业的人审点（读登记）、F0 事项、要人审的任务，以及保留给人的决定。\n\n'
             + md(['事项', '来源', '由谁决定', '状态'], [[esc(x) for x in r] for r in rows]))
+    if gaps:
+        rows = [[g['id'], g['domain'], c.pm.GAP_KINDS[g['kind']], g['risk'], g['qualification'], gap_state(c, g), gap_decision(c, g),
+                 '、'.join(t + '（' + status(c, c.tasks[t]) + '）' for t in g['task_ids']) or '—'] for g in gaps]
+        text += '\n## 专业缺口\n\n' + md(['缺口', '领域', '类型', '风险', '资质', '状态', '决定人与原话', '关联任务'], [[esc(x) for x in r] for r in rows])
+    return text
+
+
+def gap_state(c, g):
+    d, label = g['decision'] or {}, c.pm.GAP_STATES[g['status']]
+    if g['status'] == 'expert':
+        return label + '：' + d['expert'] + '，等结论'
+    if g['status'] == 'self':
+        return label + '，人已知风险'
+    if g['status'] == 'closed':
+        return label + '（' + c.pm.GAP_STATES[d['choice']] + ('：' + d['expert'] if d.get('expert') else '') + '）；成果：' + g['result']['source']
+    return label
+
+
+def gap_decision(c, g):
+    d = g['decision']
+    if not d:
+        return '—'
+    quote = d['quote'] if len(d['quote']) <= 40 else d['quote'][:40] + '…'
+    return (c.names.get(d['person'], d['person']) + '：「' + quote + '」；' + ('常设选择' if d['standing'] else '只这一次')
+            + ('，沿用 ' + d['standing_from'] if d.get('standing_from') else ''))
+
+
+def gap_deciders(c, g):
+    """People who may make the choice for a gap: deciders of every linked task, else of the project."""
+    if not c.people:
+        return '人'
+    allowed = None
+    for tid in g['task_ids'] or [None]:
+        ranks = set(c.pm.deciders(tid, c.tasks, {'people': c.people}))
+        allowed = ranks if allowed is None else allowed & ranks
+    return '、'.join(c.names.get(p, p) for p in sorted(allowed)) or '人'
 
 
 def provenance(c, s, m, e):

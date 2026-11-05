@@ -32,7 +32,7 @@
 
 ## 更新与流转
 
-- `update`（owner）：`task_id,expected_revision,changes,reason`，不能改 id、parent、owner、kind。非 manager 改 goal、inputs、outputs、criteria、dependencies、completion_requires、human_required、checker、people、derived_from 时，需用 `scope_authorization` 引用实际决定或委托；撤销 human_required 一律需要。除 next_action、executor、source 与规划协作字段（stage、direction、people、derived_from、awaiting）外，其他修改都会递增 work_revision，已有检验与人工决定随之失效；外部成果变了就显式更新 evidence 或 inputs。difficulty、risk、risk_reason 也需 manager 授权；把 F0、F1 调低另带 `person`、`quote`（有名单时须是有权的人）。
+- `update`（owner）：`task_id,expected_revision,changes,reason`，不能改 id、parent、owner、kind。非 manager 改 goal、inputs、outputs、criteria、dependencies、completion_requires、human_required、checker、people、derived_from 时，需用 `scope_authorization` 引用实际决定或委托；撤销 human_required 一律需要。除 next_action、executor、source 与规划协作字段（stage、direction、people、derived_from、awaiting、gap）外，其他修改都会递增 work_revision，已有检验与人工决定随之失效；外部成果变了就显式更新 evidence 或 inputs。difficulty、risk、risk_reason 也需 manager 授权；把 F0、F1 调低另带 `person`、`quote`（有名单时须是有权的人）。
 - `transition`（owner 或 manager）：`task_id,expected_revision,state,reason`，state 为 planned/running/waiting_review/blocked/done/cancelled/deprecated。需求变更导致的弃用与关联编号，按[任务完整性](../../../../collaboration/PM-INTEGRITY.md)办理。
   - 进 running：真实 executor、依赖已完成（完成前置不要求）、槽位与资源可用、`execution_receipt`；准备派发不算运行。
   - 离开 running：`stop_evidence`（成果已返回可用该返回），防止执行者仍在写时释放槽位。交出（转 waiting_review）带 `evidence`（成果与证据路径，任务已有时可省）；转 blocked 可带 `blocked_by:{task_id}`。
@@ -49,6 +49,15 @@
 - `reassign`（manager）：`task_id,expected_revision,to,reason_kind`（failed_check/executor_unable/other）、`note`；进行中的带 `stop_evidence` 并转回 planned。目标是在用的已登记实例，与原执行者同专业、职级够、不忙；owner 就是执行者时一起转。
 - `conflict`：`id,task_ids,parties,issue,basis,resolution,decided_by,level`（tool/master/owner/pm/human）、`overturned`（task_ids 中被推翻的）。只记录，不改任务状态。actor 须符合 level：tool 为当事方或 PM，master 为涉及专业的 master，owner 为受影响任务的 owner，pm 为 PM，human 由 PM 或前台带 `person`、`quote`；decided_by 是作决定的一方。被推翻的任务各记一条事件。
 - `notice`（PM 或前台）：`id,kind`（F1_output/Q0/Q1/Q2）、`ref`、`summary`、`people`（F1、Q1 必填）。Q0 置于总入口与群摘要顶部，F1、Q1 进当事人的个人视图与群摘要，Q2 进群摘要；缺陷正文留在质量源。
+
+## 专业缺口
+
+需要的专业在项目里没有设立时（[CORE](../../../../collaboration/CORE.md) §7），登记缺口，由人选择。编号 G-001 起由工具分配；任务以可选字段 `gap` 关联（create、update 可写），缺口关闭前改掉须带有权的 `person` 与 `quote`。`status` 的 `gaps` 列出缺口与关联任务。
+
+- `gap_open`（PM、前台，或所列任务的 owner、manager）：`domain`（领域，或专业的 ID、名称）、`kind`（not_in_kit 本包没有；not_set_up 项目里没有在用实例）、`why`、`qualification`、`risk`，可带 `task_ids`。该领域已有常设选择时不再问人，返回 `existing` 与 `choice`，照此执行：self 挂到原缺口（风险更高时重新问）；expert、human 另建沿用该选择的缺口（`record`），各自交付、关闭。
+- `gap_decide`（PM 或前台）：`gap,expected_revision,choice`（expert/self/human）、`person,quote`，expert 另带 `expert`（专家 Agent 或人的名称、地址），`standing` 默认 true。person 须对每个关联任务有决定权，无关联任务时为项目级决定人。可以改选；human 给关联任务加"现在等人处理"的条目。
+- `gap_close`（记录者同 gap_open）：只用于 expert、human，`gap,expected_revision,source,evidence`（数组），记下对方成果，去掉等人条目。
+- 缺口未选择，或 expert、human 未关闭时，关联任务不能开工、交出或完成；选 self 的可以做，交出与完成时 evidence 须有一条含"非{领域}专家产出，未经具备资质的人审定"。任务列表、人审点汇总、计划表与群摘要显示缺口。
 
 ## 数据边界
 

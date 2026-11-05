@@ -89,6 +89,7 @@
     "list_pm",
     "completion_push_pm",
     "chain_routing",
-    "single_continue"
+    "single_continue",
+    "gap_pm_tax"
   ]
 }

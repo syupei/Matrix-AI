@@ -233,6 +233,7 @@
     "mi_review_independence",
     "model_code_reuse",
     "list_instance",
-    "report_up_executor"
+    "report_up_executor",
+    "gap_security_report"
   ]
 }

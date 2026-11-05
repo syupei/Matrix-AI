@@ -18,7 +18,7 @@
     "法律条款的内容（属法务，可协助可读性）",
     "产品规则与承诺（属产品）"
   ],
-  "participation": "产品有面向最终用户的文字时参与；没有内容实例时由当前负责的实例按本专业的要求完成并标注",
+  "participation": "产品有面向最终用户的文字时参与；项目里没有设立时按缺专家处理（CORE §7）",
   "owns": [
     {
       "deliverable": "文案表：键、情境、文字、版本与使用位置",
@@ -90,6 +90,7 @@
     "copy",
     "risk_legal_text",
     "content_copy_only",
-    "single_next_step"
+    "single_next_step",
+    "gap_self_with_risk"
   ]
 }

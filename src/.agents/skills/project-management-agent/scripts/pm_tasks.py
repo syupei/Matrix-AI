@@ -39,14 +39,19 @@ RELATION_NAMES = {'decide': '决定', 'clarify': '澄清', 'designate': '指定'
 ACTIONS = {'decide', 'clarify', 'designate', 'execute'}
 KINDS = {'work', 'stage'}
 ROSTER = 'collaboration/people.json'
-# Coordination facts: who is involved, what is awaited, where a task sits in the plan.
+# Coordination facts: who is involved, what is awaited (an expertise gap included), where a task sits in the plan.
 # Changing them does not invalidate professional verification of the work itself.
-COORDINATION = {'awaiting', 'people', 'direction', 'stage', 'derived_from'}
+COORDINATION = {'awaiting', 'people', 'direction', 'stage', 'derived_from', 'gap'}
 SAFE_ID = r'[A-Za-z0-9][A-Za-z0-9_.-]{0,63}'
 # Rework causes, written by the checker of a failed review or by the manager who reopens finished work.
 REWORK = {'execution', 'requirement_clarification', 'basis_changed', 'other'}
 NOTICES = {'F1_output': 'F1 成果', 'Q0': 'Q0', 'Q1': 'Q1', 'Q2': 'Q2'}
 CONFLICT_LEVELS = {'tool', 'master', 'owner', 'pm', 'human'}
+# Expertise gaps: work needing a profession the project has not set up waits for the person's choice.
+GAP_OPS = {'gap_open', 'gap_decide', 'gap_close'}
+GAP_KINDS = {'not_in_kit': '本包没有', 'not_set_up': '项目未设立'}
+GAP_CHOICES = {'expert': '指定专家', 'self': '由当前实例完成', 'human': '列为人工待办'}
+GAP_STATES = dict(GAP_CHOICES, open='等人选择', closed='已关闭')
 
 
 class TaskError(ValueError):
@@ -275,6 +280,7 @@ def validation(t, tasks):
     require(isinstance(awaiting, list) and all(isinstance(a, dict) and set(a) <= {'person', 'action', 'item', 'ref'}
             and nonempty(a.get('person')) and a.get('action') in ACTIONS and nonempty(a.get('item')) for a in awaiting),
             'awaiting items need person, action (decide/clarify/designate/execute) and item')
+    require(t.get('gap') is None or (isinstance(t['gap'], str) and re.fullmatch(r'G-\d{3,}', t['gap']) is not None), 'gap must be a gap id such as G-001')
     chain, path = {k: v.get('derived_from', []) for k, v in tasks.items()}, set()
     def climb(k):
         require(k not in path, 'derivation cycle')
@@ -341,14 +347,17 @@ def snapshot(db):
     gates = {tid: integrity.blockers(api(), root, db, tasks, tid) + team.blockers(api(), root, db, tasks, tid) for tid in tasks}
     for tid, t in tasks.items():
         t['_current_gate'] = bool(integrity.blockers(api(), root, db, tasks, tid, closing=True) + team.blockers(api(), root, db, tasks, tid, closing=True))
+    gaps = integrity.records(db, 'gap')
+    held = {tid: [x for x in [gap_issue(t, gaps, 'running')] if x] for tid, t in tasks.items()}  # an expertise gap that stops the start
     return {'schema': SCHEMA, 'config': cfg, 'revision': seq, 'observed_at': now(),
             'integrity': {k: integrity.records(db,k) for k in ['instance','scope','change','pause','appointment','participation_rule','participation_obligation','instance_config','conflict','notice']},
+            'gaps': {gid: gap_view(g, tasks) for gid, g in gaps.items()},
             'top_level': counts(children(tasks, None), tasks),
             'tasks': [dict(t, state_label=STATE_NAMES[t['state']], dispatcher=t['manager'], child_counts=counts(children(tasks, t['id']), tasks),
                            needs_recheck=t['state'] == 'done' and not effective_done(t,tasks),
-                           ready=t['state'] == 'planned' and not reasons(t, tasks, cfg) and not gates[t['id']],
+                           ready=t['state'] == 'planned' and not reasons(t, tasks, cfg) and not gates[t['id']] and not held[t['id']],
                            integrity_issues=gates[t['id']],
-                           readiness_issues=reasons(t, tasks, cfg)+[x['code'] for x in gates[t['id']]],
+                           readiness_issues=reasons(t, tasks, cfg)+[x['code'] for x in gates[t['id']]]+held[t['id']],
                            completion_pending=[d for d in t.get('completion_requires', []) if not effective_done(tasks[d], tasks)],
                            review_current=bool(t.get('review') and t['review']['basis'] == basis(t, tasks)))
                       for t in tasks.values()]}
@@ -391,6 +400,177 @@ def record(root, db, cmd):
     return {'record': value}
 
 
+def may_decide(person, tids, tasks, people):
+    """Whether the person may decide for every listed task (with none listed: for the project)."""
+    try:
+        for tid in tids or [None]:
+            authorized(person, [tid], tasks, people)
+        return True
+    except TaskError:
+        return False
+
+
+def gap_label(g):
+    return '非' + g['domain'] + '专家产出，未经具备资质的人审定'
+
+
+def gap_of(t, gaps):
+    return gaps.get(t['gap']) if isinstance(t.get('gap'), str) else None
+
+
+def gap_view(g, tasks):
+    return dict(g, task_ids=sorted(tid for tid, t in tasks.items() if t.get('gap') == g['id']))
+
+
+def gap_items(t, gaps):
+    """t's awaiting items with the human to-do of its gap in place (tasks not closed); to-dos of other or resolved gaps removed."""
+    g, items = gap_of(t, gaps), t.get('awaiting', [])
+    want = None
+    if g and g['status'] == 'human' and t['state'] not in TERMINAL:
+        want = {'person': g['decision']['person'], 'action': 'execute', 'ref': g['id'],
+                'item': '需要具备' + g['qualification'] + '的人处理：' + g['why'] + '（缺口 ' + g['id'] + '）'}
+    if not isinstance(items, list):
+        return items
+    keep = [a for a in items if a == want or not (isinstance(a, dict) and isinstance(a.get('ref'), str) and a['ref'] in gaps
+                                                  and str(a.get('item')).endswith('（缺口 ' + a['ref'] + '）'))]
+    return keep + ([want] if want and want not in keep else [])
+
+
+def gap_issue(t, gaps, state):
+    """Why a task linked to an expertise gap may not move to state, or None."""
+    g = gap_of(t, gaps)
+    if not g or state not in {'running', 'waiting_review', 'done'}:
+        return None
+    tail = '（缺口 ' + g['id'] + '）'
+    if g['status'] == 'open':
+        return '缺 ' + g['domain'] + ' 专家，等人选择' + tail
+    if g['status'] == 'expert':
+        return '等 ' + g['decision']['expert'] + ' 的结论' + tail
+    if g['status'] == 'human':
+        return '人工待办：需要具备' + g['qualification'] + '的人处理：' + g['why'] + tail
+    if g['status'] == 'self' and state != 'running' and not any(gap_label(g) in e for e in t['evidence']):
+        return '交出与完成时，成果证据须有一条标明「' + gap_label(g) + '」' + tail
+    return None
+
+
+def gap_link(db, before, after, cmd, tasks, people):
+    """A task's link to a gap (create, update) and its gap's human to-do (every task write)."""
+    gaps = integrity.records(db, 'gap')
+    if 'gap' in after and after['gap'] is None:
+        after.pop('gap')  # stored only on tasks that have one
+    old, new = (before or {}).get('gap'), after.get('gap')
+    if new != old and isinstance(new, str) and re.fullmatch(r'G-\d{3,}', new):  # other values fail validation
+        g = gaps.get(new)
+        require(g is not None, 'unknown gap: ' + new)
+        require(g['status'] != 'closed', 'gap ' + new + ' is closed; register new work with gap_open, which follows its standing choice')
+        require(not g['decision'] or may_decide(g['decision']['person'], [after['id']], tasks, people),
+                'gap ' + new + ' was decided by a person without authority for ' + after['id'] + '; open a gap for it with gap_open')
+    if new != old and old in gaps and gaps[old]['status'] != 'closed':
+        require(nonempty(cmd.get('quote')), 'leaving gap ' + old + ' before it is closed needs the deciding person and exact quote')
+        authorized(cmd.get('person'), [after['id']], tasks, people)
+    items = gap_items(after, gaps)
+    if items != after.get('awaiting', []):
+        after['awaiting'] = items
+
+
+def gap_op(root, db, cmd):
+    """Open, decide and close expertise gaps. Linked tasks change only in coordination facts: gap and awaiting."""
+    cfg, tasks, people, actor, op = config(db), task_map(db), roster(root), cmd['actor'], cmd['op']
+    gaps, desks, rule, touched = integrity.records(db, 'gap'), {cfg['pm_actor'], cfg.get('frontdesk_actor')} - {None}, None, []
+
+    def handles(ids):
+        return actor in desks or (bool(ids) and all(actor in {tasks[t]['owner'], tasks[t]['manager']} for t in ids))
+
+    def put(tid, gid=None):
+        before = {k: v for k, v in tasks[tid].items() if not k.startswith('_')}
+        after = json.loads(canon(before))
+        if gid:
+            after['gap'] = gid
+        items = gap_items(after, gaps)
+        if items != after.get('awaiting', []):
+            after['awaiting'] = items
+        if after != before:
+            after.update(revision=before['revision'] + 1, updated_at=now())
+            tasks[tid] = after
+            validation(after, tasks)
+            check_people(after, people)
+            db.execute('INSERT OR REPLACE INTO tasks VALUES (?,?)', (tid, canon(after)))
+            touched.append((tid, before, after))
+
+    if op == 'gap_open':
+        ids = cmd.get('task_ids', [])
+        require(strings(ids) and len(ids) == len(set(ids)) and all(t in tasks for t in ids), 'task_ids must list registered tasks once each')
+        require(handles(ids), 'PM, front desk, or the owner or manager of every listed task opens a gap')
+        require(all(nonempty(cmd.get(k)) for k in ['domain', 'why', 'qualification']) and cmd.get('kind') in GAP_KINDS and team.risk(cmd.get('risk')) is not None,
+                'gap needs domain, kind (not_in_kit/not_set_up), why, qualification and risk (F0–F5)')
+        domain, regs = cmd['domain'].strip(), team.registries(api(), root)
+        profession = domain if domain in regs else next((p for p, r in regs.items() if r['name'] == domain), None)
+        if cmd['kind'] == 'not_in_kit':
+            require(profession is None, domain + ' is a profession of this kit; open it as not_set_up')
+        else:
+            require(profession is not None, 'not_set_up names a profession of this kit by registry id or name')
+            live = sorted(i['id'] for i in integrity.records(db, 'instance').values() if i.get('profession') == profession and i.get('active'))
+            require(not live, profession + ' is set up (' + ','.join(live) + '); dispatch the work to it instead of opening a gap')
+            domain = regs[profession]['name']
+        # The person's latest standing choice for this domain, among those they may make for these tasks.
+        prior = [g for g in gaps.values() if g['domain'] == domain and (g['decision'] or {}).get('standing') and may_decide(g['decision']['person'], ids, tasks, people)]
+        rule = max(prior, key=lambda g: (g['decision']['at'], g['id']), default=None)
+        if rule and rule['decision']['choice'] == 'self' and team.risk(cmd['risk']) < team.risk(rule['risk']):
+            rule = None  # the risk the person accepted was lower; ask again
+        if rule and rule['decision']['choice'] == 'self':
+            gid = rule['id']
+        else:
+            gid = 'G-' + str(1 + max([int(k[2:]) for k in gaps if re.fullmatch(r'G-\d{3,}', k)] or [0])).zfill(3)
+        for tid in ids:
+            held = gap_of(tasks[tid], gaps)
+            require(tasks[tid]['state'] not in TERMINAL, tid + ' is closed; reopen it or register the follow-up work first')
+            require(not held or held['id'] == gid or held['status'] == 'closed', tid + ' already waits on gap ' + str(tasks[tid].get('gap')) + '; split the work by missing profession')
+        if gid not in gaps:
+            value = dict(id=gid, domain=domain, kind=cmd['kind'], why=cmd['why'], qualification=cmd['qualification'], risk=cmd['risk'],
+                         opened_by=actor, opened_at=now(), status='open', decision=None, result=None, revision=1, updated_at=now())
+            if profession:
+                value['profession'] = profession
+            if rule:  # expert or human: this work gets its own handover and result under the standing choice
+                value.update(status=rule['decision']['choice'], decision=dict(rule['decision'], standing_from=rule['id']))
+            integrity.save(api(), db, 'gap', value)
+            gaps[gid] = value
+        for tid in ids:
+            put(tid, gid)
+    else:
+        g = gaps.get(cmd.get('gap'))
+        require(g is not None, 'unknown gap')
+        require(cmd.get('expected_revision') == g['revision'], 'stale gap revision; reload status')
+        gid, linked = g['id'], sorted(tid for tid, t in tasks.items() if t.get('gap') == g['id'])
+        if op == 'gap_decide':
+            require(actor in desks, "PM or front desk records the person's choice")
+            require(g['status'] != 'closed', 'gap ' + gid + ' is closed; a new need is opened as a new gap')
+            choice, standing = cmd.get('choice'), cmd.get('standing', True)
+            require(choice in GAP_CHOICES and type(standing) is bool, 'choice must be expert, self or human; standing boolean')
+            require(nonempty(cmd.get('quote')), "the person's exact quote is required")
+            require(nonempty(cmd.get('expert')) if choice == 'expert' else cmd.get('expert') is None,
+                    'expert names the designated expert agent or qualified person, for choice expert only')
+            for tid in linked or [None]:
+                authorized(cmd.get('person'), [tid], tasks, people)
+            decision = dict(choice=choice, person=cmd['person'], quote=cmd['quote'], standing=standing, at=now())
+            if choice == 'expert':
+                decision['expert'] = cmd['expert']
+            value = dict(g, status=choice, decision=decision)
+        else:
+            require(g['status'] in {'expert', 'human'}, 'only a gap given to an expert or a person closes, with their result')
+            require(handles(linked), 'PM, front desk, or the owner or manager of every linked task records the result')
+            require(nonempty(cmd.get('source')) and strings(cmd.get('evidence')) and cmd['evidence'], 'source of the received result and evidence (non-empty list) required')
+            value = dict(g, status='closed', result=dict(source=cmd['source'], evidence=cmd['evidence'], by=actor, at=now()))
+        value.update(revision=g['revision'] + 1, updated_at=now())
+        integrity.save(api(), db, 'gap', value)
+        gaps[gid] = value
+        for tid in linked:
+            put(tid)
+    result = {'record': gap_view(gaps[gid], tasks)}
+    if rule:
+        result.update(existing=rule['id'], choice=rule['decision']['choice'])
+    return result, touched
+
+
 def execute(project, cmd, _db=None, _applying=None):
     root = Path(project).resolve()
     require(root.is_dir(), 'project directory missing')
@@ -420,7 +600,7 @@ def execute(project, cmd, _db=None, _applying=None):
             if owns_db:
                 db.commit()
             return result
-        require(op in {'init', 'configure', 'create', 'update', 'transition', 'review', 'human_review', 'report', 'handoff', 'reassign', 'conflict', 'notice'} | integrity.WRITE_OPS | team.WRITE_OPS, 'unknown operation')
+        require(op in {'init', 'configure', 'create', 'update', 'transition', 'review', 'human_review', 'report', 'handoff', 'reassign', 'conflict', 'notice'} | GAP_OPS | integrity.WRITE_OPS | team.WRITE_OPS, 'unknown operation')
         require(nonempty(cmd.get('event_id')) and nonempty(cmd.get('actor')), 'event_id and actor required')
         if owns_db:
             db.execute('BEGIN IMMEDIATE')
@@ -430,7 +610,7 @@ def execute(project, cmd, _db=None, _applying=None):
             if owns_db:
                 db.commit()
             return json.loads(old['result'])
-        before, after, overturned = None, None, []
+        before, after, overturned, touched = None, None, [], []
         if op == 'init':
             require(db.execute('SELECT COUNT(*) FROM meta').fetchone()[0] == 0, 'already initialized')
             cfg = cmd['config']
@@ -456,6 +636,8 @@ def execute(project, cmd, _db=None, _applying=None):
         elif op in {'conflict', 'notice'}:
             result = record(root, db, cmd)
             overturned = result['record'].get('overturned', [])
+        elif op in GAP_OPS:
+            result, touched = gap_op(root, db, cmd)
         else:
             cfg, tasks = config(db), task_map(db)
             people = roster(root)
@@ -477,7 +659,7 @@ def execute(project, cmd, _db=None, _applying=None):
                 require(actor == manager, 'only responsible manager may create this level')
                 allowed = {'id','parent','title','owner','checker','goal','inputs','outputs','criteria','dependencies','completion_requires','resources','slots','executor','human_required','expanded','next_action','source',
                            'kind','stage','direction','people','derived_from','awaiting','project_level','role','artifact_digests',
-                           'difficulty','risk','risk_reason','origin'}
+                           'difficulty','risk','risk_reason','origin','gap'}
                 require(set(data) <= allowed, 'unknown create fields')
                 after = dict(data, parent=parent, manager=manager, state='planned', revision=1,
                              work_revision=1, evidence=[], review=None, human_review=None,
@@ -492,6 +674,7 @@ def execute(project, cmd, _db=None, _applying=None):
                     after['role'] = instance['role']
                 integrity.observe(api(), root, after)
                 tasks[tid] = after
+                gap_link(db, None, after, cmd, tasks, people)
                 validation(after, tasks)
                 check_people(after, people)
                 problem = team.level_issue(api(), db, after) or team.master_issue(api(), db, cfg, after)
@@ -556,6 +739,8 @@ def execute(project, cmd, _db=None, _applying=None):
                         if handed and handed != after['evidence']:
                             after.update(evidence=handed, work_revision=after['work_revision'] + 1, review=None, human_review=None)
                         require(after['evidence'], 'hand over with the result and evidence paths (evidence)')
+                    problem = gap_issue(after, integrity.records(db, 'gap'), state)
+                    require(not problem, problem)
                     after.pop('blocked_by', None)
                     if state == 'blocked' and cmd.get('blocked_by') is not None:
                         ref = cmd['blocked_by']
@@ -683,6 +868,7 @@ def execute(project, cmd, _db=None, _applying=None):
                 after['revision'] += 1
                 after['updated_at'] = now()
                 tasks[tid] = after
+                gap_link(db, before, after, cmd, tasks, people)
                 validation(after, tasks)
                 check_people(after, people)
                 if after['state'] == 'running':
@@ -706,6 +892,12 @@ def execute(project, cmd, _db=None, _applying=None):
             note = {'op': 'overturned', 'conflict': result['record']['id'], 'task_id': tid, 'reason': result['record']['resolution']}
             db.execute('INSERT INTO events(event_id,command,task_id,actor,occurred_at,recorded_at,before_data,after_data,result) VALUES (?,?,?,?,?,?,?,?,?)',
                        (cmd['event_id']+':overturned:'+tid, canon(note), tid, cmd['actor'], occurred, now(), None, None, canon({'conflict': note['conflict']})))
+        for tid, old_task, new_task in touched:
+            # One event per task a gap operation linked or whose human to-do it changed, so its timeline shows the gap.
+            gap = result['record']
+            note = {'op': op, 'gap': gap['id'], 'task_id': tid, 'reason': '缺口 ' + gap['id'] + '：' + GAP_STATES[gap['status']]}
+            db.execute('INSERT INTO events(event_id,command,task_id,actor,occurred_at,recorded_at,before_data,after_data,result) VALUES (?,?,?,?,?,?,?,?,?)',
+                       (cmd['event_id']+':gap:'+tid, canon(note), tid, cmd['actor'], occurred, now(), canon(old_task), canon(new_task), canon({'gap': gap['id']})))
         if owns_db:
             db.commit()
         return result
@@ -790,6 +982,12 @@ def render(project):
         line += '；阻塞：' + '、'.join(esc(x['title']) for x in blocked) if blocked else ''
         line += '；影响完成：' + '、'.join(esc(x['title']) for x in finishing) if finishing else ''
         return line + '\n'
+    def choice_line(g):
+        held = [tasks[x] for x in g['task_ids'] if tasks[x]['state'] not in TERMINAL]
+        return (f"- 缺口 {g['id']}：缺 {esc(g['domain'])} 专家（需要：{esc(g['qualification'])}），等人选择：指定专家、由当前实例完成或列为人工待办"
+                + ('；挡住：' + '、'.join(tlink(x) for x in held) if held else '') + '\n')
+    # Expertise gaps still waiting for the person's choice come first among the items waiting for people.
+    choosing = ''.join(choice_line(g) for g in sorted(data['gaps'].values(), key=lambda g: g['id']) if g['status'] == 'open')
     summary = data['top_level']
     notices = sorted(data['integrity']['notice'].values(), key=lambda n: (n['at'], n['id']))
     def notice_line(n):
@@ -887,7 +1085,7 @@ def render(project):
     def staged(s):
         return [t for t in tasks.values() if t.get('stage') == s['id'] and t['parent'] is None]
     plan = f"# 全程计划表\n\n只读派生视图，读取时间：{data['observed_at']}，事件修订：{data['revision']}。阶段由阶段里程碑任务登记，近期展开到任务，远期写\"待展开\"；不估工期，不算总百分比。\n\n"
-    plan += '## 现在等人处理\n\n' + (''.join(awaiting_line(t, a) for t, a in awaiting) or '- 无\n')
+    plan += '## 现在等人处理\n\n' + (choosing + ''.join(awaiting_line(t, a) for t, a in awaiting) or '- 无\n')
     plan += '\n## 阶段\n\n| # | 阶段 | 负责 | 相关的人 | 出口条件 | 状态 | 本阶段任务 |\n|---|---|---|---|---|---|---|\n'
     for n, s in enumerate(stages, 1):
         items = staged(s)
@@ -928,7 +1126,7 @@ def render(project):
     others = ''.join(notice_line(n) for n in notices if n['kind'] != 'Q0')
     dig += ('## 告知（F1 成果、Q1、Q2）\n\n' + others + '\n' if others else '') + '## 阶段进展\n\n'
     dig += ''.join(f"- {esc(s['title'])}：{state_of(s)}\n" for s in stages) or '- 尚未登记阶段\n'
-    dig += '\n## 在等的人（阻塞他人的在前）\n\n' + (''.join(awaiting_line(t, a) for t, a in awaiting) or '- 无\n')
+    dig += '\n## 在等的人（阻塞他人的在前）\n\n' + (choosing + ''.join(awaiting_line(t, a) for t, a in awaiting) or '- 无\n')
     decided = sorted([t for t in tasks.values() if t.get('human_review')], key=lambda t: t['human_review'].get('at', ''), reverse=True)
     dig += '\n## 最近的人工决定\n\n' + (''.join(f"- {tlink(t)}：{esc(t['human_review']['outcome'])}；范围：{esc(t['human_review']['scope'])}" + (f"；决定人：{who(t['human_review']['person'])}" if t['human_review'].get('person') else '') + '\n' for t in decided[:10]) or '- 无\n')
     atomic(local(root,'management/views/digest.md'),dig)
