@@ -62,7 +62,8 @@ class CompletionPrerequisiteTests(unittest.TestCase):
         self.build()
         self.assertTrue(self.task('E-1')['ready'])
         self.mutate('transition', 'E-1', state='running', reason='SIMULATED start', execution_receipt='SIMULATED receipt')
-        self.mutate('transition', 'E-1', state='waiting_review', reason='SIMULATED returned', stop_evidence='SIMULATED stop')
+        self.mutate('transition', 'E-1', state='waiting_review', reason='SIMULATED returned', stop_evidence='SIMULATED stop',
+                    evidence=['SIMULATED returned result'])
         self.finish_work('E-1')
         self.assertEqual(['D-1'], self.task('E-1')['completion_pending'])
         with self.assertRaisesRegex(pm.TaskError, 'completion prerequisites not complete'):
@@ -83,14 +84,16 @@ class CompletionPrerequisiteTests(unittest.TestCase):
         self.mutate('update', 'D-1', changes={'evidence': ['SIMULATED revised anchors']}, reason='SIMULATED rework')
         self.assertFalse(self.task('E-1')['review_current'])
 
-    def test_reopened_prerequisite_marks_completed_work_for_recheck(self):
+    def test_prerequisite_used_by_completed_work_is_replaced_not_reopened(self):
         self.build()
         self.human('D-1')
         self.close('D-1')
         self.finish_work('E-1')
         self.close('E-1')
-        self.mutate('transition', 'D-1', 'SIM-PM', state='planned', reason='SIMULATED reopen')
-        self.assertTrue(self.task('E-1')['needs_recheck'])
+        with self.assertRaisesRegex(pm.TaskError, 'successor'):
+            self.mutate('transition', 'D-1', 'SIM-PM', state='planned', reason='SIMULATED reopen',
+                        rework_reason='execution', note='SIMULATED rework')
+        self.assertFalse(self.task('E-1')['needs_recheck'])
 
     def test_prerequisites_are_validated_and_mutual_waits_rejected(self):
         self.create('A')

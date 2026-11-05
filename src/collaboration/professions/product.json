@@ -28,6 +28,9 @@
       "source": "product/ 下的产品源"
     }
   ],
+  "reuse": [
+    "用户情境：失败与异常归成几种情境，每种写明产品怎样表现"
+  ],
   "standards": [
     "产品领域专家能力模型（product-capability-model）"
   ],
@@ -84,6 +87,11 @@
       "gives": "规则、验收与用户情境"
     }
   ],
+  "inputs": [],
+  "item_inputs": {
+    "default": "by_risk",
+    "stricter": []
+  },
   "tools": [
     "文档编辑",
     "选项式提问"
@@ -113,6 +121,10 @@
     "tech_cost",
     "team_product_worker",
     "team_product_delegated",
-    "risk_billing_rule"
+    "risk_billing_rule",
+    "base_over_level_product",
+    "topic_external_legal",
+    "topic_promote",
+    "model_situations"
   ]
 }

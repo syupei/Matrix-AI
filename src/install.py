@@ -4,8 +4,9 @@
 Installs the skills and shared collaboration rules into a project, adds or
 updates one managed entry block in the project's instruction file(s), retires
 unmodified files from earlier releases of the same line, and never touches
-business outputs. Releases before 0.29 used another structure: a project that
-has one installed is refused, not migrated. Run without --apply first to preview.
+business outputs. Each release is for new projects only: a project that has an
+earlier release installed is refused, not upgraded or migrated. Run without
+--apply first to preview.
 """
 import argparse
 import hashlib
@@ -20,8 +21,8 @@ ROOT = Path(__file__).resolve().parent
 PKG_SKILLS = '.agents/skills/'
 BEGIN = '<!-- professional-agents:begin -->'
 END = '<!-- professional-agents:end -->'
-# The first release of the current structure; projects with an earlier release installed are refused.
-FIRST_RELEASE = (0, 29)
+# Projects with a release before this one installed are refused (each release is for new projects only).
+FIRST_RELEASE = (0, 30)
 KIT_VERSION = re.compile(r'professional-agents-kit/(\d+)\.(\d+)')
 # Entry text written by earlier standalone kits.
 LEGACY_MARKERS = ['<!-- pm-agent-test:begin -->', '# 产品与设计联合试验入口', '# 产品 Agent 试验项目',

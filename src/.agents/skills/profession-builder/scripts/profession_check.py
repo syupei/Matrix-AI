@@ -90,6 +90,16 @@ def registry(path, problems, owners, flows, abbrs):
     d = r.get('decisions')
     if not isinstance(d, dict) or not d.get('own') or not d.get('escalate') or not isinstance(d.get('binding'), list):
         problems.append(f'{name}: decisions needs own, escalate and binding')
+    reuse = r.get('reuse')
+    if not isinstance(reuse, list) or not all(isinstance(x, str) and x.strip() for x in reuse) \
+            or (r.get('class') in ['定义', '制作'] and not reuse):
+        problems.append(f'{name}: reuse must list the reuse units (required for 定义 and 制作)')
+    if not isinstance(r.get('inputs', []), list):
+        problems.append(f'{name}: inputs must be a list')
+    items = r.get('item_inputs') or {}
+    if items.get('default', 'by_risk') != 'by_risk' or not all(
+            isinstance(s, dict) and s.get('item') and s.get('state') == 'confirmed' for s in items.get('stricter', [])):
+        problems.append(f'{name}: item_inputs may only make the risk default stricter (state confirmed)')
     evals = r.get('evals')
     cases = evals if isinstance(evals, list) else [c for v in (evals or {}).values() for c in v] if isinstance(evals, dict) else []
     if not cases or not all(isinstance(c, str) and c for c in cases):
@@ -172,6 +182,14 @@ def check(root=ROOT, suite=None):
             if stage not in flow['stages'] or not isinstance(target, list) or len(target) != 2 \
                     or target[0] not in flows or target[1] not in flows[target[0]][1]['stages']:
                 problems.append(f'{name}: stage flow {key} has an invalid upstream for {stage}')
+    stages = {r['id']: {s for f in r.get('stage_flows') or [] for s in f.get('stages') or []} for r in found}
+    for r in found:
+        own = stages[r['id']] | {o.get('deliverable') for o in r.get('owns') or [] if isinstance(o, dict)}
+        for i in r.get('inputs') or []:
+            prof, _, stage = str(i.get('needs', '')).partition(':') if isinstance(i, dict) else ('', '', '')
+            if not isinstance(i, dict) or i.get('for') not in own or stage not in stages.get(prof, set()) \
+                    or i.get('state') not in ('confirmed', 'complete') or i.get('kind', 'start') not in ('start', 'complete'):
+                problems.append(f'{r["id"]}.json: invalid input {i}')
     ranks = [f['authority_rank'] for _, f in flows.values() if 'authority_rank' in f]
     if len(ranks) != len(set(ranks)):
         problems.append('authority_rank values must be distinct')

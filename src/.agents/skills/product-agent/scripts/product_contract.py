@@ -72,6 +72,12 @@ def write_new(root, name, text):
         handle.write(text)
 
 
+def professions(root):
+    """Registered profession ids of the project, or None when it has no registries."""
+    folder = location(root, 'collaboration/professions')
+    return {load_json(p).get('id') for p in folder.glob('*.json')} if folder.is_dir() else None
+
+
 def parse_document(root, name):
     path = location(root, name)
     require(path.suffix.lower() == '.md', '产品来源须为 Markdown: ' + name)
@@ -111,10 +117,10 @@ def parse_document(root, name):
     require(not (meta.keys() - {'format', 'revision', 'items'}), name + ': 未知文档字段')
     require(nonempty(meta.get('revision')), name + ': 缺少正文修订 revision')
     require(isinstance(meta.get('items'), list) and meta['items'], name + ': items 不能为空')
-    nodes = {}
+    nodes, registry = {}, professions(root)
     for item in meta['items']:
         require(isinstance(item, dict), name + ': 条目须为对象')
-        require(not (item.keys() - {'id', 'kind', 'heading', 'refs', 'audiences', 'verify_at', 'coverage', 'reason'}),
+        require(not (item.keys() - {'id', 'kind', 'heading', 'refs', 'audiences', 'verify_at', 'coverage', 'reason', 'exits'}),
                 name + ': 未知条目字段')
         ident = item.get('id')
         require(nonempty(ident) and not any(c.isspace() or c in '#/\\' for c in ident),
@@ -143,6 +149,15 @@ def parse_document(root, name):
             require(item.get('coverage', 'required') in ['required', 'not_applicable'], key + ': coverage 错误')
             if item.get('coverage') == 'not_applicable':
                 require(nonempty(item.get('reason')), key + ': 不适用须给出理由')
+        exits = item.get('exits')
+        if exits is not None:
+            # Which professions deliver what for this requirement; the PM registers delivery exits from it.
+            require(kind == 'requirement', key + ': 只有 requirement 条目写 exits')
+            ids = list(exits) if isinstance(exits, (list, dict)) else []
+            require(ids and all(nonempty(x) for x in ids) and len(set(ids)) == len(ids)
+                    and (isinstance(exits, list) or all(nonempty(v) for v in exits.values())),
+                    key + ': exits 须为专业标识列表，或以专业标识为键、写交什么的对象')
+            require(registry is None or set(ids) <= registry, key + ': exits 含未登记的专业: ' + ', '.join(sorted(set(ids) - (registry or set()))))
         nodes[key] = {'source': name, **item, 'sha256': digest(body.encode()),
                       'line': first + 1, 'body': body}
     return {'path': name, 'revision': meta['revision'], 'sha256': digest(raw)}, nodes
@@ -353,9 +368,12 @@ def handoff(root, baseline_name, role):
     lines.extend('- ' + s['path'] + ' · ' + s['revision'] + ' · ' + s['sha256'] for s in docs)
     for key, node in items.items():
         if key in selected:
+            exits = node.get('exits')
             lines.extend(['', '---', '', '条目：' + key,
                           '编辑源：' + node['source'] + '（第 ' + str(node['line']) + ' 行）',
-                          '验证阶段：' + node.get('verify_at', '按原专业判断'), '', node['body'].rstrip()])
+                          '验证阶段：' + node.get('verify_at', '按原专业判断')]
+                         + (['出口：' + ('；'.join(k + '：' + v for k, v in exits.items()) if isinstance(exits, dict) else '、'.join(exits))] if exits else [])
+                         + ['', node['body'].rstrip()])
     lines.extend(['', '交付任务、可自决范围、人的确认与待决问题继续读取原交付说明；本稿不新增产品要求。', ''])
     return '\n'.join(lines)
 

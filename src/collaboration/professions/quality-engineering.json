@@ -25,6 +25,9 @@
       "source": "engineering/qa/ 与验收测试目录"
     }
   ],
+  "reuse": [
+    "按用户情境写验收条目，抽查归入它的异常"
+  ],
   "standards": [
     "研发流程（C13）、风险与缺陷分级（C22）"
   ],
@@ -53,6 +56,19 @@
       "gives": "缺陷与回归范围"
     }
   ],
+  "inputs": [
+    {
+      "for": "验收条目、检验记录、缺陷与回归范围",
+      "needs": "code-engineering:E-1.4",
+      "state": "confirmed",
+      "kind": "start",
+      "note": "研发承接确认后写验收条目"
+    }
+  ],
+  "item_inputs": {
+    "default": "by_risk",
+    "stricter": []
+  },
   "tools": [
     "测试运行",
     "缺陷登记"
@@ -82,6 +98,7 @@
     "qa_change",
     "idor_acceptance",
     "team_qa_worker",
-    "defect_minor_copy"
+    "defect_minor_copy",
+    "base_no_escalation_qa"
   ]
 }

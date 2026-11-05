@@ -25,6 +25,9 @@
       "source": "项目的文案表文件（由产品与设计引用）"
     }
   ],
+  "reuse": [
+    "文案键：同一情境下按原因区分文字"
+  ],
   "standards": [
     "面向读者的文字（C03）"
   ],
@@ -58,6 +61,11 @@
       "gives": "文案表版本"
     }
   ],
+  "inputs": [],
+  "item_inputs": {
+    "default": "by_risk",
+    "stricter": []
+  },
   "tools": [
     "文档编辑"
   ],
@@ -81,6 +89,7 @@
   "evals": [
     "copy",
     "risk_legal_text",
-    "content_copy_only"
+    "content_copy_only",
+    "single_next_step"
   ]
 }

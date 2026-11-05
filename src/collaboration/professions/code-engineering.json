@@ -29,6 +29,10 @@
       "source": "code/ 与 engineering/ 下的工程源"
     }
   ],
+  "reuse": [
+    "函数与组件：同一结构只差数据或文字的逻辑与界面写成一份",
+    "\"异常 → 用户情境\"对照表"
+  ],
   "standards": [
     "研发流程（C13）与安全、性能、运维指引（C06）"
   ],
@@ -133,6 +137,40 @@
       "gives": "情境与键的对照"
     }
   ],
+  "inputs": [
+    {
+      "for": "E-1.2",
+      "needs": "experience-design:D-2",
+      "state": "confirmed",
+      "kind": "start",
+      "note": "设计审阅 A（结构与核心交互）确认后即可建模；视觉与素材不是前置"
+    },
+    {
+      "for": "E-1.2",
+      "needs": "experience-design:D-3",
+      "state": "complete",
+      "kind": "complete",
+      "note": "状态、异常与恢复在设计交互规格完成后补全"
+    },
+    {
+      "for": "E-2.1",
+      "needs": "code-engineering:E-1.4",
+      "state": "confirmed",
+      "kind": "start",
+      "note": "与设计素材阶段并行"
+    },
+    {
+      "for": "E-3.2",
+      "needs": "experience-design:D-6",
+      "state": "confirmed",
+      "kind": "complete",
+      "note": "只限依赖完整设计的界面部分"
+    }
+  ],
+  "item_inputs": {
+    "default": "by_risk",
+    "stricter": []
+  },
   "tools": [
     "代码仓库与构建",
     "自动检查（含依赖、凭证与危险命令检查）"
@@ -183,6 +221,18 @@
     "team_solution_lead",
     "team_build_worker",
     "risk_destructive_script",
-    "defect_wrong_path_delete"
+    "defect_wrong_path_delete",
+    "base_over_level_code",
+    "base_route_owner_code",
+    "base_level_answer_code",
+    "base_no_escalation_code",
+    "mi_dispatch_level",
+    "mi_reassign",
+    "mi_conflict",
+    "mi_stale_basis",
+    "mi_review_independence",
+    "model_code_reuse",
+    "list_instance",
+    "report_up_executor"
   ]
 }

@@ -24,6 +24,7 @@
       "source": "反馈索引与运行登记"
     }
   ],
+  "reuse": [],
   "standards": [
     "用户确认与流程位置（C01）"
   ],
@@ -45,6 +46,11 @@
       "gives": "人的要求与决定"
     }
   ],
+  "inputs": [],
+  "item_inputs": {
+    "default": "by_risk",
+    "stricter": []
+  },
   "tools": [
     "选项式提问",
     "子 Agent 创建（宿主支持时）"

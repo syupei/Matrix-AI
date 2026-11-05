@@ -1,11 +1,301 @@
-"""Project appointments and specialist obligations in the existing task database.
+"""Project appointments, specialist obligations and configured instances in the existing task database.
 
 Records are cooperative facts. Authentication belongs to the host, not actor strings.
 """
+import hashlib
+import json
+from pathlib import Path
 import re
 
 READ_OPS = {'team'}
-WRITE_OPS = {'appoint', 'revoke_appointment', 'register_participation', 'participation_event', 'bind_participation'}
+INSTANCE_OPS = {'confirm_config', 'derive', 'retire_instance', 'relevel_instance'}
+WRITE_OPS = {'appoint', 'revoke_appointment', 'register_participation', 'participation_event', 'bind_participation'} | INSTANCE_OPS
+CONFIG, FIT = 'collaboration/instance-config.json', 'collaboration/model-fit.json'
+KIT = Path(__file__).resolve().parents[4]
+CHOICE = {'unfit': 'insist', 'unregistered': 'acknowledge_unregistered'}
+DERIVED_FIT = {'fit': 'fit', 'unregistered': 'unregistered', 'unfit': 'unfit_insisted'}
+FIT_NAMES = {'fit': '适用', 'unregistered': '未登记（人已确认）', 'unfit_insisted': '模型不适用（人坚持使用；成果按 F1 检验）'}
+PM_ROLES = {'project-management-agent', 'project-management'}
+
+
+def level(value):
+    """'T4' -> 4; None when absent or not T1–T9."""
+    return int(value[1]) if isinstance(value, str) and re.fullmatch(r'T[1-9]', value) else None
+
+
+def risk(value):
+    """'F1' -> 1 (lower is more severe); None when absent or not F0–F5."""
+    return int(value[1]) if isinstance(value, str) and re.fullmatch(r'F[0-5]', value) else None
+
+
+def professions(pm, root):
+    """The project's profession registries, or this kit's when the project has none."""
+    folder = pm.local(root, 'collaboration/professions')
+    return folder if folder.is_dir() else KIT / 'collaboration/professions'
+
+
+def registries(pm, root):
+    return {r['id']: r for r in (json.loads(p.read_text(encoding='utf-8')) for p in sorted(professions(pm, root).glob('*.json')))}
+
+
+def level_row(pm, root, reg, value):
+    """能做, 能判断, 不能做 of one row in the profession's level table."""
+    for line in (professions(pm, root) / reg['levels']['doc']).read_text(encoding='utf-8').splitlines():
+        cells = [c.strip() for c in line.strip().strip('|').split('|')]
+        if len(cells) >= 4 and cells[0] == value:
+            return cells[1:4]
+    return ['—'] * 3
+
+
+def read(pm, root, ref):
+    path = pm.local(root, ref)
+    pm.require(path.is_file(), ref + ' missing')
+    raw = path.read_bytes()
+    return json.loads(raw.decode('utf-8')), hashlib.sha256(raw).hexdigest()
+
+
+def fit_entries(pm, root, regs):
+    """Validated configuration entries with their model fit: fit, unregistered or unfit."""
+    data, sha = read(pm, root, CONFIG)
+    items = data.get('entries') if isinstance(data, dict) else None
+    pm.require(isinstance(items, list), 'instance-config.json: entries list required')
+    seen, masters = set(), set()
+    for e in items:
+        pm.require(isinstance(e, dict) and set(e) <= {'id', 'profession', 'level', 'model', 'count', 'master'}, 'instance-config.json: entry fields are id, profession, level, model, count, master')
+        eid = e.get('id')
+        pm.require(isinstance(eid, str) and re.fullmatch(pm.SAFE_ID, eid) is not None and eid not in seen, 'instance-config.json: unique simple entry ids required')
+        seen.add(eid)
+        reg = regs.get(e['profession']) if isinstance(e.get('profession'), str) else None
+        pm.require(reg is not None, eid + ': profession must be a registry id')
+        low, high = (level(x) for x in reg['levels']['range'])
+        pm.require(level(e.get('level')) is not None and low <= level(e['level']) <= high, eid + ': level outside ' + '–'.join(reg['levels']['range']))
+        pm.require(pm.nonempty(e.get('model')), eid + ': model name required')
+        pm.require(type(e.get('count')) is int and e['count'] >= 0, eid + ': count must be an integer >= 0')
+        pm.require(type(e.get('master', False)) is bool, eid + ': master must be boolean')
+        if e.get('master'):
+            floor = reg['levels'].get('master_min')
+            pm.require(e['count'] == 1, eid + ': a master entry has count 1')
+            pm.require(floor is None or level(e['level']) >= level(floor), eid + ': a master needs at least ' + str(floor))
+            pm.require(e['profession'] not in masters, e['profession'] + ': at most one master entry')
+            masters.add(e['profession'])
+    models = {}
+    if pm.local(root, FIT).is_file():
+        rows = read(pm, root, FIT)[0]
+        rows = rows.get('models') if isinstance(rows, dict) else None
+        pm.require(isinstance(rows, list), 'model-fit.json: models list required')
+        for m in rows:
+            pm.require(isinstance(m, dict) and pm.nonempty(m.get('model')) and m['model'] not in models, 'model-fit.json: unique model names required')
+            pm.require(isinstance(m.get('levels', {}), dict) and all(p in regs and level(v) for p, v in m.get('levels', {}).items()), 'model-fit.json: levels map registry ids to T1–T9')
+            pm.require('capabilities' not in m or pm.strings(m['capabilities']), 'model-fit.json: capabilities must be a string list')
+            pm.require(pm.nonempty(m.get('filled_by')), 'model-fit.json: filled_by required for ' + m['model'])
+            models[m['model']] = m
+    out = []
+    for e in items:
+        m, need = models.get(e['model'], {}), regs[e['profession']].get('model_capabilities', [])
+        top, caps = m.get('levels', {}).get(e['profession']), m.get('capabilities')
+        missing = [c for c in need if caps is not None and c not in caps]
+        if m and ((top and level(top) < level(e['level'])) or missing):
+            fit = 'unfit'
+        elif top and (caps is not None or not need):
+            fit = 'fit'
+        else:
+            fit = 'unregistered'  # model not listed, no level for this profession, or capabilities not recorded
+        out.append(dict(e, fit=fit, max_level=top, missing_capabilities=missing))
+    return out, sha
+
+
+def confirmed(pm, root, db):
+    """The last confirmation while the file still has the confirmed content, else None."""
+    rec = pm.integrity.records(db, 'instance_config').get('confirmed')
+    try:
+        return rec if rec and pm.integrity.file_hash(pm, root, CONFIG) == rec['sha256'] else None
+    except (ValueError, OSError):
+        return None
+
+
+def config_state(pm, root, db):
+    state = {'confirmed': pm.integrity.records(db, 'instance_config').get('confirmed'), 'current': bool(confirmed(pm, root, db))}
+    if pm.local(root, CONFIG).is_file():
+        try:
+            state['entries'] = fit_entries(pm, root, registries(pm, root))[0]
+        except (ValueError, OSError) as error:
+            state['problem'] = str(error)
+    return state
+
+
+def display(regs, iid):
+    """An instance id <profession>-<NNN> reads as <registry name>-<NNN>; other ids as they are."""
+    m = re.fullmatch(r'(.+)-(\d{3,})', str(iid))
+    return regs[m[1]]['name'] + '-' + m[2] if m and m[1] in regs else str(iid)
+
+
+def profile(pm, root, inst, conf):
+    """Generated profile of a derived instance; never the endpoint or a credential."""
+    regs = registries(pm, root)
+    reg = regs[inst['profession']]
+    can, judge, cannot = level_row(pm, root, reg, inst['level'])
+    person = ((pm.roster(root) or {}).get('people', {}).get(conf['person']) or {}).get('name', conf['person'])
+    text = (f"# 实例档案：{display(regs, inst['id'])}\n\n由派生工具生成，不手写。\n\n"
+            f"- 编号：{inst['id']}\n- 专业：{reg['name']}\n- 职级：{inst['level']}\n- 身份：{'master' if inst['master'] else '执行者'}\n"
+            f"- 模型名称：{inst['model']}\n- 配置项：{inst['config_entry']}\n- 派生人与时间：{inst['derived_by']}，{inst['derived_at']}\n"
+            f"- 配置的确认人与原话：{person}：「{conf['quote']}」\n- 适用性：{FIT_NAMES[inst['fit']]}\n\n"
+            f"## 本职级（{inst['level']}）\n\n- 能做：{can}\n- 能判断：{judge}\n- 不能做（越权）：{cannot}\n")
+    pm.atomic(pm.local(root, workspace(pm, root, inst['id']) + '/profile.md'), text)
+
+
+def derived(inst):
+    return bool(inst and inst.get('level') and inst.get('model'))
+
+
+def level_issue(pm, db, task):
+    """Why the task's owner or executor may not take it, or None (difficulty above level, retired)."""
+    need, instances = level(task.get('difficulty')), pm.integrity.records(db, 'instance')
+    for iid in sorted({task.get('owner'), task.get('executor')} - {None}):
+        inst = instances.get(iid)
+        if inst is None:
+            continue
+        if inst.get('active') is False:
+            return iid + ' is retired; reassign the task'
+        if need is not None and level(inst.get('level')) is None:
+            return iid + ' has no level and cannot take a task of difficulty ' + task['difficulty']
+        if need is not None and level(inst['level']) < need:
+            return iid + ' (' + inst['level'] + ') is below difficulty ' + task['difficulty'] + ': split the task or assign a higher level; do not relabel'
+    return None
+
+
+def master_issue(pm, db, cfg, task):
+    """Project-level work dispatched by the PM goes to the master of the owner's profession."""
+    inst = pm.integrity.records(db, 'instance').get(task['owner'])
+    if task['manager'] == cfg['pm_actor'] and pm.integrity.project_level(task, cfg) and inst and inst.get('profession') and not inst.get('master'):
+        return task['owner'] + ' is not the ' + inst['profession'] + ' master; project-level tasks go to the master'
+    return None
+
+
+def requirement(pm, root, task, instances):
+    """Derived producers, effective risk, level floor and whether the checker needs another model."""
+    producers = {task['owner'], task.get('executor')} - {None}
+    made = [instances[i] for i in sorted(producers) if derived(instances.get(i))]
+    insisted = any(p.get('fit') == 'unfit_insisted' for p in made)
+    r, need = risk(task.get('risk')), level(task.get('difficulty'))
+    if insisted:
+        r = 1 if r is None else min(r, 1)  # work of an instance whose model was insisted on counts as at least F1
+    regs = registries(pm, root) if need is not None and made else {}
+    floors = [level(regs.get(p['profession'], {}).get('levels', {}).get('master_min')) for p in made]
+    other_model = insisted or (r is not None and r <= 1) or any(f is not None and need >= f for f in floors)
+    return producers, made, r, need, other_model
+
+
+def independence(pm, root, db, task, checker):
+    """independent, not_independent or same_instance, from the checker against the producers."""
+    instances = pm.integrity.records(db, 'instance')
+    producers, made, r, need, other_model = requirement(pm, root, task, instances)
+    if checker in producers:
+        return 'same_instance'
+    c = instances.get(checker)
+    if need is not None and not (derived(c) and level(c['level']) >= need):
+        return 'not_independent'
+    if other_model and not (derived(c) and len(made) == len(producers) and c['model'] not in {p['model'] for p in made}):
+        return 'not_independent'
+    return 'independent'
+
+
+def verification_issue(pm, root, db, task):
+    """Why the current passed review cannot close an F0–F2 task, or None. Legacy producers keep the old rule."""
+    instances = pm.integrity.records(db, 'instance')
+    producers, made, r, need, other_model = requirement(pm, root, task, instances)
+    if not made or r is None or r > 2 or any(i in instances and not derived(instances[i]) for i in producers):
+        return None
+    kind = task['review'].get('independence')
+    if kind == 'independent':
+        return None
+    others = [i for i in instances.values() if derived(i) and i.get('active') and i['id'] not in producers and (need is None or level(i['level']) >= need)]
+    if kind == 'same_instance' and not others:
+        return None  # no other instance at this level in the project: recorded as 同一实例检验
+    head = 'F' + str(r) + ' work needs an independent check (recorded: ' + str(kind) + ')'
+    if any(not (other_model and i['model'] in {p['model'] for p in made}) for i in others):
+        return head + ': assign another checker that meets C24 §6'
+    return (head + ' and no instance in the project can give one: ask the PM to derive '
+            + ('a different-model instance' if others else 'an instance at this level') + ' per the instance configuration, or ask a person to change the configuration')
+
+
+def confirm(pm, root, db, cfg, tasks, cmd):
+    pm.require(cmd['actor'] in {cfg['pm_actor'], cfg.get('frontdesk_actor')} - {None}, 'PM or front desk records the person\'s confirmation')
+    pm.require(all(pm.nonempty(cmd.get(k)) for k in ['quote', 'presented_ref']), 'exact quote and presented reference required')
+    pm.authorized(cmd.get('person'), [None], tasks, pm.roster(root))
+    items, sha = fit_entries(pm, root, registries(pm, root))
+    choices = cmd.get('choices', {})
+    pm.require(isinstance(choices, dict) and set(choices) <= {e['id'] for e in items}, 'choices must name configuration entries')
+    problems = []
+    for e in items:
+        want, got = CHOICE.get(e['fit']), choices.get(e['id'])
+        if got == want:
+            continue
+        if want == 'insist':
+            low = e['max_level'] and level(e['max_level']) < level(e['level'])
+            problems.append(e['id'] + ': model ' + e['model'] + ' fits ' + e['profession'] + ' up to ' + (e['max_level'] or 'no listed level')
+                            + (', below the configured ' + e['level'] if low else '')
+                            + ('; lacks ' + '、'.join(e['missing_capabilities']) if e['missing_capabilities'] else '')
+                            + ' - change the model, lower the level, or insist')
+        elif want:
+            problems.append(e['id'] + ': model ' + e['model'] + ' is not registered for ' + e['profession'] + '; confirm it as acknowledge_unregistered')
+        else:
+            problems.append(e['id'] + ': the model fits; no choice applies')
+    pm.require(not problems, 'configuration not confirmed: ' + '; '.join(problems))
+    before = pm.integrity.records(db, 'instance_config').get('confirmed')
+    pm.require(cmd.get('expected_revision') == before['revision'] if before else cmd.get('expected_revision') in {None, 0}, 'stale confirmation; reload the team view')
+    value = dict(id='confirmed', config=CONFIG, sha256=sha, entries=[dict(e, insisted=e['fit'] == 'unfit') for e in items],
+                 person=cmd['person'], quote=cmd['quote'], presented_ref=cmd['presented_ref'], at=pm.now(),
+                 revision=(before or {}).get('revision', 0) + 1, updated_at=pm.now())
+    pm.integrity.save(pm, db, 'instance_config', value)
+    return {'record': value}
+
+
+def instance_op(pm, root, db, cfg, tasks, cmd):
+    """Derive, relevel and retire instances only as the current confirmed configuration says."""
+    op, actor = cmd['op'], cmd['actor']
+    if op == 'confirm_config':
+        return confirm(pm, root, db, cfg, tasks, cmd)
+    pm.require(actor == cfg['pm_actor'], 'PM derives and updates instances from the confirmed configuration')
+    conf = confirmed(pm, root, db)
+    pm.require(conf, 'no current confirmed instance configuration; ask the person to confirm the file first')
+    instances = pm.integrity.records(db, 'instance')
+    if op == 'derive':
+        entry = next((e for e in conf['entries'] if e['id'] == cmd.get('entry')), None)
+        pm.require(entry, 'entry not in the confirmed configuration; do not derive outside it')
+        active = [i for i in instances.values() if i.get('config_entry') == entry['id'] and i.get('active')]
+        pm.require(len(active) < entry['count'], 'configured count reached for ' + entry['id'])
+        pm.require(pm.nonempty(cmd.get('endpoint')), 'the real handle returned by the host is required')
+        pm.require(not any(i.get('active', True) and i.get('endpoint') == cmd['endpoint'] for i in instances.values()), 'endpoint already registered')
+        pm.require(pm.strings(cmd.get('write_roots', [])), 'write_roots must be paths')
+        n = 1 + max([int(m[1]) for k in instances for m in [re.fullmatch(re.escape(entry['profession']) + r'-(\d{3,})', k)] if m] or [0])
+        iid = entry['profession'] + '-' + str(n).zfill(3)
+        roots = list(dict.fromkeys([workspace(pm, root, iid) + '/workspace'] + cmd.get('write_roots', [])))
+        pm.require(all(pm.local(root, ref) != root for ref in roots), 'instance cannot own the whole project')
+        value = dict(id=iid, role=entry['profession'], profession=entry['profession'], level=entry['level'], model=entry['model'],
+                     config_entry=entry['id'], fit=DERIVED_FIT[entry['fit']], master=entry.get('master', False),
+                     endpoint=cmd['endpoint'], write_roots=roots, derived_by=actor, derived_at=pm.now(), active=True, revision=1)
+    else:
+        inst = instances.get(cmd.get('id'))
+        pm.require(inst and inst.get('config_entry') and inst.get('active'), 'active derived instance required')
+        pm.require(cmd.get('expected_revision') == inst['revision'], 'stale instance record')
+        pm.require(pm.nonempty(cmd.get('reason')), 'reason required')
+        pm.require(not any(t['state'] == 'running' and inst['id'] in {t['owner'], t.get('executor')} for t in tasks.values()), 'stop running work before changing the instance')
+        entry = next((e for e in conf['entries'] if e['id'] == inst['config_entry']), None)
+        if op == 'retire_instance':
+            active = [i for i in instances.values() if i.get('config_entry') == inst['config_entry'] and i.get('active')]
+            pm.require(not entry or len(active) > entry['count'] or entry['model'] != inst['model'], 'the confirmed configuration still includes this instance')
+            value = dict(inst, active=False, retired_by=actor, retired_at=pm.now(), reason=cmd['reason'])
+        else:
+            pm.require(entry and entry['model'] == inst['model'], 'entry removed or its model changed; retire the instance instead')
+            change = dict(level=entry['level'], master=entry.get('master', False), fit=DERIVED_FIT[entry['fit']])
+            pm.require(any(inst.get(k) != v for k, v in change.items()), 'the confirmed configuration does not change this instance')
+            value = dict(inst, previous_level=inst['level'], relevelled_by=actor, relevelled_at=pm.now(), reason=cmd['reason'], **change)
+        value['revision'] = inst['revision'] + 1
+    value['updated_at'] = pm.now()
+    pm.integrity.save(pm, db, 'instance', value)
+    if op != 'retire_instance':
+        profile(pm, root, value, conf)
+    return {'record': value}
 
 
 def within(tid, roots, tasks):
@@ -63,7 +353,7 @@ def authorize(pm, root, db, cmd, tasks):
         pm.require(t.get('owner') in [actor, *a['delegates']], 'owner is outside allocated team')
         if t.get('project_level'):
             pm.require(a['mode'] == 'workflow_pm', 'only scoped workflow PM may create project-level work')
-    target = (cmd.get('changes') or {}).get('executor') if op == 'update' else t.get('executor') if op == 'create' else cmd.get('new_owner') if op == 'handoff' else None
+    target = {'update': (cmd.get('changes') or {}).get('executor'), 'create': t.get('executor'), 'handoff': cmd.get('new_owner'), 'reassign': cmd.get('to')}.get(op)
     if target:
         pm.require(target in [actor, *a['delegates']], 'execution instance is outside allocated team')
 
@@ -71,6 +361,9 @@ def authorize(pm, root, db, cmd, tasks):
 def blockers(pm, root, db, tasks, tid, closing=False):
     out = []
     t = tasks[tid]
+    problem = None if closing or t['state'] in pm.TERMINAL else level_issue(pm, db, t)
+    if problem:
+        out.append({'code': 'instance_level', 'task': tid, 'action': problem})
     appointments = pm.integrity.records(db, 'appointment')
     relevant = any(within(tid, a['root_tasks'], tasks) for a in appointments.values())
     if relevant:
@@ -111,7 +404,10 @@ def execute(pm, root, db, cmd):
         return {'appointments': [dict(a, current=current(pm, root, a)) for a in appointments.values()],
                 'participation': pm.integrity.records(db, 'participation_rule'),
                 'obligations': pm.integrity.records(db, 'participation_obligation'),
+                'instance_config': config_state(pm, root, db),
                 'limitation': 'Records do not authenticate people or start processes.'}
+    if op in INSTANCE_OPS:
+        return instance_op(pm, root, db, cfg, tasks, cmd)
     rid = cmd.get('id')
     pm.require(pm.nonempty(rid), 'record id required')
     kind = 'appointment' if op in {'appoint', 'revoke_appointment'} else 'participation_rule' if op == 'register_participation' else 'participation_obligation'
@@ -125,7 +421,7 @@ def execute(pm, root, db, cmd):
         spec = cmd['appointment']
         pm.require(set(spec) == {'mode', 'role', 'root_tasks', 'delegates', 'source'}, 'appointment fields: mode, role, root_tasks, delegates, source')
         pm.require(spec['mode'] in {'lead', 'executor', 'workflow_pm', 'auxiliary'}, 'unknown appointment mode')
-        pm.require(spec['mode'] != 'workflow_pm' or spec['role'] == 'project-management-agent', 'workflow PM needs project management capability')
+        pm.require(spec['mode'] != 'workflow_pm' or spec['role'] in PM_ROLES, 'workflow PM needs project management capability')
         instances = pm.integrity.records(db, 'instance')
         pm.require(rid in instances and instances[rid]['role'] == spec['role'], 'register matching actual instance first')
         pm.require(pm.strings(spec['root_tasks']) and spec['root_tasks'] and set(spec['root_tasks']) <= set(tasks), 'existing task roots required')

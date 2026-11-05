@@ -5,6 +5,7 @@ Python 3.9+; JSON command from --input FILE or stdin. No network calls.
 Actor labels and human-message evidence are cooperative assertions, not authentication.
 """
 import argparse
+from datetime import date
 import hashlib
 import json
 from pathlib import Path
@@ -55,6 +56,30 @@ def fingerprint(root, relative):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def fields(value, allowed, name):
+    require(isinstance(value, dict), name + ' must be an object')
+    extra = sorted(set(value) - set(allowed))
+    require(not extra, name + ' has unknown fields: ' + ', '.join(extra))
+    return value
+
+
+def iso_date(value):
+    try:
+        return date.fromisoformat(value).isoformat() == value
+    except (TypeError, ValueError):
+        return False
+
+
+def binding_allowed(root, skill):
+    # Skills sit at <skills dir>/<name>/SKILL.md; a role outside every profession registry is not limited.
+    name = Path(skill).parent.name
+    for path in sorted(local(root, 'collaboration/professions').glob('*.json')):
+        registry = json.loads(path.read_text(encoding='utf-8'))
+        if name in registry.get('skills', []):
+            return bool((registry.get('decisions') or {}).get('binding'))
+    return True
+
+
 def execute(project, command):
     root = Path(project).resolve()
     require(root.is_dir(), 'project does not exist')
@@ -74,6 +99,8 @@ def execute(project, command):
             con.execute('CREATE TABLE IF NOT EXISTS roles (id TEXT PRIMARY KEY, body TEXT NOT NULL)')
             con.execute('CREATE TABLE IF NOT EXISTS requests (id TEXT PRIMARY KEY, body TEXT NOT NULL)')
             con.execute('CREATE TABLE IF NOT EXISTS events (seq INTEGER PRIMARY KEY AUTOINCREMENT, at REAL NOT NULL, request_id TEXT, kind TEXT NOT NULL, body TEXT NOT NULL)')
+        # Outside init so that a ledger initialized without topics gains the table on first use.
+        con.execute('CREATE TABLE IF NOT EXISTS topics (id TEXT PRIMARY KEY, body TEXT NOT NULL)')
 
         def event(rid, kind, body):
             con.execute('INSERT INTO events(at,request_id,kind,body) VALUES(?,?,?,?)', (time.time(), rid, kind, encoded(body)))
@@ -91,6 +118,20 @@ def execute(project, command):
             con.execute('INSERT OR REPLACE INTO requests VALUES(?,?)', (request['id'], encoded(request)))
             event(request['id'], kind, {'state': request['state'], 'round': request['round'], 'actor': command.get('actor')})
             return request
+
+        def topic_of(tid):
+            row = con.execute('SELECT body FROM topics WHERE id=?', (tid,)).fetchone()
+            require(row is not None, 'unknown topic')
+            return json.loads(row['body'])
+
+        def internal(topic):
+            return [p['id'] for p in topic['participants'] if p['tier'] == 'internal']
+
+        def save_topic(topic, kind):
+            topic['updated_at'] = time.time()
+            con.execute('INSERT OR REPLACE INTO topics VALUES(?,?)', (topic['id'], encoded(topic)))
+            event(None, 'topic_' + kind, {'topic': topic['id'], 'state': topic['state'], 'round': topic['round'], 'actor': command.get('actor')})
+            return topic
 
         if op == 'init':
             cfg = command['config']
@@ -155,6 +196,10 @@ def execute(project, command):
                 require(result['payload_hash'] == ph, 'same request id with different payload')
                 con.commit()
                 return result
+            if payload.get('topic'):
+                linked = topic_of(payload['topic'])
+                require(linked['state'] == 'open', 'linked topic is not open')
+                require(actor in internal(linked), 'requester must be a participant of the linked topic')
             # Detect pending wait cycles across role boundaries, including nested requests.
             open_states = {'ready', 'dispatching', 'inflight', 'needs_human', 'answered'}
             graph = {}
@@ -172,6 +217,165 @@ def execute(project, command):
             result = save({'id': rid, 'source': actor, 'target': target['id'], 'payload': payload, 'payload_hash': ph,
                            'sources': sources, 'expected_sources': sources, 'state': 'ready', 'round': 1,
                            'attempts': [], 'responses': [], 'human_answers': [], 'created_at': time.time()}, 'request_created')
+            con.commit()
+            return result
+
+        if op == 'topics':
+            # Need-to-know filtering by actor label, not encryption: insiders see everything, others a header.
+            requests, result = all_requests(), []
+            for x in con.execute('SELECT body FROM topics ORDER BY rowid'):
+                topic = json.loads(x['body'])
+                c = topic['conclusion'] or {}
+                if actor == topic['decider'] or actor in internal(topic):
+                    result.append(dict(topic, view='full', requests=[r['id'] for r in requests if r['payload'].get('topic') == topic['id']]))
+                    continue
+                head = {'id': topic['id'], 'initiator': topic['initiator'], 'item': topic['cause']['item'], 'kind': topic['kind'],
+                        'state': topic['state'], 'effect': c.get('effect'), 'plan_impact': c.get('plan_impact'), 'view': 'header'}
+                if c and not topic['visibility']['confidential'] and actor in topic['visibility']['affected_owners']:
+                    head.update(view='owner', conclusion=c['text'], lands_in=c['lands_in'])
+                result.append(head)
+            con.commit()
+            return {'topics': result}
+
+        if op == 'topic_open':
+            spec = fields(command.get('topic'), ('id', 'kind', 'cause', 'purpose', 'participants', 'decider', 'visibility', 'max_rounds', 'deadline'), 'topic')
+            require(spec.get('kind') in {'consult', 'handle', 'review', 'discuss', 'notify'}, 'kind must be consult, handle, review, discuss or notify')
+            cause = fields(spec.get('cause'), ('item', 'version'), 'cause')
+            require(cause.get('item') and cause.get('version') and spec.get('purpose'), 'cause item, version and purpose required')
+            people = spec.get('participants')
+            require(isinstance(people, list) and all(isinstance(p, dict) and isinstance(p.get('id'), str) and p['id'] and p.get('tier') in {'internal', 'external'}
+                                                     for p in people), 'participants are [{id, tier: internal|external}]')
+            ids = [p['id'] for p in people]
+            require(len(set(ids)) == len(ids), 'duplicate participant')
+            require(actor in [p['id'] for p in people if p['tier'] == 'internal'], 'initiator must be an internal participant')
+            require(len(ids) > 1, 'a topic needs another participant')
+            for p in people:
+                if p['tier'] == 'internal':
+                    role(p['id'])  # external ids are only recorded; their excerpts travel in task packets
+            decider = spec.get('decider')
+            if isinstance(decider, str) and decider.startswith('human:'):
+                require(decider[6:], 'human decider needs a person id')
+            else:
+                role(decider)
+            vis = fields(spec.get('visibility'), ('affected_owners', 'confidential'), 'visibility')
+            owners = vis.get('affected_owners')
+            require(isinstance(owners, list) and all(isinstance(o, str) for o in owners) and len(set(owners)) == len(owners)
+                    and isinstance(vis.get('confidential'), bool), 'visibility needs distinct affected_owners and confidential true/false')
+            for owner in owners:
+                role(owner)
+            rounds = spec.get('max_rounds', 3)
+            require(isinstance(rounds, int) and 1 <= rounds <= 10, 'max_rounds must be 1..10')
+            require(spec.get('deadline') is None or iso_date(spec['deadline']), 'deadline must be an ISO date YYYY-MM-DD')
+            tid = spec.get('id') or 'TOP-' + uuid.uuid4().hex[:12]
+            ph = digest(dict(spec, initiator=actor))
+            previous = con.execute('SELECT body FROM topics WHERE id=?', (tid,)).fetchone()
+            if previous:
+                result = json.loads(previous['body'])
+                require(result['payload_hash'] == ph, 'same topic id with different content')
+                con.commit()
+                return result
+            result = save_topic(dict(spec, id=tid, initiator=actor, max_rounds=rounds, deadline=spec.get('deadline'), payload_hash=ph, state='open', round=0,
+                                     notes=[], escalations=[], conclusion=None, adoptions={}, created_at=time.time()), 'opened')
+            con.commit()
+            return result
+
+        if op in {'topic_note', 'topic_conclude', 'topic_adopt', 'topic_escalate', 'topic_close'}:
+            topic = topic_of(command.get('id'))
+            c = topic['conclusion']
+            human = str(topic['decider']).startswith('human:')
+            decider = topic['initiator'] if human else topic['decider']  # the initiator records a person's decision
+            if op == 'topic_note':
+                require(actor in internal(topic), 'only internal participants post notes')
+                note = fields(command.get('note'), ('id', 'summary', 'references'), 'note')
+                nid = note.get('id') or 'NOTE-' + uuid.uuid4().hex[:12]
+                nh = digest(dict(note, by=actor))
+                old = [n for n in topic['notes'] if n['id'] == nid]
+                if old:
+                    require(old[0]['hash'] == nh, 'same note id with different content')
+                    con.commit()
+                    return topic
+                require(topic['state'] == 'open', 'notes are only accepted while the topic is open')
+                require(not topic['deadline'] or date.today().isoformat() <= topic['deadline'], 'deadline passed; the topic must be concluded or escalated')
+                summary, refs = note.get('summary'), note.get('references', [])
+                require(isinstance(summary, str) and summary.strip() and len(summary) <= 500, 'note needs a summary of at most 500 characters; keep details in referenced files')
+                require(isinstance(refs, list), 'references are [{path, sha256}]')
+                pinned = []
+                for ref in refs:
+                    sha = fingerprint(root, fields(ref, ('path', 'sha256'), 'reference').get('path'))
+                    require(ref.get('sha256') in (None, sha), 'reference hash does not match current file: ' + ref['path'])
+                    pinned.append({'path': ref['path'], 'sha256': sha})
+                # Each initiator note opens the next round; the others reply within it.
+                if actor == topic['initiator']:
+                    require(topic['round'] < topic['max_rounds'], 'round limit reached; the topic must be concluded or escalated')
+                    topic['round'] += 1
+                require(topic['round'] > 0, 'the initiator opens the first round')
+                topic['notes'].append({'id': nid, 'round': topic['round'], 'by': actor, 'summary': summary, 'references': pinned, 'hash': nh, 'at': time.time()})
+                result = save_topic(topic, 'noted')
+            elif op == 'topic_conclude':
+                require(actor == decider, 'only the decider concludes; the initiator records a human decision')
+                record = fields(command.get('conclusion'), ('text', 'effect', 'applies_to', 'lands_in', 'plan_impact', 'promote', 'quote'), 'conclusion')
+                ch = digest(record)
+                if c:
+                    require(c['hash'] == ch, 'topic already concluded; open a new topic to revise it')
+                    con.commit()
+                    return topic
+                require(topic['state'] != 'closed', 'closed topic is immutable')
+                require(record.get('text') and record.get('effect') in {'binding', 'advice', 'decision', 'disagreement'},
+                        'conclusion needs text and effect binding, advice, decision or disagreement')
+                items = record.get('applies_to')
+                require(isinstance(items, list) and items and all(isinstance(i, str) and i for i in items), 'applies_to lists the items the conclusion applies to')
+                lands = fields(record.get('lands_in'), ('path', 'version'), 'lands_in')
+                require(lands.get('version') and local(root, lands.get('path')).is_file(), 'lands_in needs the formal file holding the conclusion and its version')
+                require(isinstance(record.get('plan_impact'), bool), 'plan_impact must be true or false')
+                promote = record.get('promote')
+                require(promote is None or all(fields(promote, ('id', 'text', 'scope'), 'promote').get(k) for k in ('id', 'text', 'scope')), 'promote needs id, text and scope')
+                require(not human or record.get('quote'), "a human decision needs the person's quote")
+                require(human or record['effect'] != 'binding' or binding_allowed(root, role(actor)['skill']),
+                        'profession registry allows no binding conclusions for this role; give advice or escalate')
+                topic['conclusion'] = dict(record, by=actor, hash=ch, at=time.time())
+                topic['state'] = 'concluded'
+                result = save_topic(topic, 'concluded')
+            elif op == 'topic_adopt':
+                require(actor in topic['visibility']['affected_owners'], 'only affected owners adopt a conclusion')
+                require(c and c['effect'] in {'binding', 'advice'}, 'only binding or advice conclusions are adopted')
+                record = fields(command.get('adoption'), ('outcome', 'how', 'reason', 'person', 'quote'), 'adoption')
+                ah = digest(record)
+                if actor in topic['adoptions']:
+                    require(topic['adoptions'][actor]['hash'] == ah, 'adoption already recorded for this owner')
+                    con.commit()
+                    return topic
+                require(topic['state'] != 'closed', 'closed topic is immutable')
+                outcome = record.get('outcome')
+                require(outcome in {'satisfied', 'risk_accepted', 'declined'}, 'outcome must be satisfied, risk_accepted or declined')
+                require(outcome != 'satisfied' or record.get('how'), 'satisfied needs a short note of how')
+                require(outcome != 'declined' or c['effect'] == 'advice' and record.get('reason'), 'only advice can be declined, with a reason')
+                require(outcome != 'risk_accepted' or c['effect'] == 'binding' and record.get('person') and record.get('quote'),
+                        'risk acceptance is for binding conclusions and needs the person and their quote')
+                topic['adoptions'][actor] = dict(record, hash=ah, at=time.time())
+                result = save_topic(topic, 'adopted')
+            elif op == 'topic_escalate':
+                require(actor in {topic['initiator'], decider}, 'only the initiator or decider escalates')
+                record = {'to': command.get('to'), 'summary': command.get('summary')}
+                eh = digest(record)
+                if any(e['hash'] == eh for e in topic['escalations']):
+                    con.commit()
+                    return topic
+                require(topic['state'] != 'closed', 'closed topic is immutable')
+                require(record['to'] in {'owner', 'change', 'human'} and record['summary'], 'escalate to owner, change or human with a summary')
+                topic['escalations'].append(dict(record, by=actor, hash=eh, at=time.time()))
+                topic['state'] = 'escalated'
+                result = save_topic(topic, 'escalated')
+            else:
+                require(actor == topic['initiator'], 'only the initiator closes a topic')
+                if topic['state'] == 'closed':
+                    con.commit()
+                    return topic
+                if topic['state'] != 'escalated':
+                    require(c, 'conclude or escalate before closing')
+                    waiting = [o for o in topic['visibility']['affected_owners'] if o not in topic['adoptions']]
+                    require(c['effect'] not in {'binding', 'advice'} or not waiting, 'waiting for adoption by: ' + ', '.join(waiting))
+                topic['state'] = 'closed'
+                result = save_topic(topic, 'closed')
             con.commit()
             return result
 

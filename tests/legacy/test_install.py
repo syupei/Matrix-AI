@@ -199,6 +199,10 @@ class InstallTests(unittest.TestCase):
         self.put('management/install-receipt.json',json.dumps({'package':'professional-agents-kit/0.28'}))
         self.assert_refused_without_change()
 
+    def test_previous_structure_release_is_refused(self):
+        self.put('management/install-receipt.json',json.dumps({'package':'professional-agents-kit/0.29'}))
+        self.assert_refused_without_change()
+
     def test_earlier_release_entry_block_in_any_root_file_is_refused(self):
         self.put('CLAUDE.md','notes\n'+mod.BEGIN+'\n## 专业 Agent（professional-agents-kit/0.27）\n'+mod.END+'\n')
         self.assert_refused_without_change('.agents/skills',['AGENTS.md'])

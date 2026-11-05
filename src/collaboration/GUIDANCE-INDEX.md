@@ -24,10 +24,12 @@
 | C17 | [外发任务包](TASK-PACKET.md) | 把工作交给其他执行者；收到回交 | |
 | C18 | [指引调整](GUIDANCE-RESOLUTION.md) | 项目要调整默认指引 | |
 | C19 | [请求与返回模板](REQUEST-RESPONSE-TEMPLATE.md) | 写跨专业请求或返回 | |
-| C20 | [角色与实例配置](ROLE-CONFIG-TEMPLATE.md) | 登记或调整角色与实例 | |
+| C20 | [角色配置](ROLE-CONFIG-TEMPLATE.md) | 记录角色的专业规则、成果与执行条件 | |
 | C21 | [职级](LEVELS.md) | 拆分任务标难度；判断能否承担某个任务 | |
 | C22 | [风险与缺陷分级](RISK-DEFECT-LEVELS.md) | 定任务风险；给缺陷定级；决定检验、人审与发布 | |
 | C23 | [专业规范](PROFESSION-SPEC.md) | 创建或修改专业 | |
+| C24 | [实例](INSTANCES.md) | 写或改实例配置；派生；实例启动；派发、改派、检验与冲突；查看台账 | |
+| C25 | [议题](TOPICS.md) | 跨专业来回几轮或涉及多个专业；结论效力与共同约束；外部专业 | |
 | C90 | [团队任职与执行](TEAM-EXECUTION.md) | 接入团队、收到任务包、派发或换实例 | |
 | C91 | [工具授权](TOOL-ACCESS.md) | 指定工具、外部调用、换工具或撤权 | |
 | C92 | [委托检查](DELEGATED-REVIEW.md) | 已有明确阶段委托 | |

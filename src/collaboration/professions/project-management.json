@@ -25,6 +25,7 @@
       "source": "management/ 下的任务事实"
     }
   ],
+  "reuse": [],
   "standards": [
     "PM 统筹与上报（C14）、任务完整性（C07）"
   ],
@@ -45,6 +46,11 @@
       "gives": "项目层任务与依赖"
     }
   ],
+  "inputs": [],
+  "item_inputs": {
+    "default": "by_risk",
+    "stricter": []
+  },
   "tools": [
     "任务工具"
   ],
@@ -76,6 +82,13 @@
     "pm_change_modify",
     "pm_change_remove",
     "pm_change_ledger",
-    "team_pm_scope"
+    "team_pm_scope",
+    "mi_config_fit",
+    "chain_login",
+    "chain_upstream_risk",
+    "list_pm",
+    "completion_push_pm",
+    "chain_routing",
+    "single_continue"
   ]
 }

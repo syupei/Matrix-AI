@@ -26,6 +26,9 @@
       "source": "design/ 下的设计源"
     }
   ],
+  "reuse": [
+    "页面模板与组件，附实例表：同构的页面与状态只做一份，差异写在表里"
+  ],
   "standards": [
     "设计指引与能力模型中与体验相关的部分"
   ],
@@ -79,6 +82,11 @@
       "gives": "设计规格与走查结论"
     }
   ],
+  "inputs": [],
+  "item_inputs": {
+    "default": "by_risk",
+    "stricter": []
+  },
   "tools": [
     "设计工具或可编辑原型",
     "图像生成与编辑（按授权）"
@@ -110,6 +118,10 @@
     "walkthrough_classify",
     "team_design_tool",
     "visual_style_method",
-    "visual_fidelity_walkthrough"
+    "visual_fidelity_walkthrough",
+    "base_route_owner_design",
+    "base_level_answer_design",
+    "topic_perf",
+    "model_design_template"
   ]
 }

@@ -21,6 +21,7 @@
 - `audiences`：可选接收角色，省略表示全部；阅读稿会补入引用依赖。
 - `verify_at`：acceptance 必填 product/design/implementation；outcome 固定 post_launch。
 - `coverage`：requirement 默认 required，须有直接关联的验收；确不适用填 not_applicable 并写 `reason`。
+- `exits`：requirement 可选，要哪些专业各交什么：专业标识列表，或 `{专业标识: 交什么}`；项目有 `collaboration/professions/` 时须是已登记的专业。快照与阅读稿保留它，PM 照它登记交付集合的出口。
 
 数量、时间窗缺依据就记未知，不为通过检查编数字；决策性质与确认状态仍由正文和记录表达。
 

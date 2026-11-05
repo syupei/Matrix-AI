@@ -7,9 +7,10 @@ import hashlib
 import json
 from pathlib import Path
 
-WRITE_OPS = {'register_instance', 'register_scope', 'bind_delivery', 'record_change',
+WRITE_OPS = {'register_instance', 'register_scope', 'bind_delivery', 'add_exit', 'record_change',
              'assess_change', 'apply_change_plan', 'close_change', 'pause_task', 'resume_task'}
 READ_OPS = {'query', 'audit', 'changes'}
+EXITS = {'production', 'qa', 'human', 'adoption'}
 
 
 def records(db, kind):
@@ -50,6 +51,16 @@ def project_level(task, cfg):
         'project_level', task['parent'] is None and task['manager'] == cfg['pm_actor'])
 
 
+def exit_ok(pm, root, name):
+    """A base exit, or production:<profession id> of a registered profession."""
+    return name in EXITS or (isinstance(name, str) and name.startswith('production:') and name[11:] in pm.team.registries(pm, root))
+
+
+def required(scope, member):
+    """Exits a member must deliver: the scope's own plus those a master added for it."""
+    return scope['required_exits'] + [e for e in scope.get('member_exits', {}).get(member, {}) if e not in scope['required_exits']]
+
+
 def related(tasks, roots):
     found = set(roots)
     while True:
@@ -76,7 +87,7 @@ def scope_issues(pm, root, scope, tasks):
     if not scope['known_complete']:
         problems.append(issue('scope_unknown', tid, 'resolve or explicitly bound the remaining scope', scope_id=scope['id']))
     for member in scope['members']:
-        for exit_name in scope['required_exits']:
+        for exit_name in required(scope, member):
             bound = scope['bindings'].get(member, {}).get(exit_name)
             code = None
             if not bound or bound['task_id'] not in tasks:
@@ -193,7 +204,7 @@ def query(pm, root, db, tasks, cfg, cmd):
         if cmd.get('instance') and cmd['instance'] not in {t['owner'], t.get('executor')}:
             continue
         closing_issues = blockers(pm, root, db, tasks, t['id'], closing=True) + pm.team.blockers(pm, root, db, tasks, t['id'], closing=True)
-        selected.append(dict(t, role=role, state_label=pm.STATE_NAMES[t['state']], integrity_issues=closing_issues,
+        selected.append(dict(t, role=role, dispatcher=t['manager'], state_label=pm.STATE_NAMES[t['state']], integrity_issues=closing_issues,
                              _current_gate=bool(closing_issues), current_complete=pm.effective_done(t, tasks) and not closing_issues))
     return dict(level=level, registered_scope_only=True, counts=pm.counts(selected, tasks), tasks=selected,
                 instances=instances, unmapped_owners=sorted({t['owner'] for t in tasks.values() if t['owner'] not in instances and not t.get('role')}), revision=db.execute('SELECT COALESCE(MAX(seq),0) FROM events').fetchone()[0],
@@ -242,7 +253,7 @@ def execute(pm, root, db, cmd):
         return query(pm, root, db, tasks, cfg, cmd)
     if op == 'changes':
         return change_ledger(pm, db, tasks, cmd)
-    kind = {'register_instance': 'instance', 'register_scope': 'scope', 'bind_delivery': 'scope',
+    kind = {'register_instance': 'instance', 'register_scope': 'scope', 'bind_delivery': 'scope', 'add_exit': 'scope',
             'record_change': 'change', 'assess_change': 'change', 'apply_change_plan': 'change',
             'close_change': 'change', 'pause_task': 'pause', 'resume_task': 'pause'}[op]
     table = records(db, kind)
@@ -264,6 +275,7 @@ def execute(pm, root, db, cmd):
     value = json.loads(pm.canon(before)) if before else {'id': rid, 'revision': 0}
     if op == 'register_instance':
         pm.require(actor == cfg['pm_actor'], 'only PM registers instances')
+        pm.require(not records(db, 'instance_config'), 'derive from the confirmed instance configuration')
         spec = cmd['instance']
         pm.require(set(spec) <= {'role','endpoint','write_roots','batch_limit'}, 'unknown instance fields')
         pm.require(type(spec.get('batch_limit', 1000)) is int and 1 <= spec.get('batch_limit', 1000) <= 1000, 'invalid batch_limit')
@@ -279,34 +291,63 @@ def execute(pm, root, db, cmd):
         pm.require(tid in tasks and actor in {tasks[tid]['owner'], tasks[tid]['manager']}, 'scope owner/manager required')
         source = cmd['source']
         path = pm.local(root, source['path'])
-        raw = json.loads(path.read_text(encoding='utf-8'))
+        data = raw = json.loads(path.read_text(encoding='utf-8'))
         for key in source.get('keys', []):
             raw = raw[key]
-        pm.require(isinstance(raw, list), 'scope source must select a JSON list')
+        raw = list(raw.values()) if isinstance(raw, dict) else raw  # e.g. the items of a product-contract snapshot
+        pm.require(isinstance(raw, list) and isinstance(source.get('where', {}), dict), 'scope source must select a JSON list or object; where is an object')
+        raw = [v for v in raw if all(isinstance(v, dict) and v.get(k) == x for k, x in source.get('where', {}).items())]
         members = [v[source['id_key']] if isinstance(v, dict) else v for v in raw]
         pm.require(pm.strings(members) and len(members) == len(set(members)), 'unique stable member ids required')
         exits = cmd['required_exits']
-        pm.require(bool(exits) and set(exits) <= {'production', 'qa', 'human', 'adoption'}, 'invalid delivery exits')
+        pm.require(bool(exits) and pm.strings(exits) and len(set(exits)) == len(exits) and all(exit_ok(pm, root, e) for e in exits), 'invalid delivery exits')
         pm.require(type(cmd['known_complete']) is bool, 'known_complete must be boolean')
+        # A production exit of a profession comes from the items' own declared exits; the PM does not add it.
+        # The version is the item's own, else the revision of the file it came from.
+        revisions = {d.get('path'): d.get('revision') for d in data.get('sources', []) if isinstance(d, dict)} if isinstance(data, dict) and isinstance(data.get('sources'), list) else {}
+        def version(v):
+            return v.get('version') or revisions.get(v.get('source')) or (data.get('revision') if isinstance(data, dict) else None)
+        sources = {}
+        for e in exits:
+            if e.startswith('production:'):
+                silent = [m for m, v in zip(members, raw) if not (isinstance(v, dict) and isinstance(v.get('exits'), (list, dict)) and e[11:] in v['exits'])]
+                pm.require(members and not silent, e + ' has no provenance: not declared by item ' + ','.join(silent or ['(none)'])
+                           + '; return the item to product, or have a master add the exit with add_exit')
+                sources[e] = {'declared_by': [{'item': m, 'version': version(v)} for m, v in zip(members, raw)]}
+        keep = cmd.get('member_exits', {})
+        pm.require(isinstance(keep, dict) and all(pm.strings(v) for v in keep.values()), 'member_exits maps members to the added exits to keep')
+        added = {m: {e: p for e, p in row.items() if e in keep.get(m, list(row))} for m, row in value.get('member_exits', {}).items() if m in members}
+        added = {m: row for m, row in added.items() if row}
         digest = file_hash(pm, root, source['path'])
-        if before and (members != before['members'] or exits != before['required_exits'] or digest != before['source_sha256'] or cmd['known_complete'] != before['known_complete'] or tid != before['root_task']):
+        if before and (members != before['members'] or exits != before['required_exits'] or digest != before['source_sha256'] or cmd['known_complete'] != before['known_complete'] or tid != before['root_task'] or added != before.get('member_exits', {})):
             change = changes.get(cmd.get('change_id'))
             pm.require(change and rid in change['scope_ids'] and change['state'] != 'closed', 'scope amendment needs a recorded change')
             pm.require(pm.nonempty(cmd.get('scope_authorization')), 'scope amendment authorization required')
-        value.update(root_task=tid, source=source, source_sha256=digest, members=members,
-                     known_complete=cmd['known_complete'], required_exits=exits, bindings=value.get('bindings', {}))
+        value.update(root_task=tid, source=source, source_sha256=digest, members=members, known_complete=cmd['known_complete'],
+                     required_exits=exits, exit_sources=sources, member_exits=added, bindings=value.get('bindings', {}))
     elif op == 'bind_delivery':
         pm.require(before is not None, 'scope missing')
         pm.require(actor in {tasks[value['root_task']]['owner'], tasks[value['root_task']]['manager']}, 'scope owner/manager required')
         member, exit_name = cmd['member_id'], cmd['exit']
-        pm.require(member in value['members'] and exit_name in value['required_exits'], 'unknown member or exit')
+        pm.require(member in value['members'] and exit_name in required(value, member), 'unknown member or exit')
         tid = cmd['task_id']
         pm.require(tid in tasks and cmd['work_revision'] == tasks[tid]['work_revision'], 'bind the current task version')
         pm.require(tid != value['root_task'], 'delivery evidence must not be the collection parent itself')
+        owner = records(db, 'instance').get(tasks[tid]['owner'], {}).get('profession')
+        pm.require(not exit_name.startswith('production:') or owner in {None, exit_name[11:]}, 'the bound task belongs to another profession')
         bound = dict(task_id=tid, work_revision=cmd['work_revision'])
         if exit_name == 'adoption':
             bound.update(adoption_source=cmd['adoption_source'], adoption_sha256=file_hash(pm, root, cmd['adoption_source']))
         value['bindings'].setdefault(member, {})[exit_name] = bound
+    elif op == 'add_exit':
+        pm.require(before is not None, 'scope missing')
+        master = records(db, 'instance').get(actor, {})
+        pm.require(master.get('master') and master.get('active'), 'an active master instance adds an exit')
+        member, exit_name = cmd.get('member_id'), cmd.get('exit')
+        pm.require(member in value['members'], 'unknown member')
+        pm.require(exit_ok(pm, root, exit_name) and exit_name not in required(value, member), 'invalid or already required exit')
+        pm.require(pm.nonempty(cmd.get('reason')), 'reason for the added exit required')
+        value.setdefault('member_exits', {}).setdefault(member, {})[exit_name] = dict(added_by=actor, reason=cmd['reason'], at=pm.now())
     elif op == 'record_change':
         pm.require(before is None, 'new input requires a new change id')
         affected = cmd.get('affected_tasks', [])
@@ -348,6 +389,7 @@ def execute(pm, root, db, cmd):
             if d['action'] in {'rework', 'replace'}:
                 pm.require(d.get('replaces') in tasks, 'successor must name the historical task it replaces')
                 pm.require(tasks[d['replaces']]['owner'] == actor, 'only the original owner may propose replacing a task')
+                pm.require(tasks[d['replaces']]['state'] == 'done', 'rework a task that is not done in place (same id); successors replace done work')
             if d['action'] == 'defer':
                 pm.require(pm.nonempty(d.get('trigger')), 'deferral needs a concrete trigger')
         for c in a.get('commands', []):

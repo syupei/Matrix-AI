@@ -68,7 +68,8 @@ class TaskRuntimeTests(unittest.TestCase):
     def review(self, tid='T-1', outcome='passed'):
         return self.mutate('review', tid, self.task(tid)['checker'],
             outcome=outcome, criteria_checked=self.task(tid)['criteria'],
-            evidence=['SIMULATED checker evidence; no real verification'])
+            evidence=['SIMULATED checker evidence; no real verification'],
+            **({'cause': 'execution'} if outcome == 'failed' else {}))
 
     def human(self, tid='T-1', outcome='approved'):
         return self.mutate('human_review', tid, 'SIM-PM', outcome=outcome,
@@ -246,7 +247,7 @@ class TaskRuntimeTests(unittest.TestCase):
         self.create('T-1.c', 'T-1')
         self.assertEqual(2, self.status()['top_level']['total'])
         self.assertEqual(2, self.task('T-1')['child_counts']['total'])
-        self.transition('planned', 'T-1.a', 'SIM-OWNER')
+        self.transition('planned', 'T-1.a', 'SIM-OWNER', rework_reason='execution', note='SIMULATED rework')
         self.assertEqual(0, self.task('T-1')['child_counts']['done'])
 
     def test_closed_tree_must_reopen_from_ancestors_before_new_work(self):
@@ -256,8 +257,8 @@ class TaskRuntimeTests(unittest.TestCase):
         self.complete()
         self.assert_rejected_unchanged(lambda: self.create('T-1.b', 'T-1'))
         self.assert_rejected_unchanged(lambda: self.transition('planned', 'T-1.a', 'SIM-OWNER'))
-        self.transition('planned', actor='SIM-PM')
-        self.transition('planned', 'T-1.a', 'SIM-OWNER')
+        self.transition('planned', actor='SIM-PM', rework_reason='execution', note='SIMULATED rework')
+        self.transition('planned', 'T-1.a', 'SIM-OWNER', rework_reason='execution', note='SIMULATED rework')
         self.assertFalse(self.task('T-1')['review_current'])
 
     def test_event_retry_is_idempotent_even_after_later_work(self):
@@ -386,7 +387,7 @@ class TaskRuntimeTests(unittest.TestCase):
         self.create('T-2', slots=2)
         self.transition('running', execution_receipt='SIMULATED start')
         self.assert_rejected_unchanged(lambda: self.transition('waiting_review'))
-        self.transition('waiting_review', stop_evidence='SIMULATED execution yielded')
+        self.transition('waiting_review', stop_evidence='SIMULATED execution yielded', evidence=['SIMULATED returned result'])
         self.assertTrue(self.task('T-2')['ready'])
 
 
@@ -394,10 +395,11 @@ class TaskRuntimeTests(unittest.TestCase):
         self.create()
         self.complete()
         self.create('T-2', dependencies=['T-1'])
-        self.complete('T-2')
+        self.update('T-2', evidence=['SIMULATED work evidence T-2'])
+        self.review('T-2')
         recorded_done = [e for e in self.events() if e['task_id']=='T-2'][-1]
         self.assertTrue(self.task('T-2')['review_current'])
-        self.transition('planned', actor='SIM-PM')
+        self.transition('planned', actor='SIM-PM', rework_reason='execution', note='SIMULATED rework')
         self.assertFalse(self.task('T-2')['review_current'])
         self.assertTrue(any('T-1' in issue for issue in self.task('T-2')['readiness_issues']))
         self.assertEqual(0, self.status()['top_level']['done'])
@@ -406,7 +408,6 @@ class TaskRuntimeTests(unittest.TestCase):
         self.assert_rejected_unchanged(lambda: self.transition('running', 'T-3',
             execution_receipt='SIMULATED stale dependency attempt'))
         self.assertEqual(recorded_done, [e for e in self.events() if e['task_id']=='T-2'][-1])
-        self.transition('planned', 'T-2', 'SIM-PM')
         self.complete()
         self.assert_rejected_unchanged(lambda: self.transition('done', 'T-2', 'SIM-PM'))
         self.review('T-2')

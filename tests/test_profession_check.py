@@ -95,6 +95,39 @@ class ProfessionCheckTests(unittest.TestCase):
         self.edit_json(root / 'collaboration/professions/front-desk.json', lambda d: d['evals'].append('no_such_case'))
         self.assertTrue(any('no_such_case' in p for p in mod.check(root, ROOT / 'evals/cases/suite.json')))
 
+    def test_reuse_and_inputs_are_checked(self):
+        root, mod = self.copy()
+        self.edit_json(root / 'collaboration/professions/product.json', lambda d: d.update(reuse=[]))
+        self.edit_json(root / 'collaboration/professions/code-engineering.json',
+                       lambda d: d['inputs'].append({'for': 'E-1.1', 'needs': 'experience-design:D-9', 'state': 'confirmed'}))
+        self.edit_json(root / 'collaboration/professions/quality-engineering.json',
+                       lambda d: d['item_inputs']['stricter'].append({'item': '扣费规则', 'state': 'draft'}))
+        problems = mod.check(root)
+        self.assertTrue(any('product.json: reuse' in p for p in problems))
+        self.assertTrue(any('code-engineering.json: invalid input' in p for p in problems))
+        self.assertTrue(any('quality-engineering.json: item_inputs' in p for p in problems))
+        self.assertFalse(any('project-management.json: reuse' in p for p in problems))  # scheduling professions may leave it empty
+
+    def test_inputs_reproduce_the_former_milestone_table(self):
+        """The stage inputs and upstream links give the same start conditions as the former fixed milestone table."""
+        found = set()
+        for path in (SRC / 'collaboration/professions').glob('*.json'):
+            r = json.loads(path.read_text(encoding='utf-8'))
+            for i in r.get('inputs', []):
+                found.add((r['id'], i['for'], i['needs'], i['state'], i.get('kind', 'start')))
+            for flow in r['stage_flows']:
+                for stage, (up_flow, up_stage) in (flow.get('upstream') or {}).items():
+                    found.add((r['id'], stage, r['id'] + ':' + up_stage, 'confirmed', 'start'))
+        self.assertEqual(found, {
+            ('code-engineering', 'E-1.2', 'experience-design:D-2', 'confirmed', 'start'),       # review A: intake modelling
+            ('code-engineering', 'E-1.2', 'experience-design:D-3', 'complete', 'complete'),     # D-3: states, failures, recovery
+            ('code-engineering', 'E-2.1', 'code-engineering:E-1.4', 'confirmed', 'start'),      # intake done: technical solution
+            ('quality-engineering', '验收条目、检验记录、缺陷与回归范围', 'code-engineering:E-1.4', 'confirmed', 'start'),
+            ('code-engineering', 'E-3.1', 'code-engineering:E-2.4', 'confirmed', 'start'),      # core review: build
+            ('code-engineering', 'E-3.2', 'experience-design:D-6', 'confirmed', 'complete'),    # review C: UI that needs the full design
+            ('code-engineering', 'E-4.1', 'code-engineering:E-3.3', 'confirmed', 'start'),      # scope complete: release preparation
+        })
+
 
 def load_from(root):
     """The check script as installed in a copied project, so it resolves skills there."""

@@ -283,6 +283,33 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(again.returncode, 2)
         self.assertEqual(before, (self.root / 'handoff/qa.md').read_bytes())
 
+    def test_requirement_exits_are_kept_in_snapshot_and_reading_draft(self):
+        self.meta['items'][0]['exits'] = {'experience-design': '页面', 'code-engineering': '实现'}
+        self.source_write()
+        self.capture()
+        snapshot = json.loads((self.root / self.baseline).read_text(encoding='utf-8'))
+        self.assertEqual({'experience-design': '页面', 'code-engineering': '实现'}, snapshot['items'][self.source + '#R-1']['exits'])
+        self.assertIn('出口：experience-design：页面；code-engineering：实现', mod.handoff(self.root, self.baseline, 'design'))
+        self.meta['items'][0]['exits'] = ['code-engineering', 'quality-engineering']
+        self.source_write()
+        self.assertIn('changed_items', self.codes(self.check()))
+
+    def test_exits_shape_kind_and_registry_are_checked(self):
+        for exits, where in [(['code-engineering'], 1), ([], 0), (['a', 'a'], 0), ({'code-engineering': ''}, 0), ('code-engineering', 0)]:
+            meta = copy.deepcopy(self.meta)
+            meta['items'][where]['exits'] = exits
+            self.put(self.source, self.body + '\n```product-contract\n' + json.dumps(meta, ensure_ascii=False) + '\n```\n')
+            with self.assertRaisesRegex(ValueError, 'exits'):
+                mod.capture(self.root, [self.source])
+        self.put('collaboration/professions/code-engineering.json', json.dumps({'id': 'code-engineering'}))
+        self.meta['items'][0]['exits'] = ['code-engineering', 'astrology']
+        self.source_write()
+        with self.assertRaisesRegex(ValueError, '未登记的专业: astrology'):
+            mod.capture(self.root, [self.source])
+        self.meta['items'][0]['exits'] = ['code-engineering']
+        self.source_write()
+        self.assertEqual(['code-engineering'], mod.capture(self.root, [self.source])['items'][self.source + '#R-1']['exits'])
+
     def test_duplicate_json_keys_are_rejected(self):
         path = self.root / self.source
         path.write_text(path.read_text().replace('"revision": "v1"', '"revision": "v1", "revision": "v2"'))

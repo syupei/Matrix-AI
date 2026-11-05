@@ -94,39 +94,50 @@ class Dispatcher:
                                execution_receipt=evidence, reason='actual execution started'))
 
     def collect(self, request_id):
-        """Return and wake, never approve or adopt the professional deliverable.
-        wake(endpoint, notification) must deduplicate notification.event_id. A host
-        without wake support returns unavailable, preserving the pending return.
+        """Record a return and wake the dispatcher (task manager); never approve or adopt the deliverable.
+        A task the executor moved to waiting_review (handed over) or blocked through the task source also
+        wakes the dispatcher, once per state and task revision. wake(endpoint, notification) must
+        deduplicate notification.event_id. A host without wake support returns unavailable, preserving the pending return.
         """
         req = self.c('show', id=request_id)
+        binding = req['payload']['task_binding']; task = self.task(binding['task_id'])
+        if not req.get('responses') and task['state'] in {'waiting_review', 'blocked'}:
+            kind = 'handed_over' if task['state'] == 'waiting_review' else 'blocked'
+            return self.notify(task, dict(event_id=request_id+'-'+kind+'-'+str(task['revision']), request_id=request_id,
+                                          task_id=task['id'], kind=kind, response_state=req['state']))
         self.pm.require(req['state'] in {'answered', 'needs_human', 'failed', 'stale'}, 'no completed response to collect')
         self.pm.require(req.get('responses'), 'transport failure is not a professional response')
-        binding = req['payload']['task_binding']; task = self.task(binding['task_id'])
-        current = self.binding_current(req, task) and task['state'] not in self.pm.TERMINAL
+        event_id = request_id+'-return-recorded'
+        db = self.pm.connect(self.root, readonly=True)
+        try:
+            recorded = db.execute('SELECT 1 FROM events WHERE event_id=?', (event_id,)).fetchone()
+        finally:
+            db.close()
+        current = bool(recorded) or (self.binding_current(req, task) and task['state'] not in self.pm.TERMINAL)
         notification = dict(event_id=request_id+'-returned', request_id=request_id, task_id=task['id'],
                             kind='returned' if current and req['state'] == 'answered' else 'needs_attention',
                             source_current=bool(current), response_state=req['state'])
-        if current:
+        if current and not recorded:
             answer = req['responses'][-1]['answer']
-            event_id = request_id+'-return-recorded'
-            db = self.pm.connect(self.root, readonly=True)
-            try:
-                recorded = db.execute('SELECT 1 FROM events WHERE event_id=?', (event_id,)).fetchone()
-            finally:
-                db.close()
-            if not recorded:
-                if task['state'] == 'running':
-                    self.pm.execute(self.root, dict(op='transition', actor=task['owner'], event_id=request_id+'-yielded',
-                                    task_id=task['id'], expected_revision=task['revision'], state='waiting_review' if req['state']=='answered' else 'blocked',
-                                    reason='response returned; awaiting owner evaluation', stop_evidence='request '+request_id+' returned and yielded'))
-                    task = self.task(task['id'])
-                self.pm.execute(self.root, dict(op='report', actor=task['owner'], event_id=event_id, task_id=task['id'],
-                                expected_revision=task['revision'], summary=answer['summary'], next_action='responsible lead evaluates returned evidence',
-                                impact=req['state'], delivery='received', receipt='request '+request_id, request_id=request_id))
+            if task['state'] == 'running':
+                # Handed over with the returned evidence, or blocked; either way the dispatcher is woken below.
+                given = answer['evidence'] if isinstance(answer['evidence'], list) else [answer['evidence']]
+                handed = given if all(isinstance(x, str) and x.strip() for x in given) else ['request '+request_id+' response']
+                self.pm.execute(self.root, dict(op='transition', actor=task['owner'], event_id=request_id+'-yielded',
+                                task_id=task['id'], expected_revision=task['revision'], state='waiting_review' if req['state']=='answered' else 'blocked',
+                                reason='response returned; awaiting owner evaluation', stop_evidence='request '+request_id+' returned and yielded',
+                                **({'evidence': handed} if req['state'] == 'answered' else {})))
+                task = self.task(task['id'])
+            self.pm.execute(self.root, dict(op='report', actor=task['owner'], event_id=event_id, task_id=task['id'],
+                            expected_revision=task['revision'], summary=answer['summary'], next_action='responsible lead evaluates returned evidence',
+                            impact=req['state'], delivery='received', receipt='request '+request_id, request_id=request_id))
+        return self.notify(self.task(task['id']), notification)
+
+    def notify(self, task, notification):
+        """Wake the task's dispatcher with the task state; never a claim of approval or completion."""
+        notification.update(task_state=task['state'], dispatcher=task['manager'])
         roles = {r['id']: r for r in self.c('status')['roles']}
-        endpoint = roles.get(req['source'], {}).get('endpoint')
+        endpoint = roles.get(task['manager'], {}).get('endpoint')
         if not endpoint or endpoint['kind'] == 'inline':
             return {'notification': notification, 'wake': {'outcome': 'unavailable', 'reason': 'resume at the active coordination entry'}}
-        # Notification never includes a claim of approval or task completion.
-        receipt = self.wake(endpoint, notification)
-        return {'notification': notification, 'wake': receipt}
+        return {'notification': notification, 'wake': self.wake(endpoint, notification)}
