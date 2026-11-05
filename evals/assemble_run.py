@@ -74,6 +74,12 @@ for case in suite['cases']:
         meta['cases'].append(record)
         continue
     record = {'id': case['id'], 'role': role, 'turns': []} | ({'entry': entry} if entry else {})
+    if case.get('fixture'):
+        # The orchestrator populated the project from this fixture; record its hash as run.py does.
+        digest = hashlib.sha256((Path(__file__).parent / 'fixtures' / (case['fixture'] + '.py')).read_bytes()).hexdigest()
+        if digest != case.get('fixture_sha256'):
+            raise SystemExit(f"fixture changed for {case['id']}; update suite")
+        record['fixture_sha256'] = digest
     for n, user in enumerate(case['turns']):
         reply = a.output / f"{case['id']}-{n}.md"
         if not reply.is_file():
