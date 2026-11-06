@@ -20,7 +20,7 @@
 
 ## 宿主连接
 
-[task_dispatch.py](tools/task_dispatch.py) 提供可信宿主使用的 Dispatcher(project, send, wake)，复用任务库与请求账本，不创建第三份任务队列。skills 为实际安装技能目录。
+[task_dispatch.py](tools/task_dispatch.py) 提供可信宿主使用的 Dispatcher(project, send, wake)，复用任务库与请求账本，不创建第三份任务队列。
 
 - 宿主先按已有一次授权创建/定位实例，取得真实 endpoint 和只读就绪回执，并在两本账中登记。任务执行者的 write_roots 应包含自己的实例 workspace；专业共享源由维护方合并。
 - dispatch(task_id, request_id, sources, authorization) 构造版本化任务包、领取租约、调用宿主 send。send 返回 outcome=sent/not_sent/uncertain 和 evidence。只有 started=true 且附 start_evidence 才记运行；之后实际开始时调用 mark_started。

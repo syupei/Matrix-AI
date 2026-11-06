@@ -2,7 +2,7 @@
 
 何时读：每次调用 `coordination.py` 前。
 
-[coordination.py](../../../../matrix/orchestration/tools/coordination.py)（Python 3.9+，仅标准库）不发消息、不唤醒 Agent。在项目根目录执行 `python3 {本 skill 目录}/scripts/coordination.py --project . --input {命令}.json`，或从 stdin 传 JSON；用户内容不拼进 shell。输出 JSON，出错退出码 1。数据库 `management/runtime/coordination.sqlite3`。除 `init`、`status` 外都传 `actor`。
+[coordination.py](../../../../matrix/orchestration/tools/coordination.py)（Python 3.9+，仅标准库）不发消息、不唤醒 Agent。在项目根目录执行 `python3 matrix/orchestration/tools/coordination.py --project . --input {命令}.json`，或从 stdin 传 JSON；用户内容不拼进 shell。输出 JSON，出错退出码 1。数据库 `management/runtime/coordination.sqlite3`。除 `init`、`status` 外都传 `actor`。
 
 ## 初始化与登记
 

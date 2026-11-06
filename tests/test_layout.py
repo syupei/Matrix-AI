@@ -15,6 +15,8 @@ OLD = re.compile(r'(?<![\w-])(?:project-front-desk-agent|project-management-agen
                  r'content-design-review|experience-design-agent|engineering-(?:intake|solution|build)-agent|quality-verification-agent|'
                  r'profession-builder|product-capability-model)(?![\w-])|(?<![\w.-])collaboration/(?!0\.1)|\.agent-runtime/|upgrade-bases')
 OLD_ALLOWED = {'install.py', 'MANIFEST.json'}
+# Commands in the rules run from the project root (install.py from the kit), so they name the installed path.
+COMMAND = re.compile(r'python3 ((?:\{[^}]*\})?\S*?\.py)(?![\w.])')
 
 
 def load(path, name):
@@ -56,6 +58,12 @@ class LayoutTests(unittest.TestCase):
             if str(rel) not in OLD_ALLOWED:
                 m = OLD.search(text)
                 self.assertIsNone(m, f'{rel}: {m and m.group(0)}')
+
+    def test_commands_name_installed_tools(self):
+        for rel in self.files():
+            if rel.suffix == '.md':
+                for path in COMMAND.findall((KIT / rel).read_text(encoding='utf-8')):
+                    self.assertTrue((KIT / path).is_file(), f'{rel}: python3 {path}')
 
     def test_package_name_is_matrix_ai(self):
         manifest = json.loads((KIT / 'MANIFEST.json').read_text(encoding='utf-8'))
