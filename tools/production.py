@@ -69,6 +69,21 @@ def waived_release(tag):
  entry=next((e for e in json.loads(catalog.read_text())['releases'] if e['tag']==tag),{}) if catalog.exists() else {}
  return bool((entry.get('behavior_evidence') or {}).get('waived'))
 
+def check_recheck(cid,case,criteria):
+ """A second, blind scorer re-checks the scores that decide the gate or a new mechanism, and flagged borderline calls;
+ a disagreement stands only with a person's recorded decision."""
+ b,c=case['baseline'],case['candidate'];rechecked=case.get('rechecked',{})
+ need={k for k in criteria if c[k]==0 or c[k]<b[k] or (b[k]==0 and c[k]==1)}|set(case.get('flags',[]))
+ decided=case.get('rescored') or {}
+ person={ch['criterion'] for ch in decided.get('changes',[])}|set(decided.get('kept',[])) if decided.get('decided_by')=='user' else set()
+ for k in sorted(need):
+  r=rechecked.get(k)
+  if not r or set(r)!={'first','second','agree'}:raise ValueError('second-scorer re-check missing: '+cid+'/'+k)
+  if r['agree']!=(r['first']==r['second']):raise ValueError('re-check agreement misstated: '+cid+'/'+k)
+  final={'baseline':b[k],'candidate':c[k]}
+  if r['agree'] and final!=r['first'] and k not in person:raise ValueError('score changed after agreeing re-check: '+cid+'/'+k)
+  if not r['agree'] and k not in person:raise ValueError('scorers disagree without a person\'s decision: '+cid+'/'+k)
+
 def check_evidence(report,files):
  data=json.loads(report.read_text())
  if data.get('candidate_hash')!=fingerprint(files):raise ValueError('behavior evidence belongs to different source')
@@ -92,6 +107,7 @@ def check_evidence(report,files):
   for criterion in criteria:
    b,c=case['baseline'][criterion],case['candidate'][criterion]
    if type(b) is not int or type(c) is not int or b not in (0,1) or c not in (0,1) or c<b or c!=1:raise ValueError('behavior regression/failure: '+cid+'/'+criterion)
+  check_recheck(cid,case,criteria)
   for side in ['baseline','candidate']:
    evidence=case[side+'_evidence']
    if not evidence:raise ValueError('missing actual run output: '+cid)

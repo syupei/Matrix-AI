@@ -22,6 +22,20 @@ class PublishingGateTests(unittest.TestCase):
   self.data={'baseline_ref':baseline,'baseline_hash':bh,'candidate_hash':ch,'suite_hash':p.sha(suite),'cases':cases,'reviewer':'test fixture','limitations':['simulated mechanism check, not real behavior']};self.report=self.root/'report.json'
  def check(self):self.report.write_text(json.dumps(self.data));return p.check_evidence(self.report,self.files)
  def test_complete_fixture_validates_schema(self):self.assertTrue(self.check())
+ def test_new_mechanism_score_needs_a_second_scorer(self):
+  case=self.data['cases']['intake'];k=next(iter(case['baseline']));case['baseline'][k]=0
+  with self.assertRaisesRegex(ValueError,'re-check missing'):self.check()
+  case['rechecked']={k:{'first':{'baseline':0,'candidate':1},'second':{'baseline':0,'candidate':1},'agree':True}};self.assertTrue(self.check())
+ def test_disagreeing_scorers_need_a_persons_decision(self):
+  case=self.data['cases']['intake'];k=next(iter(case['baseline']));case['baseline'][k]=0
+  case['rechecked']={k:{'first':{'baseline':0,'candidate':1},'second':{'baseline':0,'candidate':0},'agree':False}}
+  with self.assertRaisesRegex(ValueError,'disagree'):self.check()
+  case['rescored']={'decided_by':'user','kept':[k]};self.assertTrue(self.check())
+ def test_flagged_borderline_call_needs_a_second_scorer_and_no_silent_change(self):
+  case=self.data['cases']['intake'];k=next(iter(case['baseline']));case['flags']=[k]
+  with self.assertRaisesRegex(ValueError,'re-check missing'):self.check()
+  case['rechecked']={k:{'first':{'baseline':0,'candidate':1},'second':{'baseline':0,'candidate':1},'agree':True}}
+  with self.assertRaisesRegex(ValueError,'changed after'):self.check()
  def test_baseline_published_under_a_waiver_blocks(self):
   from unittest.mock import patch
   with patch.object(p,'waived_release',return_value=True),self.assertRaisesRegex(ValueError,'published under a waiver'):self.check()
