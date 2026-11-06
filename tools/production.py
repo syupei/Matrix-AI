@@ -134,7 +134,7 @@ def check_evidence(report,files):
    run=json.loads(run_path.read_text())
    source_hash=data['candidate_hash'] if side=='candidate' else baseline_hash
    if run.get('runner') not in RUNNERS or run.get('source_hash')!=source_hash or run.get('suite_hash')!=data['suite_hash']:raise ValueError('run environment/source mismatch')
-   runners.add(run['runner'])
+   runners.add((run['runner'],run.get('model'),run.get('effort')))  # one runner, model and effort for both versions
    records=[r for r in run['cases'] if r['id']==cid]
    if len(records)!=1 or [t['user'] for t in records[0]['turns']]!=specs[cid]['turns']:raise ValueError('actual user turns incomplete')
    if specs[cid].get('fixture') and records[0].get('fixture_sha256')!=specs[cid].get('fixture_sha256'):raise ValueError('run fixture mismatch: '+cid)
@@ -158,7 +158,7 @@ def check_evidence(report,files):
     if not any(e.get('type')==RUNNERS[run['runner']] and not e.get('is_error') for e in trace):raise ValueError('actual model turn did not complete')
   check_carried(report,cid,case,turns)
 
- if len(runners)!=1:raise ValueError('baseline and candidate must use the same runner')
+ if len(runners)!=1:raise ValueError('baseline and candidate must use the same runner, model and effort')
  if not data.get('reviewer') or not data.get('limitations'):raise ValueError('review attribution and limits required')
  return data
 

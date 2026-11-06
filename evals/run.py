@@ -9,9 +9,9 @@ def fingerprint(root):
  return hashlib.sha256(json.dumps({str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.rglob('*')) if p.is_file() and '__pycache__' not in p.parts and p.name!='MANIFEST.json'},sort_keys=True).encode()).hexdigest()
 
 def main():
- p=argparse.ArgumentParser();p.add_argument('--source',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--case');p.add_argument('--runner',choices=['codex','claude'],default='codex');args=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('--source',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--case');p.add_argument('--runner',choices=['codex','claude'],default='codex');p.add_argument('--model');p.add_argument('--effort');args=p.parse_args()
  suite_path=Path(__file__).parent/'cases/suite.json';suite=json.loads(suite_path.read_text());args.output.mkdir(parents=True,exist_ok=True)
- source=args.source.resolve();meta={'source_hash':fingerprint(source),'suite_hash':hashlib.sha256(suite_path.read_bytes()).hexdigest(),'runner':{'codex':'codex exec','claude':'claude -p'}[args.runner],'cli_version':subprocess.check_output([args.runner,'--version'],text=True).strip(),'cases':[]}
+ source=args.source.resolve();meta={'source_hash':fingerprint(source),'suite_hash':hashlib.sha256(suite_path.read_bytes()).hexdigest(),'runner':{'codex':'codex exec','claude':'claude -p'}[args.runner],'cli_version':subprocess.check_output([args.runner,'--version'],text=True).strip(),'model':args.model,'effort':args.effort,'cases':[]}
  for case in suite['cases']:
   if args.case and case['id']!=args.case:continue
   with tempfile.TemporaryDirectory(prefix='matrix-behavior-') as d:
@@ -36,7 +36,8 @@ def main():
     prompt+='用户：'+user
     last=args.output/(case['id']+f'-{n}.md');events=args.output/(case['id']+f'-{n}.jsonl');err=args.output/(case['id']+f'-{n}.stderr')
     if args.runner=='codex':
-     cmd=['codex','exec','--skip-git-repo-check','--ephemeral','--sandbox','workspace-write','--json','-C',str(work),'-o',str(last.resolve()),'-']
+     cmd=['codex','exec','--skip-git-repo-check','--ephemeral','--sandbox','workspace-write','--json','-C',str(work),'-o',str(last.resolve())]
+     cmd+=(['-m',args.model] if args.model else [])+(['-c','model_reasoning_effort="'+args.effort+'"'] if args.effort else [])+['-']
     else:
      cmd=['claude','-p','--output-format','stream-json','--verbose','--permission-mode','acceptEdits']
     started=time.time()
