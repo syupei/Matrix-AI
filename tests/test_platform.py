@@ -1,4 +1,4 @@
-"""Platform runs: launch records, stop reasons, limits, the launch command and the timer.
+"""Platform runs: launch records, stop reasons, limits, the launch command and the scheduler.
 Mechanism tests only: every person, model, run and host command is SIMULATED (stub programs, no model is called)."""
 import importlib.util
 import json
@@ -38,8 +38,9 @@ if purpose == '执行':
     if how == 'sleep':
         time.sleep(30)
     if how == 'handover':
-        call({'op': 'transition', 'actor': iid, 'event_id': rid + '-handover', 'task_id': tid, 'expected_revision': task(tid)['revision'],
-              'state': 'waiting_review', 'reason': 'SIM done', 'stop_evidence': rid + ' SIM run done', 'evidence': ['SIM result ' + tid]})
+        call({'op': 'hand_over', 'actor': iid, 'event_id': rid + '-handover', 'run': rid, 'evidence': ['SIM result ' + tid], 'summary': 'SIM done'})
+print(json.dumps({'type': 'turn.completed', 'usage': {'input_tokens': 120, 'cached_input_tokens': 100, 'output_tokens': 7}}))
+print(json.dumps({'type': 'item.completed', 'item': {'type': 'agent_message', 'text': 'SIM final message'}}))
 '''
 # A SIMULATED PM: runs continuation and does what it lists until nothing is left (no judgment beyond that).
 PMSTUB = r'''
@@ -53,30 +54,14 @@ if plan.get('pm') == 'hang':
 def call(cmd):
     r = subprocess.run([sys.executable, '-B', TOOLS + '/pm_tasks.py', '--project', '.'], input=json.dumps(cmd), capture_output=True, text=True, cwd=root)
     return json.loads(r.stdout)
-n = 0
-for _ in range(20):
-    s, acted = call({'op': 'continue'}), False
-    for a in s['actions']:
-        n += 1
-        if a['kind'] == 'start':
-            subprocess.run([sys.executable, '-B', TOOLS + '/launch.py', '--project', '.', '--task', a['task']], cwd=root, capture_output=True)
-        elif a['kind'] == 'pm':
-            t = next(x for x in call({'op': 'status'})['tasks'] if x['id'] == a['task'])
-            code = s['stops'][a['task']]['code']
-            if code == 'review':
-                call({'op': 'review', 'actor': 'PM', 'event_id': 'PMSTUB-review-' + str(n) + '-' + t['id'], 'task_id': t['id'], 'expected_revision': t['revision'],
-                      'outcome': 'passed', 'criteria_checked': t['criteria'], 'evidence': ['SIM check']})
-            elif code == 'adopt':
-                call({'op': 'transition', 'actor': 'PM', 'event_id': 'PMSTUB-done-' + str(n) + '-' + t['id'], 'task_id': t['id'],
-                      'expected_revision': t['revision'], 'state': 'done', 'reason': 'SIM adopted'})
-            else:
-                continue
-        else:
-            continue
-        acted = True
+for _ in range(20):  # only the PM's own decisions: the scheduler starts runs itself
+    act = next((a for a in call({'op': 'continue'})['actions'] if a['kind'] == 'pm' and a['code'] in {'review', 'adopt'}), None)
+    if not act:
         break
-    if not acted:
-        break
+    cmd = json.loads(act['command'])
+    if act['code'] == 'review':
+        cmd.update(outcome='passed', evidence=['SIM check']); cmd.pop('cause')
+    call(cmd)
 '''
 
 
@@ -126,7 +111,7 @@ class Project:
         return self.call('launch_exit', 'launcher', id=rid, exit_code=code)
 
     def summary(self):
-        return pm.execute(self.root, {'op': 'continue'})
+        return pm.execute(self.root, {'op': 'continue', 'detail': True})
 
 
 class Records(Project, unittest.TestCase):
@@ -139,7 +124,7 @@ class Records(Project, unittest.TestCase):
         self.assertEqual('blocked', self.t('A')['state'])
         s = self.summary()
         self.assertEqual('ended', s['stops']['A']['code'])
-        self.assertIn({'kind': 'pm', 'task': 'A', 'why': '结束未交出'}, s['actions'])
+        self.assertTrue(any(a['kind'] == 'pm' and a['task'] == 'A' and a['code'] == 'ended' and 'or_hand_to_person' in a for a in s['actions']))
 
     def test_a_handover_leaves_the_task_for_its_checker_and_a_repeated_exit_changes_nothing(self):
         rid = self.launch('A')
@@ -182,6 +167,29 @@ class Records(Project, unittest.TestCase):
     def test_a_stale_revision_names_the_current_one(self):
         with self.assertRaisesRegex(pm.TaskError, r'current revision 1\)'):
             self.call('update', 'product-001', task_id='A', expected_revision=7, changes={'next_action': 'SIM'}, reason='SIM')
+
+    def test_the_run_hands_over_or_reports_blocked_in_one_command(self):
+        rid = self.launch('A')
+        with self.assertRaisesRegex(pm.TaskError, 'active start run of product-002'):
+            self.call('hand_over', 'product-002', run=rid, evidence=['SIM'])
+        self.call('hand_over', 'product-001', run=rid, evidence=['SIM result'], summary='SIM 自检完成')
+        self.assertEqual(('waiting_review', ['SIM result']), (self.t('A')['state'], self.t('A')['evidence']))
+        self.task('C', owner='product-002', executor='product-002', parent='A', actor='product-001')
+        rid = self.launch('C')
+        self.call('report_blocked', 'product-002', run=rid, reason='SIM 缺接口说明，需要产品给出')
+        self.assertEqual(('blocked', 'SIM 缺接口说明，需要产品给出'), (self.t('C')['state'], self.t('C')['reason']))
+
+    def test_reads_return_only_what_a_decision_needs(self):
+        one = pm.execute(self.root, {'op': 'task', 'id': 'B'})['task']
+        self.assertEqual(('B', 'planned', ['A'], 'deps'), (one['id'], one['state'], one['dependencies'], one['stop']['code']))
+        found = pm.execute(self.root, {'op': 'find', 'text': 'sim b'})['found']
+        self.assertEqual([('task', 'B')], [(f['kind'], f['id']) for f in found])
+        events = pm.execute(self.root, {'op': 'events', 'task_id': 'B'})['events']
+        self.assertEqual(['create'], [e['op'] for e in events])
+        self.assertNotIn('after_data', events[0])
+        brief = pm.execute(self.root, {'op': 'continue'})
+        self.assertNotIn('stops', brief)  # counted only; detail gives every stop
+        self.assertEqual({'就绪': 1, '等依赖': 1}, brief['stop_counts'])
 
     def test_only_the_launcher_uses_a_launch_to_move_a_task(self):
         rid = self.launch('A')
@@ -296,14 +304,14 @@ class Commands(Project, unittest.TestCase):
             'pm': {'launch': [py, '-B', str(self.root / 'stub_pm.py'), '--session', '{session}'],
                    'resume': [py, '-B', str(self.root / 'stub_pm.py'), '--resume', '{session}']},
             'notify': [py, '-c', 'import sys; open("notified.txt", "a").write(sys.argv[1] + "\\n")', '{message}'],
-            'models': {'SIM-big': 'sim-big-host-name'}, 'check_seconds': 5}))
+            'models': {'SIM-big': 'sim-big-host-name'}, 'check_seconds': 5, 'settle_seconds': 0}))
 
     def plan(self, data):
         (self.root / 'stub-plan.json').write_text(json.dumps(data))
 
     def tool(self, name, *args):
         r = subprocess.run([sys.executable, '-B', str(TOOLS / name), '--project', str(self.root), *args], capture_output=True, text=True)
-        return json.loads(r.stdout.strip().splitlines()[-1] if name == 'timer.py' else r.stdout)
+        return json.loads(r.stdout.strip().splitlines()[-1] if name == 'scheduler.py' else r.stdout)
 
     def records(self):
         db = pm.connect(self.root, readonly=True)
@@ -329,23 +337,35 @@ class Commands(Project, unittest.TestCase):
         self.assertEqual('sim-big-host-name', out['record']['model'])  # the configured model, as passed to the host
         self.wait(lambda: self.records()[rid]['state'] == 'exited')
         self.assertEqual(('waiting_review', 0), (self.t('A')['state'], self.records()[rid]['exit_code']))
-        self.assertTrue((self.root / out['packet']).is_file() and (self.root / self.records()[rid]['log']).is_file())
+        rec = self.records()[rid]
+        self.assertTrue((self.root / out['packet']).is_file() and (self.root / (rec['log'] + '.gz')).is_file() and not (self.root / rec['log']).exists())
+        self.assertEqual({'input': 120, 'cached': 100, 'output': 7}, rec['usage'])  # as the host reported it
+        self.assertIn('SIM final message', (self.root / 'management/instances/product-001/runs' / (rid + '-result.md')).read_text())
+        self.assertIn('runtime/logs/', (self.root / 'management/.ignore').read_text())  # searches skip the run logs
         self.assertNotIn(str(self.root), (self.root / out['packet']).read_text())  # the packet names project-relative paths only
         again = self.tool('launch.py', '--task', 'A', '--event-id', 'E1')
         self.assertTrue(again['repeated'])
         self.assertEqual(1, len(self.records()))
 
-    def test_runs_queued_for_the_timer_start_on_its_next_check(self):
+    def test_runs_queued_for_the_scheduler_start_on_its_next_check(self):
         platform = json.loads((self.root / 'management/runtime/platform.json').read_text())
-        platform['spawn'] = 'timer'  # the host's sandbox keeps the PM's children off the network
+        platform['spawn'] = 'scheduler'  # the host's sandbox keeps the PM's children off the network
         (self.root / 'management/runtime/platform.json').write_text(json.dumps(platform))
         out = self.tool('launch.py', '--task', 'A')
         rid = out['record']['id']
         self.assertTrue(out['queued'])
         self.assertEqual(('starting', None), (self.records()[rid]['state'], self.records()[rid].get('pid')))
-        self.tool('timer.py', '--once')
+        self.tool('scheduler.py', '--once')
         self.wait(lambda: self.records()[rid]['state'] == 'exited')
         self.assertEqual('waiting_review', self.t('A')['state'])
+
+    def test_the_scheduler_starts_ready_work_itself_and_keeps_the_views(self):
+        self.plan({'pm': 'hang'})  # a PM run would hang: nothing here may need one
+        self.assertEqual('idle', self.tool('scheduler.py', '--once')['result'])
+        self.wait(lambda: any(r['task_id'] == 'A' and r['state'] == 'exited' for r in self.records().values()))
+        self.assertTrue(next(r for r in self.records().values() if r['task_id'] == 'A')['id'].startswith('run-sched-'))
+        self.assertTrue((self.root / 'management/views/index.md').is_file())
+        self.assertNotIn('PM session', (self.root / 'management/runtime/scheduler.log').read_text())
 
     def test_stopping_a_run_ends_its_process_and_records_it(self):
         self.plan({'A': 'sleep'})
@@ -355,31 +375,32 @@ class Commands(Project, unittest.TestCase):
         self.assertEqual('lost', self.records()[rid]['state'])
         self.assertEqual('blocked', self.t('A')['state'])
 
-    def test_the_timer_starts_b_after_a_without_anyone_saying_continue(self):
+    def test_the_scheduler_starts_b_after_a_without_anyone_saying_continue(self):
         def tick():
-            self.tool('timer.py', '--once')
+            self.tool('scheduler.py', '--once')
         self.wait(lambda: self.t('B')['state'] == 'done', seconds=90, tick=tick)
         self.assertEqual({'A', 'B'}, {r['task_id'] for r in self.records().values()})
-        log = (self.root / 'management/runtime/timer.log').read_text()
+        log = (self.root / 'management/runtime/scheduler.log').read_text()
         self.assertGreaterEqual(log.count('PM session'), 2)
         self.assertEqual('done', self.summary()['stop'])
 
-    def test_the_timer_leaves_a_working_pm_alone_and_stops_a_stuck_one(self):
+    def test_the_scheduler_leaves_a_working_pm_alone_and_stops_a_stuck_one(self):
         self.plan({'pm': 'hang'})
+        self.call('inbox', id='IN-1', kind='request', text='SIM 加一项', person='SIM-owner', quote='SIMULATED: 加一项')  # a decision for the PM
         platform = json.loads((self.root / 'management/runtime/platform.json').read_text())
         platform['pm_timeout_minutes'] = 0.05
         (self.root / 'management/runtime/platform.json').write_text(json.dumps(platform))
-        self.assertEqual('pm_woken', self.tool('timer.py', '--once')['result'])
-        self.assertEqual('pm_working', self.tool('timer.py', '--once')['result'])
+        self.assertEqual('pm_woken', self.tool('scheduler.py', '--once')['result'])
+        self.assertEqual('pm_working', self.tool('scheduler.py', '--once')['result'])
         time.sleep(4)
-        self.tool('timer.py', '--once')
-        self.assertIn('stopped; the next wake starts a new session', (self.root / 'management/runtime/timer.log').read_text())
+        self.tool('scheduler.py', '--once')
+        self.assertIn('stopped; the next wake starts a new session', (self.root / 'management/runtime/scheduler.log').read_text())
 
-    def test_the_timer_tells_the_person_when_work_waits_for_them(self):
+    def test_the_scheduler_tells_the_person_when_work_waits_for_them(self):
         self.call('update', 'product-001', task_id='A', expected_revision=self.t('A')['revision'], changes={'human_required': True}, reason='SIM 需要人审',
                   scope_authorization='SIM')
         def tick():
-            self.tool('timer.py', '--once')
+            self.tool('scheduler.py', '--once')
         self.wait(lambda: (self.root / 'notified.txt').is_file(), seconds=90, tick=tick)
         self.assertIn('需要你处理', (self.root / 'notified.txt').read_text())
 

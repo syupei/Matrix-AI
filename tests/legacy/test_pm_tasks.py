@@ -85,7 +85,7 @@ class TaskRuntimeTests(unittest.TestCase):
         return self.transition('done', tid, self.task(tid)['manager'])
 
     def events(self, **fields):
-        return pm.execute(self.root, dict(op='events', **fields))['events']
+        return pm.execute(self.root, dict(op='events', full=True, **fields))['events']
 
     def assert_rejected_unchanged(self, action):
         before = self.status()

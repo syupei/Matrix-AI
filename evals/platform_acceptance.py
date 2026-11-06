@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Real-run acceptance of platform runs: the seven situations of PM-Q-001 in one synthetic project, with the real
-timer, PM-agent and launch command running on an actual host command line.
+scheduler, PM-agent and launch command running on an actual host command line.
 
   platform_acceptance.py --source <built kit> --output <new dir> --host codex --model gpt-6-luna [--minutes 75]
   platform_acceptance.py --source <built kit> --output <new dir> --host stub                     (path check only)
 
 Tasks (the PM is the checker of all): A -> B (B needs A adopted); C in parallel with A, needs a person's review;
 E needs C; G belongs to an instance whose configured model does not exist, so its runs fail.
-Disturbances: two timers run at once; A's first run is killed mid-way; both timers stop and one restarts.
+Disturbances: two schedulers run at once; A's first run is killed mid-way; both stop and one restarts.
 The person's approval of C is SYNTHETIC and recorded as such. Nothing here is an external project or a real person.
 
 Checks: S1 A done -> B starts without anyone saying continue; S2 A and C overlap; S3a the review of C holds only E,
@@ -43,25 +43,19 @@ if sys.argv[1] == 'worker':
     if sys.argv[2] == 'missing-model':
         sys.exit(1)
     import time; time.sleep(6)
-    tid = re.search(r'## 任务 (\S+?)：', text).group(1)
-    call({'op': 'transition', 'actor': iid, 'event_id': rid + '-handover', 'task_id': tid, 'expected_revision': task(tid)['revision'], 'state': 'waiting_review',
-          'reason': 'stub done', 'stop_evidence': rid + ' stub run done', 'evidence': ['BRIEF.md']})
+    call({'op': 'hand_over', 'actor': iid, 'event_id': rid + '-handover', 'run': rid, 'evidence': ['BRIEF.md'], 'summary': 'stub done'})
+    print(json.dumps({'type': 'turn.completed', 'usage': {'input_tokens': 1000, 'cached_input_tokens': 800, 'output_tokens': 50}}))
 else:
-    for n in range(40):
-        s = call({'op': 'continue'})
-        act = next((a for a in s['actions'] if a['kind'] in {'start', 'pm'}), None)
+    for n in range(40):  # the PM's own decisions only; the scheduler starts the runs
+        act = next((a for a in call({'op': 'continue'})['actions'] if a['kind'] == 'pm' and a['code'] in {'review', 'adopt', 'ended'}), None)
         if not act:
             break
-        if act['kind'] == 'start':
-            subprocess.run([sys.executable, '-B', T + 'launch.py', '--project', '.', '--task', act['task']], capture_output=True)
-            continue
-        t, code = task(act['task']), s['stops'][act['task']]['code']
-        fields = {'review': dict(op='review', outcome='passed', criteria_checked=t['criteria'], evidence=t['evidence']),
-                  'adopt': dict(op='transition', state='done', reason='stub adopted'),
-                  'ended': dict(op='transition', state='planned', reason='stub redo')}.get(code)
-        if not fields:
-            break
-        call(dict(fields, actor='PM', event_id='stub-' + code + '-' + str(n) + t['id'], task_id=t['id'], expected_revision=t['revision']))
+        cmd = json.loads(act['command'])
+        if act['code'] == 'review':
+            cmd.update(outcome='passed', evidence=['BRIEF.md']); cmd.pop('cause')
+        if act['code'] == 'ended':
+            cmd['reason'] = 'stub redo'
+        call(cmd)
 '''
 
 
@@ -69,15 +63,15 @@ def host_settings(host, model, root):
     note = ['sh', '-c', 'printf "%s\\n" "$0" >> management/runtime/notified.txt', '{message}']
     if host == 'codex':
         base = 'codex exec --skip-git-repo-check --sandbox workspace-write --json -c \'model_reasoning_effort="medium"\''
-        return {'spawn': 'timer',  # commands of a Codex session run sandboxed: the timer starts the runs
+        return {'spawn': 'scheduler',  # commands of a Codex session run sandboxed: the scheduler starts the runs
                 'launch': ['codex', 'exec', '--skip-git-repo-check', '--sandbox', 'workspace-write', '--json',
                            '-c', 'model_reasoning_effort="medium"', '-m', '{model}', '-'],
                 'pm': {'launch': ['sh', '-c', base + ' -m ' + model + ' - ; :', 'pm-{session}']},
                 'notify': note, 'check_seconds': 15}
     (root / 'stub_host.py').write_text(STUB, encoding='utf-8')
     py = sys.executable
-    return {'spawn': 'timer', 'launch': [py, '-B', str(root / 'stub_host.py'), 'worker', '{model}'],
-            'pm': {'launch': [py, '-B', str(root / 'stub_host.py'), 'pm', 'pm-{session}']}, 'notify': note, 'check_seconds': 3}
+    return {'spawn': 'scheduler', 'launch': [py, '-B', str(root / 'stub_host.py'), 'worker', '{model}'],
+            'pm': {'launch': [py, '-B', str(root / 'stub_host.py'), 'pm', 'pm-{session}']}, 'notify': note, 'check_seconds': 3, 'settle_seconds': 0}
 
 
 def tool(root, data):
@@ -122,7 +116,7 @@ def runs(root):
 
 
 def start_timer(root, output, name):
-    return subprocess.Popen([sys.executable, '-B', TOOLS + '/timer.py', '--project', '.'], cwd=root, start_new_session=True,
+    return subprocess.Popen([sys.executable, '-B', TOOLS + '/scheduler.py', '--project', '.'], cwd=root, start_new_session=True,
                             stdout=open(output / (name + '.stdout'), 'a'), stderr=subprocess.STDOUT)
 
 
@@ -135,7 +129,7 @@ def stop(proc):
 def evaluate(root, marks):
     st = tool(root, {'op': 'status'})
     tasks, launches = {t['id']: t for t in st['tasks']}, sorted(st['integrity']['launch'].values(), key=lambda l: (l['started_at'], l['id']))
-    events = tool(root, {'op': 'events', 'after': 0, 'limit': 1000})['events']
+    events = tool(root, {'op': 'events', 'after': 0, 'limit': 1000, 'full': True})['events']
     done_at = {}
     for e in events:  # the first time each task was recorded done
         if e['after_data'] and e['after_data'].get('state') == 'done':
@@ -146,7 +140,8 @@ def evaluate(root, marks):
     def overlap(a, b):
         return span(a)[0] < span(b)[1] and span(b)[0] < span(a)[1]
     approval = marks.get('approval_at', '9999')
-    log = (root / 'management/runtime/timer.log').read_text(encoding='utf-8') if (root / 'management/runtime/timer.log').is_file() else ''
+    log = (root / 'management/runtime/scheduler.log').read_text(encoding='utf-8') if (root / 'management/runtime/scheduler.log').is_file() else ''
+    sessions = list(st['integrity'].get('pm_session', {}).values()) if 'pm_session' in st['integrity'] else []
     s = {}
     b0 = (starts['B'] or [None])[0]
     s['S1'] = bool(b0 and 'A' in done_at and b0['started_at'] >= done_at['A'] and b0['started_at'] < approval and tasks['B']['state'] == 'done')
@@ -159,17 +154,18 @@ def evaluate(root, marks):
     clash = [(x['id'], y['id']) for i, x in enumerate(launches) for y in launches[i + 1:]
              if (x['task_id'] == y['task_id'] or x['instance'] == y['instance']) and overlap(x, y)]
     s['S4'] = not clash and marks.get('two_timers', False)
-    s['S5'] = log.count('PM session') >= 3
+    s['S5'] = log.count('PM session') >= 2  # each wake is a session that ended; the next came from new changes
     killed = marks.get('killed')
     redo = [l for l in starts['A'] if killed and l['id'] != killed]
     after_restart = [l for l in launches if l['started_at'] > marks.get('restarted_at', '9999')]
     s['S6'] = bool(killed and next((l for l in launches if l['id'] == killed), {}).get('state') == 'lost' and redo and tasks['A']['state'] == 'done' and after_restart)
     notified = (root / 'management/runtime/notified.txt').read_text(encoding='utf-8') if (root / 'management/runtime/notified.txt').is_file() else ''
-    stops = tool(root, {'op': 'continue'})['stops']
+    stops = tool(root, {'op': 'continue', 'detail': True})['stops']
     # S7: the failures stay bounded (three failed starts stop G, or the PM hands G to a person earlier) and the person is told.
     s['S7'] = (len(starts['G']) <= 3 and stops.get('G', {}).get('code') in {'launch_failed', 'human'}
                and any(line.startswith('需要你处理') and 'G ' in line for line in notified.splitlines()))
     detail = dict(tasks={k: v['state'] for k, v in tasks.items()}, clash=clash, pm_sessions=log.count('PM session'),
+                  usage=dict(runs=[l.get('usage') for l in launches], pm=[s.get('usage') for s in sessions]),
                   runs=[dict(id=l['id'], task=l['task_id'], instance=l['instance'], purpose=l['purpose'], model=l['model'], state=l['state'],
                              started=l['started_at'][11:19], finished=(l.get('finished_at') or '')[11:19], exit=l.get('exit_code'),
                              ended_without_handover=l.get('ended_without_handover', False)) for l in launches],
@@ -213,7 +209,7 @@ def main():
                 time.sleep(45 if a.host == 'codex' else 5)
                 t1 = start_timer(root, output, 'timer3')
                 marks['restarted_at'], restarted = now(), True
-            summary = tool(root, {'op': 'continue'})
+            summary = tool(root, {'op': 'continue', 'detail': True})
             stops = summary['stops']
             states = {t['id']: t['state'] for t in tool(root, {'op': 'status'})['tasks']}
             if 'approval_at' not in marks and stops.get('C', {}).get('code') == 'human':

@@ -346,6 +346,18 @@ def reasons(t, tasks, cfg):
     return result
 
 
+def brief(row):
+    """One event as what happened: the operation, who, the state change and the new reason; not the whole records."""
+    before = json.loads(row['before_data']) if row['before_data'] else {}
+    after = json.loads(row['after_data']) if row['after_data'] else {}
+    out = {'seq': row['seq'], 'op': json.loads(row['command']).get('op'), 'task_id': row['task_id'], 'actor': row['actor'], 'at': row['recorded_at']}
+    if after.get('state') != before.get('state'):
+        out['state'] = [before.get('state'), after.get('state')]
+    if after.get('reason') and after.get('reason') != before.get('reason'):
+        out['reason'] = after['reason']
+    return out
+
+
 def snapshot(db):
     cfg, tasks = config(db), task_map(db)
     seq = db.execute('SELECT COALESCE(MAX(seq),0) FROM events').fetchone()[0]
@@ -357,7 +369,7 @@ def snapshot(db):
     held = {tid: [x for x in [gap_issue(t, gaps, 'running')] if x] for tid, t in tasks.items()}  # an expertise gap that stops the start
     return {'schema': SCHEMA, 'config': cfg, 'revision': seq, 'observed_at': now(),
             'integrity': {k: integrity.records(db,k) for k in ['instance','scope','change','pause','appointment','participation_rule','participation_obligation','instance_config','conflict','notice',
-                                                               'launch','inbox','project_pause']},
+                                                               'launch','inbox','project_pause','pm_session']},
             'gaps': {gid: gap_view(g, tasks) for gid, g in gaps.items()},
             'top_level': counts(children(tasks, None), tasks),
             'tasks': [dict(t, state_label=STATE_NAMES[t['state']], dispatcher=t['manager'], child_counts=counts(children(tasks, t['id']), tasks),
@@ -607,8 +619,14 @@ def execute(project, cmd, _db=None, _applying=None):
                 after = cmd.get('after', 0)
                 limit = cmd.get('limit', 100)
                 require(type(after) is int and after >= 0 and type(limit) is int and 1 <= limit <= 1000, 'invalid cursor/limit')
-                rows = db.execute('SELECT * FROM events WHERE seq > ? ORDER BY seq LIMIT ?', (after, limit)).fetchall()
-                result = {'events': [{k: json.loads(r[k]) if k in {'command', 'before_data', 'after_data', 'result'} and r[k] else r[k] for k in r.keys()} for r in rows]}
+                if cmd.get('task_id'):
+                    rows = db.execute('SELECT * FROM events WHERE seq > ? AND task_id = ? ORDER BY seq LIMIT ?', (after, cmd['task_id'], limit)).fetchall()
+                else:
+                    rows = db.execute('SELECT * FROM events WHERE seq > ? ORDER BY seq LIMIT ?', (after, limit)).fetchall()
+                if cmd.get('full') is True:
+                    result = {'events': [{k: json.loads(r[k]) if k in {'command', 'before_data', 'after_data', 'result'} and r[k] else r[k] for k in r.keys()} for r in rows]}
+                else:
+                    result = {'events': [brief(r) for r in rows], 'note': 'summaries; add "full": true for the recorded before and after'}
             if owns_db:
                 db.commit()
             return result
@@ -1047,7 +1065,7 @@ def render(project):
     events=[]
     cursor=0
     while True:
-        batch=execute(root,{'op':'events','after':cursor,'limit':1000})['events']
+        batch=execute(root,{'op':'events','after':cursor,'limit':1000,'full':True})['events']
         events.extend(e for e in batch if e['seq']<=data['revision'])
         if not batch or batch[-1]['seq']>=data['revision']:
             break

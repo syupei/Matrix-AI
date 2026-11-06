@@ -2,10 +2,12 @@
 """Where the tokens of a platform run went: per PM session and per instance run, the host's token usage and the size
 of what each command returned, by kind (search, rule reading, task tool reads and writes, launches).
 
-  run_usage.py <project folder>          reads management/runtime/pm-runs/*.log and management/instances/*/runs/*.log
+  run_usage.py <project folder>          reads the run and PM logs under management/runtime/logs/ (plain or compressed),
+                                         and the older places management/runtime/pm-runs/ and management/instances/*/runs/
 
 The logs are the host's JSON event streams (Codex `exec --json`); other hosts may need another reader.
 """
+import gzip
 import json
 from pathlib import Path
 import re
@@ -32,7 +34,7 @@ def kind(command):
 
 def session(path):
     usage, commands = [0, 0, 0], []
-    for line in open(path, errors='ignore'):
+    for line in (gzip.open(path, 'rt', errors='ignore') if path.suffix == '.gz' else open(path, errors='ignore')):
         line = line.strip()
         if not line.startswith('{'):
             continue
@@ -51,8 +53,8 @@ def session(path):
 
 def main():
     root = Path(sys.argv[1])
-    logs = [('PM', p) for p in sorted(root.glob('management/runtime/pm-runs/*.log'))] + \
-           [('RUN', p) for p in sorted(root.glob('management/instances/*/runs/*.log'))]
+    logs = [('PM', p) for p in sorted(root.glob('management/runtime/pm-runs/*.log')) + sorted(root.glob('management/runtime/logs/pm-*.log*'))] + \
+           [('RUN', p) for p in sorted(root.glob('management/instances/*/runs/*.log')) + sorted(root.glob('management/runtime/logs/run-*.log*'))]
     totals, by_kind, out = [0, 0, 0], {}, []
     for who, path in logs:
         usage, commands = session(path)

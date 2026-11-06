@@ -110,6 +110,8 @@ python3 install.py --target "<项目路径>" --skills-dir .claude/skills --entry
    - 宿主命令须能：从标准输入读提示；指定模型；指定会话编号，PM 的命令还要能按编号续接；只允许列出的工具，没列出的直接拒绝而不弹窗询问。
    - `{write_permissions}` 按 `write_patterns` 展开成该实例每个写入范围的写权限；不要用跳过全部权限的方式。
    - 可选的数值：`check_seconds`（60）、`patrol_minutes`（60）、`pm_timeout_minutes`（20）、`resume_limit`（20）、`resume_idle_minutes`（60）。
-2. 启动定时器：在项目根目录运行 `python3 matrix/orchestration/tools/timer.py --project .`，关掉终端或中断即停止；也可以交给你授权的定时任务，每次运行 `timer.py --project . --once`。
-3. 停下：告诉前台"暂停项目"，或停掉定时器。电脑关机或定时器停止后，不会有任何运行；再启动时从任务表接着做。
-
+   - 可选的数值：`settle_seconds`（60，变化后等多久再唤起 PM）、`max_wait_seconds`（300）。
+   - 宿主的沙箱不让会话的子进程联网时，加 `"spawn": "scheduler"`。
+   - 省用量的宿主设置：PM 的推理强度可以设低一档（日常值班以执行接续为主）；宿主支持按会话编号续接时，给 PM 配上 `resume`。
+2. 启动调度器：在项目根目录运行 `python3 matrix/orchestration/tools/scheduler.py --project .`，关掉终端或中断即停止；也可以交给你授权的定时任务，每次运行 `scheduler.py --project . --once`。
+3. 停下：告诉前台"暂停项目"，或停掉调度器。电脑关机或调度器停止后，不会有任何运行；再启动时从任务表接着做。

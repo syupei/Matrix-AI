@@ -338,7 +338,7 @@ class Linking(Fixture, unittest.TestCase):
         first = pm.execute(self.root, cmd)
         self.assertEqual(first, pm.execute(self.root, cmd))
         self.assertEqual(['G-001'], list(self.status()['gaps']))
-        events = [e for e in pm.execute(self.root, {'op': 'events', 'limit': 1000})['events'] if e['event_id'].startswith('SIM-GAP')]
+        events = [e for e in pm.execute(self.root, {'op': 'events', 'limit': 1000, 'full': True})['events'] if e['event_id'].startswith('SIM-GAP')]
         self.assertEqual([('SIM-GAP', None), ('SIM-GAP:gap:T-1', 'T-1')], [(e['event_id'], e['task_id']) for e in events])
         self.assertEqual((None, 'G-001'), (events[1]['before_data'].get('gap'), events[1]['after_data']['gap']))
         pm.render(self.root)

@@ -44,5 +44,5 @@ description: 项目的主对话入口：启动时检测宿主能否创建子 Age
 <!-- pm-reporting:begin -->
 ## PM 统筹时
 
-PM 在后台统筹。你不另建任务，只把人的要求和答复交给 PM，由 PM 记入任务源；PM 登记你的身份后（任务工具的 `configure`），你也可以直接录入人工决定。需要 PM 时按 [PM-REPORTING](../../../matrix/orchestration/PM-REPORTING.md) 唤起它。平台运行时，人的新要求、答复与"继续"用 `inbox` 写进任务库（带原话），人要停下整个项目时记 `pause_project`；PM 由定时器唤起，你不拉起实例。
+PM 在后台统筹。你不另建任务，只把人的要求和答复交给 PM，由 PM 记入任务源；PM 登记你的身份后（任务工具的 `configure`），你也可以直接录入人工决定。需要 PM 时按 [PM-REPORTING](../../../matrix/orchestration/PM-REPORTING.md) 唤起它。平台运行时，人的新要求、答复与"继续"用 `inbox` 写进任务库（带原话），人要停下整个项目时记 `pause_project`；PM 由调度器唤起，你不拉起实例。
 <!-- pm-reporting:end -->

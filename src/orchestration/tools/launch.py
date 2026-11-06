@@ -7,6 +7,7 @@ how it ended. The host command comes from the project's management/runtime/platf
   launch.py --project . --run LAUNCH-ID                    (internal: the detached wrapper that runs the host command)
 """
 import argparse
+import gzip
 import importlib.util
 import json
 import os
@@ -19,6 +20,9 @@ import uuid
 
 TOOLS = Path(__file__).resolve().parent
 PLATFORM = 'management/runtime/platform.json'
+LOGS = 'management/runtime/logs/'
+# Common search tools skip what .ignore lists: run logs and the task database never come back from a search.
+IGNORE = 'runtime/logs/\nruntime/*.sqlite3*\n'
 PLACEHOLDERS = {'model', 'session', 'prompt_file', 'prompt', 'instance', 'workspace', 'task', 'write_permissions'}
 
 
@@ -83,14 +87,15 @@ def packet(pm, root, rid, purpose, inst, tasks, stops):
     regs = pm.team.registries(pm, root)
     profession = regs.get(inst.get('profession'), {}).get('name', inst.get('profession') or inst.get('role'))
     who = iid + '（' + str(profession) + ('，' + inst['level'] if inst.get('level') else '') + ('，master' if inst.get('master') else '') + '）'
-    reads = skills(root, inst.get('profession') or inst.get('role')) + ['matrix/orchestration/TEAM-EXECUTION.md', 'management/instances/' + iid + '/profile.md']
+    reads = skills(root, inst.get('profession') or inst.get('role')) + ['management/instances/' + iid + '/profile.md']
     head = ['# 任务包 ' + rid + '（平台运行：' + pm.platform.PURPOSES[purpose] + '）', '',
             '你是本项目的 ' + who + '。平台为下面的事拉起你；只做这件事，做完或受阻就结束本次运行。', '',
-            '- 工作目录是项目根目录。先读：' + bullet(reads) + '（有几个技能的，按任务所在阶段选用）。',
+            '- 工作目录是项目根目录。先读：' + bullet(reads) + '（有几个技能的，按任务所在阶段选用）；其余规则按技能的指引索引用到时再打开。'
+            '汇报只用下面写好的命令，不必读任务工具的说明；不搜索项目里的运行记录。',
             '- 只写自己的工作区 management/instances/' + iid + '/workspace/ 与登记的写入范围（' + bullet(inst.get('write_roots', [])) + '），检查点也放在工作区。'
             '不联网，不安装软件，不启动其他 Agent，不改别人的成果与记录。',
             '- 任务工具：python3 matrix/orchestration/tools/pm_tasks.py --project . --command <命令文件>（命令文件写在你的工作区），actor 写 ' + iid + '。'
-            'expected_revision 是该任务自己的 revision：用 {"op":"status"} 返回的 tasks 里这项任务的 revision，过期时按报错里的当前值重写。', '']
+            '只需查看一项任务时用 {"op":"task","id":"<任务ID>"}。', '']
     body = []
     if purpose == 'start':
         back = t.get('sent_back')
@@ -99,24 +104,24 @@ def packet(pm, root, rid, purpose, inst, tasks, stops):
         if back:
             body.append('- 返工：上次检验没过（原因：' + back['cause'] + '，检验：' + back['checker'] + '）。按检验意见在原任务上改，不另起新任务。')
         body += ['', '## 回报', '',
-                 '- 交出（自检完成）：{"op":"transition","actor":"' + iid + '","event_id":"' + rid + '-handover","task_id":"' + t['id'] + '","expected_revision":<当前>,'
-                 '"state":"waiting_review","reason":"自检完成","stop_evidence":"' + rid + ' 运行完成","evidence":["<成果与证据的路径>"]}',
-                 '- 受阻：同上，"state":"blocked"，reason 写清卡在哪、需要谁做什么，stop_evidence 写 "' + rid + ' 停在受阻"。',
+                 '- 交出（自检完成）：{"op":"hand_over","actor":"' + iid + '","event_id":"' + rid + '-handover","run":"' + rid + '",'
+                 '"evidence":["<成果与证据的路径>"],"summary":"<一句话说明>"}',
+                 '- 受阻：{"op":"report_blocked","actor":"' + iid + '","event_id":"' + rid + '-blocked","run":"' + rid + '","reason":"<卡在哪、需要谁做什么>"}',
                  '- 要拆给别人做的：按你的任职建子任务（见 matrix/orchestration/TASK-TOOL.md），写一条 report 说明拆分，然后结束本次运行；子任务交出后平台会再拉起你检验。',
                  '- 不写"完成"：交出后由派发者检验、采用。']
     elif purpose == 'check':
         body += ['## 待你检验', '']
         for x in tasks:
-            body.append('- ' + x['id'] + '：' + x['title'] + '；成果与证据：' + bullet(x['evidence']) + '；判据：' + bullet(x['criteria']))
+            body.append('- ' + x['id'] + '（revision ' + str(x['revision']) + '）：' + x['title'] + '；成果与证据：' + bullet(x['evidence']) + '；判据：' + bullet(x['criteria']))
         body += ['', '逐项按判据检验，每项写一条：{"op":"review","actor":"' + iid + '","event_id":"' + rid + '-review-<任务ID>","task_id":"<任务ID>",'
-                 '"expected_revision":<当前>,"outcome":"passed 或 failed","criteria_checked":[<判据原文>],"evidence":["<检验记录路径>"],'
+                 '"expected_revision":<上面的 revision>,"outcome":"passed 或 failed","criteria_checked":[<判据原文>],"evidence":["<检验记录路径>"],'
                  '"cause":"<failed 时写 execution、requirement_clarification、basis_changed 或 other>"}',
                  '你也是派发者的：通过且不需要人审的，采用并关闭（"op":"transition","state":"done","reason":"检验通过，采用"）；需要人审的不关闭。']
     else:
         body += ['## 由你派发、停住了的任务', '']
         for x in tasks:
             s = stops.get(x['id'], {})
-            body.append('- ' + x['id'] + '：' + x['title'] + '；停因：' + s.get('label', x['state']) + '；状态说明：' + (x.get('reason') or '—'))
+            body.append('- ' + x['id'] + '（revision ' + str(x['revision']) + '）：' + x['title'] + '；停因：' + s.get('label', x['state']) + '；状态说明：' + (x.get('reason') or '—'))
         body += ['', '逐项决定，用任务工具记录（见 matrix/orchestration/TEAM-LEAD.md 与 TASK-TOOL.md）：',
                  '- 结束未交出：先看执行者工作区的检查点，再决定重做（transition 回 planned，写原因）或改派（reassign）；',
                  '- 检验没过：安排返工（transition 回 planned）或改派；超过返工、改派上限的，写明情况上报 PM，不再自行返工；',
@@ -128,7 +133,8 @@ def packet(pm, root, rid, purpose, inst, tasks, stops):
     return path, text
 
 
-def launch(project, task_id, purpose='start', task_ids=None, event_id=None, options=None):
+def launch(project, task_id, purpose='start', task_ids=None, event_id=None, options=None, actor=None):
+    """Record a run and start it (or leave it for the scheduler to start); actor is the PM, or the scheduler itself."""
     pm, root = load_pm(), Path(project).resolve()
     cfg_platform = settings(pm, root)
     status = pm.execute(root, {'op': 'status'})
@@ -140,13 +146,13 @@ def launch(project, task_id, purpose='start', task_ids=None, event_id=None, opti
     inst = status['integrity']['instance'].get(iid)
     pm.require(inst, 'the run needs a registered instance; ' + str(iid) + ' is not one')
     pm.require(pm.nonempty(inst.get('model')), iid + ' has no configured model; derive instances from the confirmed instance configuration')
-    pm_actor = status['config']['pm_actor']
+    pm_actor = actor or status['config']['pm_actor']
     rid = 'run-' + (event_id or uuid.uuid4().hex[:12])
     event_id = event_id or rid
     old = launch_record(pm, root, rid)
     if old:
         return {'record': old, 'repeated': True}  # the same launch asked again: never a second process
-    stops = pm.execute(root, {'op': 'continue'})['stops'] if purpose == 'attend' else {}
+    stops = pm.execute(root, {'op': 'continue', 'detail': True})['stops'] if purpose == 'attend' else {}
     prompt_file, text = packet(pm, root, rid, purpose, inst, [tasks[i] for i in ids], stops)
     session = str(uuid.uuid4())
     model = cfg_platform.get('models', {}).get(inst['model'], inst['model'])
@@ -154,13 +160,16 @@ def launch(project, task_id, purpose='start', task_ids=None, event_id=None, opti
     values = dict(model=model, session=session, prompt_file=prompt_file, prompt='读取 ' + prompt_file + ' 并按其执行。',
                   instance=iid, workspace='management/instances/' + iid + '/workspace', task=ids[0], write_permissions=','.join(write))
     command = fill(cfg_platform['launch'], values)
-    log = 'management/instances/' + iid + '/runs/' + rid + '.log'
+    log = LOGS + rid + '.log'
+    ignore = pm.local(root, 'management/.ignore')
+    if not ignore.is_file():
+        ignore.write_text(IGNORE, encoding='utf-8')
     fields = dict(op='launch_start', actor=pm_actor, event_id=event_id, id=rid, purpose=purpose, task_id=ids[0], task_ids=ids,
                   instance=iid, model=model, session=session, command=command, log=log)
     fields.update({k: v for k, v in (options or {}).items() if k in {'rework_reason', 'note', 'attributed_to', 'escalation'}})
     record = pm.execute(root, fields)['record']
-    if cfg_platform.get('spawn', 'launcher') == 'timer':
-        # The host runs the PM in a sandbox whose children cannot reach the network: the timer starts the run.
+    if cfg_platform.get('spawn', 'launcher') == 'scheduler':
+        # The host runs the PM in a sandbox whose children cannot reach the network: the scheduler starts the run.
         return {'record': record, 'packet': prompt_file, 'queued': True}
     return {'record': spawn(pm, root, record, pm_actor), 'packet': prompt_file}
 
@@ -180,10 +189,42 @@ def spawn(pm, root, record, actor):
     return pm.execute(root, dict(op='launch_started', actor=actor, event_id=rid + '-started', id=rid, pid=proc.pid))['record']
 
 
+def outcome(path):
+    """The final message and the token usage a host printed as JSON lines (as Codex exec --json does); None when it did not."""
+    message, usage, seen = None, {'input': 0, 'cached': 0, 'output': 0}, False
+    for line in open(path, errors='ignore'):
+        line = line.strip()
+        if not line.startswith('{'):
+            continue
+        try:
+            e = json.loads(line)
+        except ValueError:
+            continue
+        item = e.get('item') or {}
+        if item.get('type') == 'agent_message' and item.get('text'):
+            message = item['text']
+        if isinstance(e.get('result'), str):
+            message = e['result']
+        u = e.get('usage') if e.get('type') in {'turn.completed', 'result'} else None
+        if isinstance(u, dict):
+            seen = True
+            usage['input'] += int(u.get('input_tokens', 0))
+            usage['cached'] += int(u.get('cached_input_tokens', u.get('cache_read_input_tokens', 0)))
+            usage['output'] += int(u.get('output_tokens', 0))
+    return message, (usage if seen else None)
+
+
+def pack(path):
+    """Compress a finished log; the compressed file is kept for audits and is not read by searches."""
+    with open(path, 'rb') as src, gzip.open(str(path) + '.gz', 'wb') as dst:
+        dst.write(src.read())
+    Path(path).unlink()
+
+
 def record_exit(pm, root, rid, op, **fields):
     for attempt in range(20):  # the task database may be busy with another writer
         try:
-            actor = pm.platform.LAUNCHER if op == 'launch_exit' else pm.platform.TIMER
+            actor = pm.platform.LAUNCHER if op == 'launch_exit' else pm.platform.SCHEDULER
             return pm.execute(root, dict(op=op, actor=actor, event_id=rid + '-' + op, id=rid, **fields))
         except Exception as error:
             if 'locked' not in str(error) or attempt == 19:
@@ -206,7 +247,13 @@ def run(project, rid):
         print('launch ' + rid + ': host command failed to run: ' + str(error), file=sys.stderr)
         code = 127
     print('launch ' + rid + ': exited with code ' + str(code) + ' after ' + str(round(time.time() - started)) + ' s', flush=True)
-    record_exit(pm, root, rid, 'launch_exit', exit_code=code)
+    log = pm.local(root, rec['log'])
+    message, usage = outcome(log) if log.is_file() else (None, None)
+    result = 'management/instances/' + rec['instance'] + '/runs/' + rid + '-result.md'
+    pm.atomic(pm.local(root, result), '# 运行 ' + rid + ' 的结果\n\n- 退出代码：' + str(code) + '\n- 用量（宿主报告）：' + json.dumps(usage) + '\n\n' + (message or '（宿主没有输出结束消息）') + '\n')
+    record_exit(pm, root, rid, 'launch_exit', exit_code=code, **({'usage': usage} if usage else {}))
+    if log.is_file():
+        pack(log)
 
 
 def stop(project, rid, reason):
@@ -219,7 +266,7 @@ def stop(project, rid, reason):
         try:
             os.killpg(rec['pid'], signal.SIGTERM)
         except (ProcessLookupError, PermissionError):
-            pass  # a sandboxed PM may not signal it; the timer ends processes of runs no longer active
+            pass  # a sandboxed PM may not signal it; the scheduler ends processes of runs no longer active
     return record_exit(pm, root, rid, 'launch_lost', evidence='stopped by the PM: ' + reason)
 
 

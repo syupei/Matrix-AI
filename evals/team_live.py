@@ -5,7 +5,7 @@ timer, PM and launch command run it with an actual host command line. Nothing is
   team_live.py --source <built kit> --output <new dir> --host claude [--minutes 40]
   team_live.py --source <built kit> --output <new dir> --host stub      (path check without model calls)
 
-Scenario: A (product master) and C (content-design master) start in parallel; B (product master) depends on A and
+Scenario (the scheduler starts the runs; the PM decides): A (product master) and C (content-design master) start in parallel; B (product master) depends on A and
 starts only after the PM checked and adopted A. The PM is the checker of all three. No external project, real person, approval or isolation
 is claimed; the receipt records every run, its model, its exit and the timer's log.
 """
@@ -49,34 +49,23 @@ from pathlib import Path
 T = 'matrix/orchestration/tools/'
 def call(cmd):
     return json.loads(subprocess.run([sys.executable, '-B', T + 'pm_tasks.py', '--project', '.'], input=json.dumps(cmd), capture_output=True, text=True).stdout)
-def task(tid):
-    return next(t for t in call({'op': 'status'})['tasks'] if t['id'] == tid)
 text = sys.stdin.read()
 if sys.argv[1] == 'worker':
     rid, iid = re.search(r'# 任务包 (\S+?)（', text).group(1), re.search(r'actor 写 (\S+?)。', text).group(1)
     tid = re.search(r'## 任务 (\S+?)：', text).group(1)
-    Path('management/instances/' + iid + '/workspace').mkdir(parents=True, exist_ok=True)
-    Path('management/instances/' + iid + '/workspace/' + tid + '.md').write_text('STUB result of ' + tid)
-    call({'op': 'transition', 'actor': iid, 'event_id': rid + '-handover', 'task_id': tid, 'expected_revision': task(tid)['revision'], 'state': 'waiting_review',
-          'reason': 'stub done', 'stop_evidence': rid + ' stub run done', 'evidence': ['management/instances/' + iid + '/workspace/' + tid + '.md']})
+    out = 'management/instances/' + iid + '/workspace/' + tid + '.md'
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    Path(out).write_text('STUB result of ' + tid)
+    call({'op': 'hand_over', 'actor': iid, 'event_id': rid + '-handover', 'run': rid, 'evidence': [out], 'summary': 'stub done'})
 else:
-    for n in range(30):
-        s = call({'op': 'continue'})
-        act = next((a for a in s['actions'] if a['kind'] in {'start', 'pm'}), None)
+    for n in range(30):  # the PM's own decisions only; the scheduler starts the runs
+        act = next((a for a in call({'op': 'continue'})['actions'] if a['kind'] == 'pm' and a['code'] in {'review', 'adopt'}), None)
         if not act:
             break
-        if act['kind'] == 'start':
-            subprocess.run([sys.executable, '-B', T + 'launch.py', '--project', '.', '--task', act['task']], capture_output=True)
-            continue
-        t, code = task(act['task']), s['stops'][act['task']]['code']
-        if code == 'review':
-            call({'op': 'review', 'actor': 'PM', 'event_id': 'stub-review-' + str(n) + t['id'], 'task_id': t['id'], 'expected_revision': t['revision'],
-                  'outcome': 'passed', 'criteria_checked': t['criteria'], 'evidence': t['evidence']})
-        elif code == 'adopt':
-            call({'op': 'transition', 'actor': 'PM', 'event_id': 'stub-done-' + str(n) + t['id'], 'task_id': t['id'], 'expected_revision': t['revision'],
-                  'state': 'done', 'reason': 'stub adopted'})
-        else:
-            break
+        cmd = json.loads(act['command'])
+        if act['code'] == 'review':
+            cmd.update(outcome='passed', evidence=['BRIEF.md']); cmd.pop('cause')
+        call(cmd)
 '''
 
 
@@ -122,12 +111,12 @@ def main():
     with tempfile.TemporaryDirectory(prefix='matrix-live-platform-') as temporary:
         root = Path(temporary)
         setup(source, root, a.host)
-        timer = subprocess.Popen([sys.executable, '-B', TOOLS + '/timer.py', '--project', '.'], cwd=root,
+        timer = subprocess.Popen([sys.executable, '-B', TOOLS + '/scheduler.py', '--project', '.'], cwd=root,
                                  stdout=open(output / 'timer.stdout', 'w'), stderr=subprocess.STDOUT)
         end, status = time.time() + a.minutes * 60, {}
         try:
             while time.time() < end:
-                status = run(TOOLS + '/pm_tasks.py', '--project', '.', cwd=root, data={'op': 'continue'})
+                status = run(TOOLS + '/pm_tasks.py', '--project', '.', cwd=root, data={'op': 'continue', 'detail': True})
                 if status['stop'] in {'done', 'needs_human', 'idle'} and not status['active_runs']:
                     break
                 time.sleep(10)

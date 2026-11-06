@@ -285,7 +285,7 @@ class Levels(Fixture, unittest.TestCase):
         with self.assertRaisesRegex(pm.TaskError, 'manager authorization'):
             self.mutate('update', 'W', changes={'difficulty': 'T3'}, reason='SIM relabel')
         self.mutate('update', 'W', 'code-engineering-002', changes={'difficulty': 'T3'}, reason='SIM split: interface part moved out', scope_authorization='SIM master split')
-        lowering = [e for e in pm.execute(self.root, {'op': 'events', 'limit': 1000})['events'] if e['command'].get('changes', {}).get('difficulty') == 'T3']
+        lowering = [e for e in pm.execute(self.root, {'op': 'events', 'limit': 1000, 'full': True})['events'] if e['command'].get('changes', {}).get('difficulty') == 'T3']
         self.assertEqual('SIM split: interface part moved out', lowering[0]['command']['reason'])
         with self.assertRaisesRegex(pm.TaskError, 'difficulty must be'):
             self.create('BAD', 'P', owner='code-engineering-002', difficulty='T10', checker='code-engineering-001')
@@ -380,7 +380,7 @@ class Reassignment(Fixture, unittest.TestCase):
         self.reassign('code-engineering-003', stop_evidence='SIM progress checkpoint saved')
         moved = self.t('W')
         self.assertEqual(('code-engineering-003', 'code-engineering-003', 'planned'), (moved['owner'], moved['executor'], moved['state']))
-        event = [e for e in pm.execute(self.root, {'op': 'events', 'limit': 1000})['events'] if e['command']['op'] == 'reassign'][-1]
+        event = [e for e in pm.execute(self.root, {'op': 'events', 'limit': 1000, 'full': True})['events'] if e['command']['op'] == 'reassign'][-1]
         self.assertEqual(('code-engineering-002', 'executor_unable'), (event['before_data']['executor'], event['command']['reason_kind']))
 
     def test_target_needs_the_level_and_must_not_be_busy(self):
@@ -421,7 +421,7 @@ class Conflicts(Fixture, unittest.TestCase):
         self.assertEqual('planned', self.t('A')['state'])  # record only: rework stays with the manager
         with self.assertRaisesRegex(pm.TaskError, 'new simple conflict id'):
             self.ruling('code-engineering-001', 'master')
-        marks = [e for e in pm.execute(self.root, {'op': 'events', 'limit': 1000})['events'] if e['command']['op'] == 'overturned']
+        marks = [e for e in pm.execute(self.root, {'op': 'events', 'limit': 1000, 'full': True})['events'] if e['command']['op'] == 'overturned']
         self.assertEqual([('A', 'K1')], [(e['task_id'], e['command']['conflict']) for e in marks])
         self.ruling('code-engineering-002', 'owner', rid='K2', overturned=[])
         self.ruling('PM', 'pm', rid='K3', overturned=[])

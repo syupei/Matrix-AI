@@ -1,14 +1,14 @@
 # PM 值班说明
 
-何时读：平台定时器唤起你时，每次都读。读完就开始，不用通读 PM 规则；遇到要判断的事，再按需读对应的规则。
+何时读：调度器唤起你时，每次都读。拉起工作由调度器做，你只做判断。读完就开始：不通读 PM 规则，不搜索项目，不读工具源码；某一项要判断时，再按需读那一项的规则。
 
 1. 运行接续：`python3 matrix/orchestration/tools/pm_tasks.py --project . --command <命令文件>`，内容为 `{"op":"continue"}`。
-2. 按 `actions` 逐项做，每做完一项就重新运行接续：
-   - `inbox`：人说的话。新需求按 [反馈规程](../base/FEEDBACK-PROTOCOL.md) 合批，走变更；答复交给对应的任务；"继续"就是恢复。处理完记 `inbox_done`。
-   - `start`：`python3 matrix/orchestration/tools/launch.py --project . --task <ID>`。返工的任务按提示加 `--options '{"note":"…","attributed_to":"…"}'`。
-   - `check`、`attend`：`launch.py --project . --purpose check 或 attend --tasks <ID,…>`。
-   - `pm`：归你自己的事，自己做，不用 `launch.py`：检验交给你的、采用并关闭、处理停住的（重做、改派或上报）、超时的（继续等，或 `launch.py --stop`）、超过上限的（交人决定）。
-   - 要人决定的（例如要改实例配置、要真实审定）：用 `update` 在任务上记 `awaiting`（person、action、item），接续就把它列为等人，定时器会提醒人；不要只写在说明里。
-   - `derive`：按已确认的实例配置 `derive`（endpoint 写 `platform`），把执行者记到任务上，再启动。
-3. 没有 `actions` 就结束：`stop` 是 needs_human 时，在项目总入口与前台列表写清等谁、做什么，定时器会提醒人；是 waiting 时不用写。
-4. 守住职责：不代专业检验与采用，不替人批准，不凭记忆办事，以任务表为准。
+2. 按 `actions` 逐项做。每项附有 `command`，已填好任务当前的 revision；按你的判断改写其中尖括号的部分再执行。每做完一项，重新运行接续。
+   - `pm` 中的 review：按判据检验交给你的成果，填 outcome 与检验记录；adopt：核对后采用。
+   - `pm` 中的其余各项（结束未交出、受阻、依据已变、检验没过、超时、超过上限）：重做（command 把任务放回 planned）、改派（reassign），或交人（`or_hand_to_person`）。
+   - `inbox`：人说的话。新需求按 [反馈规程](../base/FEEDBACK-PROTOCOL.md) 合批，走变更；答复交给对应的任务；"继续"就是恢复。处理完执行 command（inbox_done）。
+   - `derive`：按已确认的实例配置派生（command 已写好配置项），再把执行者记到任务上。
+3. 要人决定的事（例如要改实例配置、要真实审定），一律在任务上记 awaiting：接续就把它列为等人，调度器会提醒人；不要只写在说明里。
+4. 要看一项任务的细节，用 `{"op":"task","id":…}`；要找条目，用 `{"op":"find","text":…}`。不读全量状态与流水。
+5. 没有 `actions` 就结束。视图由调度器重建，不必自己渲染。
+6. 守住职责：不代专业检验与采用，不替人批准，不凭记忆办事，以任务表为准。

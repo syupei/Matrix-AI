@@ -1,19 +1,20 @@
 """Platform runs in the task database: launch records, the PM's inbox, project pause, limits, and the continuation
-summary (what to do now and why each open task is stopped) that the PM and the timer read.
+summary (what to do now and why each open task is stopped) that the PM and the scheduler read.
 
-Records are cooperative facts written by the PM, the launcher and the timer. Nothing here starts a process.
+Records are cooperative facts written by the PM, the launcher and the scheduler. Nothing here starts a process.
 """
 import hashlib
 import json
 from datetime import datetime, timezone
 
-READ_OPS = {'continue'}
+READ_OPS = {'continue', 'task', 'find'}
 WRITE_OPS = {'launch_start', 'launch_started', 'launch_failed', 'launch_exit', 'launch_lost', 'inbox', 'inbox_done',
-             'pause_project', 'resume_project'}
+             'pause_project', 'resume_project', 'hand_over', 'report_blocked', 'pm_session'}
+USAGE = {'input', 'cached', 'output'}
 LIMITS = {'unattended_launches': 30, 'run_timeout_minutes': 60, 'rework_cap': 2, 'reassign_cap': 2, 'launch_retries': 3}
 PURPOSES = {'start': '执行', 'check': '检验', 'attend': '处理'}
 ACTIVE = {'starting', 'running'}
-LAUNCHER, TIMER = 'launcher', 'timer'  # actors of the run wrapper and the timer
+LAUNCHER, SCHEDULER = 'launcher', 'scheduler'  # actors of the run wrapper and the scheduler
 # Events that carry a person's words; the unattended launch limit counts from the latest one.
 HUMAN_OPS = {'human_review', 'confirm_config', 'gap_decide', 'inbox', 'pause_project', 'resume_project', 'configure'}
 INBOX_KINDS = {'request': '新需求', 'answer': '答复', 'continue': '继续', 'note': '说明'}
@@ -104,9 +105,11 @@ def launch_bound(pm, db, cfg, cmd, before):
     if not rec or rec['task_id'] != before['id'] or rec['purpose'] != 'start':
         return False
     actor, state = cmd['actor'], cmd.get('state')
-    if actor in {cfg['pm_actor'], TIMER} and rec['state'] == 'starting':
+    if actor == rec['instance'] and rec['state'] in ACTIVE and before['state'] == 'running' and state in {'waiting_review', 'blocked'}:
+        return cmd.get('op_via') in {'hand_over', 'report_blocked'}  # the run's own instance, through hand_over or report_blocked
+    if actor in {cfg['pm_actor'], SCHEDULER} and rec['state'] == 'starting':
         return (before['state'] in {'planned', 'waiting_review'} and state == 'running') or (before['state'] == 'running' and state == 'planned')
-    return actor in {LAUNCHER, TIMER} and rec['state'] in ACTIVE and before['state'] == 'running' and state == 'blocked'
+    return actor in {LAUNCHER, SCHEDULER} and rec['state'] in ACTIVE and before['state'] == 'running' and state == 'blocked'
 
 
 def minutes_since(stamp):
@@ -120,7 +123,19 @@ def execute(pm, root, db, cmd):
     cfg, tasks = pm.config(db), pm.task_map(db)
     op, actor = cmd['op'], cmd.get('actor')
     if op == 'continue':
-        return summary(pm, root, db, cfg, tasks)
+        return summary(pm, root, db, cfg, tasks, detail=cmd.get('detail') is True)
+    if op == 'task':
+        return one_task(pm, root, db, cfg, tasks, cmd.get('id'))
+    if op == 'find':
+        return find(pm, root, db, tasks, cmd.get('text'))
+    if op in {'hand_over', 'report_blocked'}:
+        return hand_over(pm, root, db, cfg, tasks, cmd)
+    if op == 'pm_session':
+        pm.require(actor == SCHEDULER and pm.nonempty(cmd.get('id')), 'the scheduler records a PM session')
+        pm.require(cmd.get('usage') is None or check_usage(pm, cmd['usage']), 'usage fields: input, cached, output')
+        value = {k: cmd.get(k) for k in ['id', 'reason', 'started_at', 'finished_at', 'usage', 'stopped']}
+        pm.integrity.save(pm, db, 'pm_session', value)
+        return {'record': value}
     if op in {'pause_project', 'resume_project'}:
         pm.require(actor in {cfg['pm_actor'], cfg.get('frontdesk_actor')} - {None}, 'PM or front desk records the person\'s decision')
         pm.require(all(pm.nonempty(cmd.get(k)) for k in ['quote', 'reason']), 'the person\'s exact quote and the reason are required')
@@ -143,7 +158,7 @@ def execute(pm, root, db, cmd):
     pm.require(rec, 'launch record missing')
     task = tasks[rec['task_id']]
     if op in {'launch_started', 'launch_failed'}:
-        pm.require(actor in {cfg['pm_actor'], TIMER} and rec['state'] == 'starting', 'the PM, or the timer that starts queued runs, records how a start went')
+        pm.require(actor in {cfg['pm_actor'], SCHEDULER} and rec['state'] == 'starting', 'the PM, or the scheduler that starts queued runs, records how a start went')
         if op == 'launch_started':
             pm.require(type(cmd.get('pid')) is int and cmd['pid'] > 0, 'process id of the started run required')
             rec.update(state='running', pid=cmd['pid'], running_at=pm.now())
@@ -155,12 +170,15 @@ def execute(pm, root, db, cmd):
                                       stop_evidence='launch ' + rid + ' did not start: ' + cmd['error']), _db=db)
             rec.update(state='not_started', error=cmd['error'], finished_at=pm.now())
     else:
-        pm.require(actor == (LAUNCHER if op == 'launch_exit' else TIMER), 'the run wrapper records the exit; the timer a lost run')
+        pm.require(actor == (LAUNCHER if op == 'launch_exit' else SCHEDULER), 'the run wrapper records the exit; the scheduler a lost run')
         if rec['state'] not in ACTIVE:
             return {'record': rec, 'unchanged': True}
         detail = ('exited with code ' + str(cmd.get('exit_code'))) if op == 'launch_exit' else ('lost: ' + str(cmd.get('evidence')))
         pm.require(op != 'launch_exit' or type(cmd.get('exit_code')) is int, 'exit code required')
         pm.require(op != 'launch_lost' or pm.nonempty(cmd.get('evidence')), 'evidence that the run is gone required')
+        pm.require(cmd.get('usage') is None or check_usage(pm, cmd['usage']), 'usage fields: input, cached, output')
+        if cmd.get('usage'):
+            rec['usage'] = cmd['usage']
         if rec['purpose'] == 'start' and task['state'] == 'running':
             open_kids = [x for x in pm.children(tasks, task['id']) if x['state'] not in pm.TERMINAL]
             if open_kids:
@@ -186,7 +204,7 @@ def execute(pm, root, db, cmd):
 def start(pm, root, db, cfg, tasks, cmd, records):
     """Record a run before the launcher starts it; a start run moves the task to running in the same transaction."""
     actor, rid = cmd['actor'], cmd['id']
-    pm.require(actor == cfg['pm_actor'], 'the PM launches runs')
+    pm.require(actor in {cfg['pm_actor'], SCHEDULER}, 'the PM or the scheduler launches runs')
     pm.require(rid not in records, 'new launch id required')
     pm.require(not paused(pm, db), 'project paused by a person; launch nothing until they resume it')
     left = budget(pm, db, cfg)
@@ -374,12 +392,93 @@ def stops(pm, root, db, cfg, tasks):
     return out, ctx
 
 
-def summary(pm, root, db, cfg, tasks):
-    """Continuation: what the PM does now, the one stop reason of every open task, and whether to stop."""
+def check_usage(pm, usage):
+    return isinstance(usage, dict) and set(usage) <= USAGE and all(type(v) is int and v >= 0 for v in usage.values())
+
+
+def hand_over(pm, root, db, cfg, tasks, cmd):
+    """The run's instance hands its task over, or reports it blocked, in one command: the tool checks the run and the version."""
+    op, actor = cmd['op'], cmd['actor']
+    rec = launches(pm, db).get(cmd.get('run'))
+    pm.require(rec and rec['state'] in ACTIVE and rec['purpose'] == 'start' and rec['instance'] == actor,
+               'run must be an active start run of ' + str(actor) + ' (the run id is in your task packet)')
+    task = tasks[rec['task_id']]
+    pm.require(task['state'] == 'running', task['id'] + ' is ' + task['state'] + ', not in progress')
+    if op == 'hand_over':
+        pm.require(pm.strings(cmd.get('evidence')) and cmd['evidence'], 'evidence: the paths of the result and its check')
+        fields = dict(state='waiting_review', evidence=cmd['evidence'], reason=cmd.get('summary') or 'self-check done',
+                      stop_evidence='run ' + rec['id'] + ' handed over')
+    else:
+        pm.require(pm.nonempty(cmd.get('reason')), 'reason: where it is stuck and who must do what')
+        fields = dict(state='blocked', reason=cmd['reason'], stop_evidence='run ' + rec['id'] + ' stopped blocked')
+    result = pm.execute(root, dict(op='transition', actor=actor, event_id=cmd['event_id'] + ':' + op, task_id=task['id'],
+                                   expected_revision=task['revision'], launch_id=rec['id'], op_via=op, **fields), _db=db)
+    return {'task': task['id'], 'state': result['task']['state'], 'run': rec['id']}
+
+
+def one_task(pm, root, db, cfg, tasks, tid):
+    """One task, the fields a decision needs, without the whole task database."""
+    pm.require(tid in tasks, 'unknown task ' + str(tid))
+    t = tasks[tid]
+    reasons, ctx = stops(pm, root, db, cfg, tasks)
+    runs = ctx['runs'].get(tid, [])
+    keep = ['id', 'title', 'state', 'revision', 'work_revision', 'parent', 'owner', 'executor', 'manager', 'checker', 'goal', 'inputs',
+            'outputs', 'criteria', 'evidence', 'dependencies', 'completion_requires', 'human_required', 'awaiting', 'gap', 'reason', 'next_action']
+    out = {k: t.get(k) for k in keep}
+    out.update(review=(t.get('review') or {}).get('outcome'), human_review=(t.get('human_review') or {}).get('outcome'),
+               sent_back=t.get('sent_back'), rework=(t.get('rework') or {}).get('count', 0), stop=reasons.get(tid),
+               last_run={k: runs[-1].get(k) for k in ['id', 'purpose', 'instance', 'state', 'exit_code', 'ended_without_handover']} if runs else None)
+    return {'task': out}
+
+
+def find(pm, root, db, tasks, text):
+    """Task and shared-knowledge entries that mention the words, as id, title and where; never file contents."""
+    pm.require(pm.nonempty(text), 'text to find required')
+    words = [w.lower() for w in text.split()]
+    hits = []
+    for t in tasks.values():
+        fields = {k: str(t.get(k) or '') for k in ['id', 'title', 'goal', 'reason', 'next_action']}
+        fields.update(evidence=' '.join(t.get('evidence', [])), outputs=' '.join(t['outputs']))
+        found = [k for k, v in fields.items() if all(w in v.lower() for w in words)]
+        if found:
+            hits.append(dict(kind='task', id=t['id'], title=t['title'], state=t['state'], fields=found))
+    index = root / 'shared/index.md'
+    for line in index.read_text(encoding='utf-8').splitlines() if index.is_file() else []:
+        cells = [c.strip() for c in line.strip().strip('|').split('|')]
+        if len(cells) >= 3 and all(w in line.lower() for w in words) and not set(cells[0]) <= set('-: '):
+            hits.append(dict(kind='shared', id=cells[0], what=cells[1], where=cells[2]))
+    return {'found': hits[:20], 'more': max(0, len(hits) - 20)}
+
+
+def command(op, **fields):
+    return json.dumps(dict(op=op, **fields), ensure_ascii=False)
+
+
+def pm_action(cfg, t, code, label):
+    """A decision for the PM, with the task's current version and the command to record it."""
+    pm_actor, rev, tid = cfg['pm_actor'], t['revision'], t['id']
+    base = dict(actor=pm_actor, task_id=tid, expected_revision=rev)
+    if code == 'review':
+        cmd = command('review', event_id='pm-review-' + tid + '-' + str(rev), outcome='passed 或 failed', criteria_checked=t['criteria'],
+                      evidence=['<检验记录的路径>'], cause='<failed 时：execution / requirement_clarification / basis_changed / other>', **base)
+    elif code == 'adopt':
+        cmd = command('transition', event_id='pm-done-' + tid + '-' + str(rev), state='done', reason='检验通过，采用', **base)
+    else:
+        cmd = command('transition', event_id='pm-redo-' + tid + '-' + str(rev), state='planned', reason='<重做的原因>', **base)
+    need_person = command('update', event_id='pm-await-' + tid + '-' + str(rev), reason='<为什么要人决定>',
+                          changes={'awaiting': [{'person': '<谁>', 'action': 'decide', 'item': '<要决定什么>'}]}, **base)
+    return dict(kind='pm', task=tid, code=code, why=label, revision=rev, state=t['state'], command=cmd,
+                **({} if code in {'review', 'adopt'} else {'or_hand_to_person': need_person}))
+
+
+def summary(pm, root, db, cfg, tasks, detail=False):
+    """Continuation. Runs the scheduler starts itself (start, check, attend of instances) are marked by: scheduler; what is
+    left for the PM comes with the task's version and the command to run. Without detail, stops are only counted."""
     reasons, ctx = stops(pm, root, db, cfg, tasks)
     pm_actor, instances = cfg['pm_actor'], ctx['instances']
     busy = {l['instance'] for l in ctx['active']}
-    actions = [dict(kind='inbox', id=i['id'], what=INBOX_KINDS[i['kind']], text=i['text'], person=i.get('person'))
+    actions = [dict(kind='inbox', id=i['id'], what=INBOX_KINDS[i['kind']], text=i['text'], person=i.get('person'),
+                    command=command('inbox_done', actor=pm_actor, event_id='pm-inbox-' + i['id'], id=i['id'], note='<怎样处理的>'))
                for i in sorted(pm.integrity.records(db, 'inbox').values(), key=lambda i: i['at']) if i['state'] == 'open']
     running_slots = sum(t['slots'] for t in tasks.values() if t['state'] == 'running')
     free, left = cfg['max_slots'] - running_slots, ctx['budget']['left']
@@ -389,7 +488,7 @@ def summary(pm, root, db, cfg, tasks):
         if t['executor'] not in instances or t['executor'] in busy or left <= 0 or (t['slots'] and free < t['slots']):
             continue  # an executor that is not a registered instance starts the work itself
         hint = {'rework': dict(cause=t['sent_back']['cause'], attribution_required=t['sent_back']['cause'] != 'execution')} if t.get('sent_back') else {}
-        actions.append(dict(kind='start', task=t['id'], instance=t['executor'], **hint))
+        actions.append(dict(kind='start', by='scheduler', task=t['id'], instance=t['executor'], **hint))
         busy.add(t['executor']); free -= t['slots']; left -= 1
     by_instance = {}
     for tid, r in sorted(reasons.items()):
@@ -397,18 +496,23 @@ def summary(pm, root, db, cfg, tasks):
         if r['code'] in {'review', 'adopt', 'ended', 'blocked', 'stale', 'sent_back', 'executor', 'gate'}:
             who = r['who']
             if who == pm_actor:
-                actions.append(dict(kind='pm', task=tid, why=r['label']))
+                actions.append(pm_action(cfg, t, r['code'], r['label']))
             elif who in instances and instances[who].get('active', True):
                 by_instance.setdefault((who, 'check' if r['code'] == 'review' else 'attend'), []).append(tid)
         elif r['code'] == 'derive':
-            actions.append(dict(kind='derive', task=tid, entry=room(pm, root, db, ctx, t)))
+            entry = room(pm, root, db, ctx, t)
+            actions.append(dict(kind='derive', task=tid, entry=entry, revision=t['revision'],
+                                command=command('derive', actor=pm_actor, event_id='pm-derive-' + tid, entry=entry, endpoint='platform')))
         elif r['code'] in {'timeout', 'cap'}:
-            actions.append(dict(kind='pm', task=tid, why=r['label']))
+            run = next((l for l in reversed(ctx['runs'].get(tid, [])) if l['state'] in ACTIVE), None)
+            actions.append(dict(kind='pm', task=tid, code=r['code'], why=r['label'], revision=t['revision'], state=t['state'],
+                                command=('python3 matrix/orchestration/tools/launch.py --project . --stop ' + run['id'] + ' --reason "<原因>"') if run else None,
+                                or_hand_to_person=pm_action(cfg, t, r['code'], r['label'])['or_hand_to_person']))
     for (who, purpose), tids in sorted(by_instance.items()):
         if who not in busy and left > 0:
-            actions.append(dict(kind=purpose, instance=who, tasks=tids))
+            actions.append(dict(kind=purpose, by='scheduler', instance=who, tasks=tids))
             busy.add(who); left -= 1
-    open_tasks = [tid for tid in reasons]
+    open_tasks = list(reasons)
     human = [dict(task=tid, why=reasons[tid]['label']) for tid in open_tasks if reasons[tid]['code'] in {'human', 'gap', 'budget', 'launch_failed'}]
     if not open_tasks and not actions:
         stop = 'done'
@@ -422,7 +526,14 @@ def summary(pm, root, db, cfg, tasks):
         stop = 'waiting'
     else:
         stop = 'idle'
-    return {'revision': ctx['revision'], 'actions': actions, 'stops': reasons, 'stop': stop, 'human_items': human,
-            'budget': ctx['budget'], 'slots': {'max': cfg['max_slots'], 'used': running_slots}, 'paused': ctx['paused'],
-            'limits': ctx['limits'], 'active_runs': [dict(id=l['id'], instance=l['instance'], tasks=l.get('task_ids'), purpose=l['purpose'],
-                                                           minutes=round(minutes_since(l['started_at']))) for l in ctx['active']]}
+    counts = {}
+    for r in reasons.values():
+        counts[r['label']] = counts.get(r['label'], 0) + 1
+    out = {'revision': ctx['revision'], 'stop': stop, 'actions': actions if detail else [a for a in actions if a.get('by') != 'scheduler'],
+           'scheduler_will_start': sum(a.get('by') == 'scheduler' for a in actions), 'human_items': human, 'stop_counts': counts,
+           'budget': {'left': ctx['budget']['left'], 'limit': ctx['budget']['limit']}, 'paused': bool(ctx['paused'])}
+    if detail:
+        out.update(stops=reasons, slots={'max': cfg['max_slots'], 'used': running_slots}, limits=ctx['limits'], budget=ctx['budget'], paused=ctx['paused'],
+                   active_runs=[dict(id=l['id'], instance=l['instance'], tasks=l.get('task_ids'), purpose=l['purpose'], pid=l.get('pid'),
+                                     minutes=round(minutes_since(l['started_at']))) for l in ctx['active']])
+    return out

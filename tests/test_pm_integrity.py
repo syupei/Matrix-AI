@@ -355,7 +355,7 @@ class IntegrityTests(unittest.TestCase):
         self.deprecate_work()
         self.assertEqual('deprecated',self.t('WORK')['state'])
         self.assertEqual(old_review,self.t('WORK')['review'])
-        history = pm.execute(self.root, {'op':'events','limit':1000})['events']
+        history = pm.execute(self.root, {'op':'events','limit':1000,'full':True})['events']
         self.assertTrue(any(e['task_id']=='WORK' and (e['after_data'] or {}).get('state')=='done' for e in history))
 
     def test_reopened_retirement_cannot_be_used_to_close_the_old_change(self):

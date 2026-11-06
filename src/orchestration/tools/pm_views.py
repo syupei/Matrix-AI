@@ -18,6 +18,7 @@ EXITS = {'production': '制作', 'qa': '检验', 'human': '人审', 'adoption': 
 GAPS = {'delivery_unmapped': '未绑定', 'delivery_not_current': '未完成', 'independent_check_missing': '缺独立检验',
         'human_gate_missing': '缺人审', 'adoption_evidence_missing': '缺采用记录'}
 REASSIGN = {'failed_check': '检验没过', 'executor_unable': '实例说做不了', 'other': '其他'}
+PURPOSE = {'start': '执行', 'check': '检验', 'attend': '处理'}
 # Why a planned task with its dependencies done has not started: the tool's one stop reason, in list words.
 NOT_STARTED = {'ready': '就绪', 'busy': '就绪，执行者在忙', 'derive': '待派生', 'executor': '未指定执行者', 'slots': '空位已满',
                'budget': '就绪，自动拉起的次数已用完', 'paused': '项目已暂停', 'launch_failed': '启动失败', 'cap': '返工超过上限，等上一级决定'}
@@ -339,7 +340,22 @@ def ledger(c):
                      times, cost, str(s['caused'])])
     text += md(['实例', '模型', '职级', '适用性', '承担', '一次通过率', '返工率', '被推翻率', '被改派率', '各级任务的平均用时', '有效成本', '引起他人返工'],
                [[esc(x) for x in r] for r in rows]) if rows else '- 无\n'
-    return text
+    return text + usage(c)
+
+
+def usage(c, flag=500000, last=20):
+    """Token usage of the latest platform runs and PM sessions, as the host reported it; heavy PM sessions are marked."""
+    runs = [('运行 ' + l['id'], name(c, l['instance']), PURPOSE.get(l['purpose'], l['purpose']) + ' ' + ','.join(l.get('task_ids') or [l['task_id']]),
+             l.get('started_at'), l.get('usage')) for l in c.records.get('launch', {}).values()]
+    sessions = [('PM 值班 ' + s['id'][:8], 'PM', s.get('reason') or '—', s.get('started_at'), s.get('usage'))
+                for s in c.pm.integrity.records(c.db, 'pm_session').values()]
+    rows = sorted(runs + sessions, key=lambda r: r[3] or '')[-last:]
+    if not rows:
+        return ''
+    cells = [[esc(a), esc(b), esc(what), stamp(at), (str(u['input']) + ' / ' + str(u['cached']) + ' / ' + str(u['output'])) if u else '未接入',
+              '超过 ' + str(flag // 10000) + ' 万' if u and a.startswith('PM') and u['input'] > flag else ''] for a, b, what, at, u in rows]
+    return ('\n## 运行与值班用量\n\n最近 ' + str(len(rows)) + ' 次，按宿主报告的输入 / 缓存 / 输出 token；宿主不报告时写"未接入"。\n\n'
+            + md(['运行', '实例', '内容', '开始', '用量', '提示'], cells))
 
 
 def reserved(c):
