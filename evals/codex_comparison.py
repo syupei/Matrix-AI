@@ -24,6 +24,8 @@ import time
 
 EVALS = Path(__file__).resolve().parent
 SUITE = EVALS / 'cases/suite.json'
+# Scorers have answered "done" without writing their file: the last step checks it, or returns the scores inline.
+CHECK = '\n最后一步：确认当前目录下 scores.json 已写入且是完整的 JSON（可以用 python3 -m json.tool scores.json 检查）；写入失败时，把 JSON 原文放在 "=== JSON START ===" 与 "=== JSON END ===" 两行之间交回。\n'
 
 
 def cases():
@@ -122,12 +124,12 @@ def brief(work, ids, recheck=None):
                  'output': 'scores.json'}.items():
         text = text.replace('{' + k + '}', str(v))
     if recheck:
-        return text + '\n\n## 本批要复评的判据（你是第二位评分员）\n\n' + json.dumps(recheck, ensure_ascii=False) + '\n'
-    return text + '\n\n## 本批情境\n\n' + '、'.join(ids) + '\n'
+        return text + '\n\n## 本批要复评的判据（你是第二位评分员）\n\n' + json.dumps(recheck, ensure_ascii=False) + '\n' + CHECK
+    return text + '\n\n## 本批情境\n\n' + '、'.join(ids) + '\n' + CHECK
 
 
 def score(a):
-    out, work = Path(a.out), Path(a.work)
+    out, work = Path(a.out).resolve(), Path(a.work).resolve()
     work.mkdir(parents=True, exist_ok=True)
     tool = [sys.executable, '-B', str(EVALS / 'scoring.py')]
     if not (work / 'labels.json').is_file():
@@ -165,7 +167,7 @@ def score(a):
 
 
 def assemble(a):
-    out, work = Path(a.out), Path(a.work)
+    out, work = Path(a.out).resolve(), Path(a.work).resolve()
     merged = json.loads((work / 'merged.json').read_text())
     combined = json.loads((work / 'combined.json').read_text())
     to_person = {cid: {k: r for k, r in rows.items() if not r['agree']} for cid, rows in combined['cases'].items()}
