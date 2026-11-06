@@ -22,6 +22,11 @@ class PublishingGateTests(unittest.TestCase):
   self.data={'baseline_ref':baseline,'baseline_hash':bh,'candidate_hash':ch,'suite_hash':p.sha(suite),'cases':cases,'reviewer':'test fixture','limitations':['simulated mechanism check, not real behavior']};self.report=self.root/'report.json'
  def check(self):self.report.write_text(json.dumps(self.data));return p.check_evidence(self.report,self.files)
  def test_complete_fixture_validates_schema(self):self.assertTrue(self.check())
+ def test_baseline_published_under_a_waiver_blocks(self):
+  from unittest.mock import patch
+  with patch.object(p,'waived_release',return_value=True),self.assertRaisesRegex(ValueError,'published under a waiver'):self.check()
+ def test_released_baselines_are_read_from_the_catalog(self):
+  self.assertFalse(p.waived_release('professional-agents-kit-v0.29'));self.assertTrue(p.waived_release('professional-agents-kit-v0.30'))
  def waiver(self,**changes):
   config=json.loads((p.ROOT/'package.json').read_text())
   data={'package':p.release_name(config),'source_hash':p.fingerprint(self.files),'authorized_by':'user','date':'2026-11-04','authorization':'explicit human authorization to skip the comparison','scope':'behavior comparison for this version','existing_evidence':['simulated'],'limitations':['simulated']}

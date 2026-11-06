@@ -64,6 +64,11 @@ def check_sources():
  if errors:raise ValueError('\n'.join(errors))
  return files,links
 
+def waived_release(tag):
+ catalog=ROOT/'releases.json'
+ entry=next((e for e in json.loads(catalog.read_text())['releases'] if e['tag']==tag),{}) if catalog.exists() else {}
+ return bool((entry.get('behavior_evidence') or {}).get('waived'))
+
 def check_evidence(report,files):
  data=json.loads(report.read_text())
  if data.get('candidate_hash')!=fingerprint(files):raise ValueError('behavior evidence belongs to different source')
@@ -73,6 +78,8 @@ def check_evidence(report,files):
  expected={cid:set(c['criteria']) for cid,c in specs.items()}
  baseline=json.loads((ROOT/'package.json').read_text())['baseline']
  if data.get('baseline_ref')!=baseline:raise ValueError('wrong baseline version')
+ # A release published under a waiver had no full comparison, so it cannot be the baseline of another.
+ if waived_release(baseline):raise ValueError('baseline '+baseline+' was published under a waiver; compare against a release with full behavior evidence')
  prior=ROOT/'release-manifests'/(baseline+'.json')
  if not prior.exists():prior=ROOT/'packages'/baseline/'MANIFEST.json'
  base_files=json.loads(prior.read_text())['files'];baseline_hash=fingerprint(base_files)
