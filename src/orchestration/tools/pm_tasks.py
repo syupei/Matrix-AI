@@ -23,6 +23,9 @@ _team_spec.loader.exec_module(team)
 _views_spec = importlib.util.spec_from_file_location('pm_views', Path(__file__).with_name('pm_views.py'))
 views = importlib.util.module_from_spec(_views_spec)
 _views_spec.loader.exec_module(views)
+_platform_spec = importlib.util.spec_from_file_location('pm_platform', Path(__file__).with_name('pm_platform.py'))
+platform = importlib.util.module_from_spec(_platform_spec)
+_platform_spec.loader.exec_module(platform)
 
 
 def api():
@@ -41,7 +44,7 @@ KINDS = {'work', 'stage'}
 ROSTER = 'management/people.json'
 # Coordination facts: who is involved, what is awaited (an expertise gap included), where a task sits in the plan.
 # Changing them does not invalidate professional verification of the work itself.
-COORDINATION = {'awaiting', 'people', 'direction', 'stage', 'derived_from', 'gap'}
+COORDINATION = {'awaiting', 'people', 'direction', 'stage', 'derived_from', 'gap', 'order', 'timeout_minutes'}
 SAFE_ID = r'[A-Za-z0-9][A-Za-z0-9_.-]{0,63}'
 # Rework causes, written by the checker of a failed review or by the manager who reopens finished work.
 REWORK = {'execution', 'requirement_clarification', 'basis_changed', 'other'}
@@ -281,6 +284,8 @@ def validation(t, tasks):
             and nonempty(a.get('person')) and a.get('action') in ACTIONS and nonempty(a.get('item')) for a in awaiting),
             'awaiting items need person, action (decide/clarify/designate/execute) and item')
     require(t.get('gap') is None or (isinstance(t['gap'], str) and re.fullmatch(r'G-\d{3,}', t['gap']) is not None), 'gap must be a gap id such as G-001')
+    require(t.get('order') is None or (type(t['order']) is int and t['order'] >= 0), 'order must be a non-negative integer')
+    require(t.get('timeout_minutes') is None or (type(t['timeout_minutes']) is int and 1 <= t['timeout_minutes'] <= 10000), 'timeout_minutes must be 1..10000')
     chain, path = {k: v.get('derived_from', []) for k, v in tasks.items()}, set()
     def climb(k):
         require(k not in path, 'derivation cycle')
@@ -511,6 +516,9 @@ def gap_op(root, db, cmd):
             require(profession is not None, 'not_set_up names a profession of this kit by registry id or name')
             live = sorted(i['id'] for i in integrity.records(db, 'instance').values() if i.get('profession') == profession and i.get('active'))
             require(not live, profession + ' is set up (' + ','.join(live) + '); dispatch the work to it instead of opening a gap')
+            conf = team.confirmed(api(), root, db)
+            configured = [e['id'] for e in (conf or {}).get('entries', []) if e['profession'] == profession and e['count'] > 0]
+            require(not configured, profession + ' is in the confirmed instance configuration (' + ','.join(configured) + '); derive an instance when its work is ready instead of opening a gap')
             domain = regs[profession]['name']
         # The person's latest standing choice for this domain, among those they may make for these tasks.
         prior = [g for g in gaps.values() if g['domain'] == domain and (g['decision'] or {}).get('standing') and may_decide(g['decision']['person'], ids, tasks, people)]
@@ -575,7 +583,7 @@ def execute(project, cmd, _db=None, _applying=None):
     root = Path(project).resolve()
     require(root.is_dir(), 'project directory missing')
     owns_db = _db is None
-    reads = {'status', 'events'} | integrity.READ_OPS | team.READ_OPS | views.READ_OPS
+    reads = {'status', 'events'} | integrity.READ_OPS | team.READ_OPS | views.READ_OPS | platform.READ_OPS
     db = connect(root, readonly=cmd.get('op') in reads) if owns_db else _db
     try:
         op = cmd.get('op')
@@ -584,6 +592,8 @@ def execute(project, cmd, _db=None, _applying=None):
                 db.execute('BEGIN')
             if op in views.READ_OPS:
                 result = views.execute(api(), root, db, cmd)
+            elif op in platform.READ_OPS:
+                result = platform.execute(api(), root, db, cmd)
             elif op in team.READ_OPS:
                 result = team.execute(api(), root, db, cmd)
             elif op in integrity.READ_OPS:
@@ -600,7 +610,7 @@ def execute(project, cmd, _db=None, _applying=None):
             if owns_db:
                 db.commit()
             return result
-        require(op in {'init', 'configure', 'create', 'update', 'transition', 'review', 'human_review', 'report', 'handoff', 'reassign', 'conflict', 'notice'} | GAP_OPS | integrity.WRITE_OPS | team.WRITE_OPS, 'unknown operation')
+        require(op in {'init', 'configure', 'create', 'update', 'transition', 'review', 'human_review', 'report', 'handoff', 'reassign', 'conflict', 'notice'} | GAP_OPS | integrity.WRITE_OPS | team.WRITE_OPS | platform.WRITE_OPS, 'unknown operation')
         require(nonempty(cmd.get('event_id')) and nonempty(cmd.get('actor')), 'event_id and actor required')
         if owns_db:
             db.execute('BEGIN IMMEDIATE')
@@ -615,7 +625,7 @@ def execute(project, cmd, _db=None, _applying=None):
             require(db.execute('SELECT COUNT(*) FROM meta').fetchone()[0] == 0, 'already initialized')
             cfg = cmd['config']
             require(nonempty(cfg.get('project')) and nonempty(cfg.get('pm_actor')) and nonempty(cfg.get('authorization')), 'project/PM/authorization required')
-            require(nonempty(cfg.get('frontdoor_thread')), 'real frontdoor task id required')
+            require(nonempty(cfg.get('frontdoor_id')), 'real frontdoor task id required (frontdoor_id)')
             require(type(cfg.get('max_slots')) is int and 1 <= cfg['max_slots'] <= 64, 'max_slots must be 1..64')
             require(cmd['actor'] == cfg['pm_actor'], 'init actor must be PM')
             db.execute('INSERT INTO meta VALUES (?,?)', ('config', canon(cfg)))
@@ -624,15 +634,29 @@ def execute(project, cmd, _db=None, _applying=None):
             result = team.execute(api(), root, db, cmd)
         elif op in integrity.WRITE_OPS:
             result = integrity.execute(api(), root, db, cmd)
+        elif op in platform.WRITE_OPS:
+            result = platform.execute(api(), root, db, cmd)
         elif op == 'configure':
             # The front desk faces people; PM may let it record their real decisions.
             cfg = config(db)
             require(cmd['actor'] == cfg['pm_actor'], 'only PM configures the coordination entry')
-            desk = cmd.get('frontdesk_actor')
-            require(desk is None or (nonempty(desk) and desk != cfg['pm_actor']), 'frontdesk_actor must be a distinct actor or null')
-            cfg['frontdesk_actor'] = desk
+            require({'frontdesk_actor', 'max_slots', 'limits'} & set(cmd), 'configure frontdesk_actor, max_slots or limits')
+            if 'frontdesk_actor' in cmd:
+                desk = cmd['frontdesk_actor']
+                require(desk is None or (nonempty(desk) and desk != cfg['pm_actor']), 'frontdesk_actor must be a distinct actor or null')
+                cfg['frontdesk_actor'] = desk
+            if {'max_slots', 'limits'} & set(cmd):
+                # How many run at once and the unattended limits are the person's decision.
+                require(nonempty(cmd.get('quote')), 'max_slots and limits need the deciding person and exact quote')
+                authorized(cmd.get('person'), [None], task_map(db), roster(root))
+                if 'max_slots' in cmd:
+                    require(type(cmd['max_slots']) is int and 1 <= cmd['max_slots'] <= 64, 'max_slots must be 1..64')
+                    cfg['max_slots'] = cmd['max_slots']
+                if 'limits' in cmd:
+                    platform.check_limits(api(), cmd['limits'])
+                    cfg['limits'] = dict(cfg.get('limits', {}), **cmd['limits'])
             db.execute("UPDATE meta SET value=? WHERE key='config'", (canon(cfg),))
-            result = {'configured': True, 'frontdesk_actor': desk}
+            result = {'configured': True, 'frontdesk_actor': cfg.get('frontdesk_actor'), 'max_slots': cfg['max_slots'], 'limits': platform.limits(cfg)}
         elif op in {'conflict', 'notice'}:
             result = record(root, db, cmd)
             overturned = result['record'].get('overturned', [])
@@ -659,7 +683,7 @@ def execute(project, cmd, _db=None, _applying=None):
                 require(actor == manager, 'only responsible manager may create this level')
                 allowed = {'id','parent','title','owner','checker','goal','inputs','outputs','criteria','dependencies','completion_requires','resources','slots','executor','human_required','expanded','next_action','source',
                            'kind','stage','direction','people','derived_from','awaiting','project_level','role','artifact_digests',
-                           'difficulty','risk','risk_reason','origin','gap'}
+                           'difficulty','risk','risk_reason','origin','gap','order','timeout_minutes'}
                 require(set(data) <= allowed, 'unknown create fields')
                 after = dict(data, parent=parent, manager=manager, state='planned', revision=1,
                              work_revision=1, evidence=[], review=None, human_review=None,
@@ -686,7 +710,8 @@ def execute(project, cmd, _db=None, _applying=None):
                 require(cmd.get('expected_revision') == before['revision'], 'stale revision; reload task before editing')
                 after = json.loads(canon(before))
                 if op in {'update', 'transition', 'report'}:
-                    require(actor == after['owner'] or (op == 'transition' and actor == after['manager']), 'task state belongs to its owner')
+                    require(actor == after['owner'] or (op == 'transition' and (actor == after['manager'] or platform.launch_bound(api(), db, cfg, cmd, before))),
+                            'task state belongs to its owner')
                 if op == 'update':
                     require(after['state'] not in TERMINAL, 'reopen before editing terminal task')
                     changes = cmd['changes']
@@ -749,6 +774,9 @@ def execute(project, cmd, _db=None, _applying=None):
                     if state == 'running' and before.get('sent_back'):
                         # Same task, next version: earlier checks and decisions no longer apply.
                         after['rework'] = rework(cmd, before, before['sent_back'])
+                        escalated = platform.check_escalation(api(), root, cfg, cmd, before, tasks, 'rework', after['rework']['count'])
+                        if escalated:
+                            after['rework']['escalation'] = escalated
                         after.pop('sent_back')
                         after.update(work_revision=after['work_revision'] + 1, review=None, human_review=None)
                     if before['state'] in TERMINAL and state != 'deprecated':
@@ -763,6 +791,9 @@ def execute(project, cmd, _db=None, _applying=None):
                             users = sorted(x['id'] for x in tasks.values() if tid in x['dependencies'] + x.get('completion_requires', []) and x['state'] in {'running', 'waiting_review', 'done'})
                             require(not users, 'output already used by ' + ','.join(users) + '; replace it through a successor in a change plan instead of reopening')
                             after['rework'] = rework(cmd, before, None)
+                            escalated = platform.check_escalation(api(), root, cfg, cmd, before, tasks, 'rework', after['rework']['count'])
+                            if escalated:
+                                after['rework']['escalation'] = escalated
                         after['work_revision'] += 1
                         after['review'] = after['human_review'] = None
                         after.pop('deprecation', None)
@@ -860,6 +891,10 @@ def execute(project, cmd, _db=None, _applying=None):
                         require(not children(tasks, tid), 'transfer leaf responsibility only; resolve child managers explicitly')
                         after['owner'] = cmd['to']
                     after['executor'], after['reason'] = cmd['to'], cmd['note']
+                    after['reassigned'] = before.get('reassigned', 0) + 1
+                    escalated = platform.check_escalation(api(), root, cfg, cmd, before, tasks, 'reassign', after['reassigned'])
+                    if escalated:
+                        after['reassign_escalation'] = escalated
                     tasks[tid] = after
                     problem = team.level_issue(api(), db, after) or team.master_issue(api(), db, cfg, after)
                     require(not problem, problem)

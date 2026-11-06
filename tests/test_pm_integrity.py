@@ -23,7 +23,7 @@ class IntegrityTests(unittest.TestCase):
         self.root = Path(self.tmp.name).resolve()
         self.seq = 0
         self.call('init', 'PM', config=dict(project='SIMULATED', pm_actor='PM', authorization='SIMULATED only',
-                  frontdoor_thread='SIMULATED', max_slots=8))
+                  frontdoor_id='SIMULATED', max_slots=8))
 
     def call(self, op, actor='DEV-1', **kw):
         self.seq += 1

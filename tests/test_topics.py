@@ -33,7 +33,7 @@ class TopicTests(unittest.TestCase):
             (self.root / path).parent.mkdir(parents=True, exist_ok=True)
             (self.root / path).write_text(text)
         execute(self.root, {'op': 'init', 'config': {'protocol': 'professional-collaboration/0.1', 'authorization': 'SIMULATED TEST ONLY',
-                                                     'frontdoor': {'thread_id': 'test-topics'}}})
+                                                     'frontdoor_id': 'test-topics'}})
         # product decides, engineering initiates, design takes part, qa owns an affected deliverable, pm only plans.
         for name, skill in [('product', 'skills/p.md'), ('engineering', 'skills/e.md'), ('design', 'skills/d.md'),
                             ('qa', 'skills/q.md'), ('pm', 'skills/m.md')]:

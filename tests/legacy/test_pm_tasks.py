@@ -30,7 +30,7 @@ class TaskRuntimeTests(unittest.TestCase):
         self.call('init', 'SIM-PM', config={
             'project': 'SIMULATED TEST ONLY', 'pm_actor': 'SIM-PM',
             'authorization': 'SIMULATED test authorization; no external action',
-            'frontdoor_thread': 'SIMULATED-NOT-A-REAL-THREAD', 'max_slots': 2})
+            'frontdoor_id': 'SIMULATED-NOT-A-REAL-THREAD', 'max_slots': 2})
 
     def call(self, op, actor='SIM-OWNER', **fields):
         self.serial += 1

@@ -112,7 +112,7 @@ def populate(root, case_id, final=True):
         write('product/requirements.json', json.dumps({'revision': '1', 'note': 'SYNTHETIC product source', 'items': items}, ensure_ascii=False, indent=2) + '\n')
 
     call('init', config=dict(project='SYNTHETIC 合成电商 App', pm_actor=PM, authorization='SYNTHETIC local evaluation only; no real delegation',
-                             frontdoor_thread='SYNTHETIC-frontdoor', max_slots=12))
+                             frontdoor_id='SYNTHETIC-frontdoor', max_slots=12))
     write('management/model-fit.json', json.dumps(model_fit(), ensure_ascii=False, indent=2) + '\n')
     write('management/instance-config.json', json.dumps(config(), ensure_ascii=False, indent=2) + '\n')
     call('confirm_config', person='user', quote='SYNTHETIC: 按这份配置来（模拟原话）', presented_ref='SYNTHETIC presentation of the instance configuration',

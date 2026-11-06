@@ -37,7 +37,7 @@ class DeliveryExits(unittest.TestCase):
         (self.root / 'product').mkdir()
         self.items(ITEMS)
         self.n = 0
-        self.call('init', config=dict(project='SIMULATED', pm_actor='PM', authorization='SIMULATED only', frontdoor_thread='SIMULATED', max_slots=8))
+        self.call('init', config=dict(project='SIMULATED', pm_actor='PM', authorization='SIMULATED only', frontdoor_id='SIMULATED', max_slots=8))
         self.call('confirm_config', person='SIM-owner', quote='SIMULATED: 按配置', presented_ref='SIM shown', choices={})
         for e in TEAM['entries']:
             self.call('derive', entry=e['id'], endpoint='SIM-handle-' + e['id'])

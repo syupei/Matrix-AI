@@ -38,7 +38,7 @@ class Fixture:
         for name, data in [('model-fit.json', MODELS), ('instance-config.json', TEAM), ('people.json', PEOPLE)]:
             (self.root / 'management' / name).write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
         self.n = 0
-        self.call('init', config=dict(project='SIMULATED 记账 App', pm_actor='PM', authorization='SIMULATED only', frontdoor_thread='SIMULATED', max_slots=8))
+        self.call('init', config=dict(project='SIMULATED 记账 App', pm_actor='PM', authorization='SIMULATED only', frontdoor_id='SIMULATED', max_slots=8))
         self.call('confirm_config', person='boss', quote='SIMULATED: 按配置来', presented_ref='SIM shown', choices={})
         for e in TEAM['entries']:
             for _ in range(e['count']):

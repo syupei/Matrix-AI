@@ -28,7 +28,7 @@ class LedgerTests(unittest.TestCase):
             file.write_text(text)
         self.config = {'protocol': 'professional-collaboration/0.1',
                        'authorization': 'SIMULATED TEST ONLY',
-                       'frontdoor': {'thread_id': 'test-v2'}, 'max_rounds': 3}
+                       'frontdoor_id': 'test-v2', 'max_rounds': 3}
         execute(self.root, {'op': 'init', 'config': self.config})
         self.register('engineering', 'skills/e.md', ['engineering'], 'test-engineering')
         self.register('product', 'skills/p.md', ['product'], 'test-product')
@@ -73,7 +73,7 @@ class LedgerTests(unittest.TestCase):
 
     def human_answer(self, question_hash, **extra):
         command = {'question_hash': question_hash, 'answer': 'Retain for 30 days',
-                   'evidence': {'kind': 'user_message', 'thread_id': 'test-v2',
+                   'evidence': {'kind': 'user_message', 'frontdoor_id': 'test-v2',
                                 'quote': 'SIMULATED: retain for 30 days'}}
         command.update(extra)
         return self.runop('human_answer', **command)
@@ -224,15 +224,15 @@ class LedgerTests(unittest.TestCase):
         _, qh = self.needs_human()
         self.present(qh)
         for evidence in [
-            {'kind': 'agent_message', 'thread_id': 'test-v2', 'quote': 'yes'},
-            {'kind': 'user_message', 'thread_id': 'other-task', 'quote': 'yes'},
-            {'kind': 'user_message', 'thread_id': 'test-v2'},
+            {'kind': 'agent_message', 'frontdoor_id': 'test-v2', 'quote': 'yes'},
+            {'kind': 'user_message', 'frontdoor_id': 'other-task', 'quote': 'yes'},
+            {'kind': 'user_message', 'frontdoor_id': 'test-v2'},
         ]:
             with self.subTest(evidence=evidence), self.assertRaises(CoordinationError):
                 self.human_answer(qh, evidence=evidence)
         with self.assertRaises(CoordinationError):
             self.runop('human_answer', 'product', question_hash=qh, answer='yes',
-                       evidence={'kind': 'user_message', 'thread_id': 'test-v2', 'quote': 'SIMULATED'})
+                       evidence={'kind': 'user_message', 'frontdoor_id': 'test-v2', 'quote': 'SIMULATED'})
 
     def test_human_answer_rechecks_current_baseline(self):
         _, qh = self.needs_human()
@@ -263,7 +263,7 @@ class LedgerTests(unittest.TestCase):
         with self.assertRaises(CoordinationError):
             self.runop('request', 'product', 'R2', request=payload)
 
-    def test_frontdoor_thread_self_dispatch_rejected(self):
+    def test_frontdoor_id_self_dispatch_rejected(self):
         execute(self.root, {'op': 'register', 'actor': 'coordinator', 'role': {
             'id': 'product', 'skill': 'skills/p.md', 'write_roots': ['product'],
             'endpoint': {'kind': 'thread', 'id': 'test-v2', 'session': 'simulated'}}})

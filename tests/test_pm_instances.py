@@ -35,7 +35,7 @@ class Fixture:
         (self.root / 'management').mkdir(parents=True, exist_ok=True)
         self.n = 0
         self.call('init', 'PM', config=dict(project='SIMULATED', pm_actor='PM', authorization='SIMULATED only',
-                                             frontdoor_thread='SIMULATED', max_slots=8))
+                                             frontdoor_id='SIMULATED', max_slots=8))
         self.write('model-fit.json', MODELS)
 
     def write(self, name, data):
@@ -306,7 +306,7 @@ class Levels(Fixture, unittest.TestCase):
     def test_instance_without_level_cannot_take_a_task_with_difficulty(self):
         with tempfile.TemporaryDirectory(prefix='pm-legacy-simulation-') as d:
             root = Path(d).resolve()
-            pm.execute(root, dict(op='init', actor='PM', event_id='L1', config=dict(project='SIM', pm_actor='PM', authorization='SIM', frontdoor_thread='SIM', max_slots=2)))
+            pm.execute(root, dict(op='init', actor='PM', event_id='L1', config=dict(project='SIM', pm_actor='PM', authorization='SIM', frontdoor_id='SIM', max_slots=2)))
             pm.execute(root, dict(op='register_instance', actor='PM', event_id='L2', id='OLD', instance=dict(role='matrix-code-engineering-build', endpoint='SIM-old')))
             task = dict(id='X', parent=None, title='SIM', owner='OLD', checker='C', goal='g', inputs=['i'], outputs=['o'], criteria=['c'], next_action='n')
             with self.assertRaisesRegex(pm.TaskError, 'has no level'):
@@ -447,13 +447,30 @@ class Independence(Fixture, unittest.TestCase):
     def independence(self, tid):
         return self.t(tid)['review']['independence']
 
+    def platform_run(self, tid, model):
+        """A SIMULATED platform run of the executor that hands the task over."""
+        rid = 'RUN-' + tid + '-' + str(self.n)
+        self.call('launch_start', id=rid, purpose='start', task_id=tid, instance=self.t(tid)['executor'], model=model, session='SIM-' + rid, command=['SIM-cli'])
+        self.call('launch_started', id=rid, pid=4242)
+        self.mutate('transition', tid, state='waiting_review', reason='SIM handed over', stop_evidence='SIM stopped', evidence=['SIMULATED work ' + tid])
+        self.call('launch_exit', 'launcher', id=rid, exit_code=0)
+
+    def checking(self, tid, model):
+        """A SIMULATED platform run of the checker, still running while it records the review."""
+        rid = 'CHECK-' + tid + '-' + str(self.n)
+        self.call('launch_start', id=rid, purpose='check', task_id=tid, instance=self.t(tid)['checker'], model=model, session='SIM-' + rid, command=['SIM-cli'])
+
     def test_same_model_check_is_not_independent_for_f1_and_blocks_closing(self):
         self.work('F1', risk='F1', risk_reason='SIM 扣费')
+        self.platform_run('F1', 'SIM-small')
         self.check('F1')
         self.assertEqual('not_independent', self.independence('F1'))
         with self.assertRaisesRegex(pm.TaskError, r'F1 work needs an independent check \(recorded: not_independent\): assign another checker'):
             self.close('F1')  # quality-engineering-001 runs another model
         self.mutate('update', 'F1', changes={'checker': 'quality-engineering-001'}, reason='SIM other model', scope_authorization='SIM master')
+        self.check('F1')
+        self.assertEqual('not_independent', self.independence('F1'))  # configured for another model, but no recorded run shows it
+        self.checking('F1', 'SIM-big')
         self.check('F1')
         self.assertEqual('independent', self.independence('F1'))
         self.close('F1')

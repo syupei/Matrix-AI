@@ -19,7 +19,7 @@ def populate(root, case_id):
         counter += 1
         return pm.execute(root, dict(op=op, actor=actor, event_id='FIXTURE-'+str(counter), **kw))
 
-    call('init', config=dict(project='SYNTHETIC suggestion board', pm_actor='PM', authorization='Synthetic local evaluation only', frontdoor_thread='SYNTHETIC', max_slots=6))
+    call('init', config=dict(project='SYNTHETIC suggestion board', pm_actor='PM', authorization='Synthetic local evaluation only', frontdoor_id='SYNTHETIC', max_slots=6))
     (root/'product').mkdir()
     (root/'product/requirements.json').write_text(json.dumps({'version':'1','items':[{'id':'SUGGESTION','rule':'employees submit suggestions'},{'id':'ATTACHMENT','rule':'optional attachments'}]},ensure_ascii=False))
     (root/'artifact-v1.txt').write_text('SYNTHETIC completed company-wide suggestion list v1')

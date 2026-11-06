@@ -194,9 +194,17 @@ def independence(pm, root, db, task, checker):
     c = instances.get(checker)
     if need is not None and not (derived(c) and level(c['level']) >= need):
         return 'not_independent'
-    if other_model and not (derived(c) and len(made) == len(producers) and c['model'] not in {p['model'] for p in made}):
+    if other_model and not (derived(c) and len(made) == len(producers) and different_models(pm, db, task, producers, checker)):
         return 'not_independent'
     return 'independent'
+
+
+def different_models(pm, db, task, producers, checker):
+    """Only models the launcher recorded count: the producers' runs of this task and the checker's current run."""
+    runs = pm.integrity.records(db, 'launch').values()
+    made = {l['model'] for l in runs if l['task_id'] == task['id'] and l['purpose'] == 'start' and l['instance'] in producers and l['state'] != 'not_started'}
+    checking = {l['model'] for l in runs if l['instance'] == checker and l['state'] in pm.platform.ACTIVE}
+    return bool(made and checking and not made & checking)
 
 
 def verification_issue(pm, root, db, task):
@@ -264,16 +272,17 @@ def instance_op(pm, root, db, cfg, tasks, cmd):
         pm.require(entry, 'entry not in the confirmed configuration; do not derive outside it')
         active = [i for i in instances.values() if i.get('config_entry') == entry['id'] and i.get('active')]
         pm.require(len(active) < entry['count'], 'configured count reached for ' + entry['id'])
-        pm.require(pm.nonempty(cmd.get('endpoint')), 'the real handle returned by the host is required')
-        pm.require(not any(i.get('active', True) and i.get('endpoint') == cmd['endpoint'] for i in instances.values()), 'endpoint already registered')
+        pm.require(pm.nonempty(cmd.get('endpoint')), 'the real handle returned by the host, or platform for runs the launcher starts, is required')
         pm.require(pm.strings(cmd.get('write_roots', [])), 'write_roots must be paths')
         n = 1 + max([int(m[1]) for k in instances for m in [re.fullmatch(re.escape(entry['profession']) + r'-(\d{3,})', k)] if m] or [0])
         iid = entry['profession'] + '-' + str(n).zfill(3)
+        endpoint = 'platform:' + iid if cmd['endpoint'] == 'platform' else cmd['endpoint']
+        pm.require(not any(i.get('active', True) and i.get('endpoint') == endpoint for i in instances.values()), 'endpoint already registered')
         roots = list(dict.fromkeys([workspace(pm, root, iid) + '/workspace'] + cmd.get('write_roots', [])))
         pm.require(all(pm.local(root, ref) != root for ref in roots), 'instance cannot own the whole project')
         value = dict(id=iid, role=entry['profession'], profession=entry['profession'], level=entry['level'], model=entry['model'],
                      config_entry=entry['id'], fit=DERIVED_FIT[entry['fit']], master=entry.get('master', False),
-                     endpoint=cmd['endpoint'], write_roots=roots, derived_by=actor, derived_at=pm.now(), active=True, revision=1)
+                     endpoint=endpoint, write_roots=roots, derived_by=actor, derived_at=pm.now(), active=True, revision=1)
     else:
         inst = instances.get(cmd.get('id'))
         pm.require(inst and inst.get('config_entry') and inst.get('active'), 'active derived instance required')

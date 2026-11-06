@@ -28,7 +28,7 @@ class TeamTests(unittest.TestCase):
         (self.root / 'management/people.json').write_text(json.dumps(ROSTER, ensure_ascii=False))
         self.n = 0
         self.call('init', 'SIM-PM', config={'project': 'SIMULATED', 'pm_actor': 'SIM-PM',
-                  'authorization': 'SIMULATED only', 'frontdoor_thread': 'SIMULATED', 'max_slots': 4})
+                  'authorization': 'SIMULATED only', 'frontdoor_id': 'SIMULATED', 'max_slots': 4})
 
     def call(self, op, actor='SIM-OWNER', **fields):
         self.n += 1

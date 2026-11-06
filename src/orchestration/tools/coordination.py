@@ -137,7 +137,7 @@ def execute(project, command):
             cfg = command['config']
             require(cfg.get('protocol') == 'professional-collaboration/0.1', 'unsupported professional protocol')
             require(isinstance(cfg.get('authorization'), str) and cfg['authorization'].strip(), 'authorization required')
-            require(cfg.get('frontdoor', {}).get('thread_id'), 'real human-facing task id required')
+            require(isinstance(cfg.get('frontdoor_id'), str) and cfg['frontdoor_id'].strip(), 'real human-facing task id required (frontdoor_id)')
             require(isinstance(cfg.get('max_rounds', 3), int) and 1 <= cfg.get('max_rounds', 3) <= 10, 'max_rounds must be 1..10')
             require(isinstance(cfg.get('max_attempts', 3), int) and 1 <= cfg.get('max_attempts', 3) <= 10, 'max_attempts must be 1..10')
             old = con.execute("SELECT value FROM meta WHERE key='config'").fetchone()
@@ -401,7 +401,7 @@ def execute(project, command):
             return req
         if op == 'packet':
             require(actor == 'coordinator' and req['state'] == 'dispatching', 'claim before constructing dispatch packet')
-            result = {'protocol': cfg['protocol'], 'project_root': str(root), 'request': req, 'source_role': role(req['source']), 'target_role': role(req['target']), 'frontdoor': cfg['frontdoor'],
+            result = {'protocol': cfg['protocol'], 'project_root': '.', 'request': req, 'source_role': role(req['source']), 'target_role': role(req['target']), 'frontdoor_id': cfg['frontdoor_id'],
                       'instruction': 'Read the target role skill and collaboration runtime skill. Process only this request; use respond with this attempt token. Do not ask the human directly. Do not assume business facts or expand authorization.'}
             con.commit()
             return result
@@ -424,7 +424,7 @@ def execute(project, command):
             else:
                 endpoint = role(req['target']).get('endpoint')
                 require(endpoint is not None, 'bind a real role endpoint before claim; use on-demand bootstrap handshake')
-                require(endpoint['kind'] != 'thread' or endpoint['id'] != cfg['frontdoor']['thread_id'], 'cannot send to the current frontdoor task; bind an independent subagent or process inline without self-message')
+                require(endpoint['kind'] != 'thread' or endpoint['id'] != cfg['frontdoor_id'], 'cannot send to the current frontdoor task; bind an independent subagent or process inline without self-message')
                 require(endpoint['kind'] != 'inline', 'inline roles answer directly; cannot dispatch a self-call')
                 req['attempt'] = uuid.uuid4().hex
                 req['state'] = 'dispatching'
@@ -450,7 +450,7 @@ def execute(project, command):
         elif op == 'retry':
             require(actor == 'coordinator' and req['state'] == 'failed', 'only a confirmed not-sent failure can retry automatically')
             require(req.get('delivery', {}).get('outcome') == 'not_sent', 'responded/unavailable requests require new evidence, not transport retry')
-            require(len(req['attempts']) < cfg.get('max_attempts', 3), 'delivery retry limit reached')
+            require(sum(a['round'] == req['round'] for a in req['attempts']) < cfg.get('max_attempts', 3), 'delivery retry limit reached')
             req['state'] = 'ready'
             result = save(req, 'retry_prepared')
         elif op == 'respond':
@@ -510,7 +510,7 @@ def execute(project, command):
             require(actor == 'coordinator' and req['state'] == 'needs_human', 'only coordinator records a real human response')
             require(req.get('presented') and command.get('question_hash') == req['question_hash'], 'must answer the actually presented question revision')
             ev = command.get('evidence', {})
-            require(ev.get('kind') == 'user_message' and ev.get('thread_id') == cfg['frontdoor']['thread_id'] and ev.get('quote'), 'real frontdoor user-message evidence required; no timeout/default/agent consent')
+            require(ev.get('kind') == 'user_message' and ev.get('frontdoor_id') == cfg['frontdoor_id'] and ev.get('quote'), 'real frontdoor user-message evidence required; no timeout/default/agent consent')
             require(command.get('answer'), 'human answer missing')
             if not check_sources(req['expected_sources']):
                 req['state'] = 'stale'

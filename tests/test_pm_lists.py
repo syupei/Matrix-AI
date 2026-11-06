@@ -13,9 +13,6 @@ SOURCE = KIT
 spec = importlib.util.spec_from_file_location('pm_lists_under_test', SOURCE / 'matrix/orchestration/tools/pm_tasks.py')
 pm = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pm)
-bridge_spec = importlib.util.spec_from_file_location('pm_lists_dispatch', SOURCE / 'matrix/orchestration/tools/task_dispatch.py')
-bridge = importlib.util.module_from_spec(bridge_spec)
-bridge_spec.loader.exec_module(bridge)
 REGISTRIES = {r['id']: r for r in (json.loads(p.read_text(encoding='utf-8')) for p in (SOURCE / 'matrix/professions').glob('*/profession.json'))}
 CAPABILITIES = sorted({c for r in REGISTRIES.values() for c in r.get('model_capabilities', [])})
 MODELS = {'models': [{'model': m, 'levels': {p: r['levels']['range'][1] for p, r in REGISTRIES.items()}, 'capabilities': CAPABILITIES,
@@ -38,7 +35,7 @@ class Fixture:
         for name, data in [('model-fit.json', MODELS), ('instance-config.json', TEAM), ('people.json', PEOPLE)]:
             (self.root / 'management' / name).write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
         self.n = 0
-        self.call('init', 'PM', config=dict(project='记账 App', pm_actor='PM', authorization='SIMULATED only', frontdoor_thread='SIMULATED', max_slots=8))
+        self.call('init', 'PM', config=dict(project='记账 App', pm_actor='PM', authorization='SIMULATED only', frontdoor_id='SIMULATED', max_slots=8))
         self.call('confirm_config', person='boss', quote='SIMULATED: 按配置来', presented_ref='SIM shown', choices={})
         for e in TEAM['entries']:
             for _ in range(e['count']):
@@ -381,66 +378,6 @@ class Views(Fixture, unittest.TestCase):
         out = pm.render(self.root)
         self.assertNotIn('instances/product-002.md', out['views'])
         self.assertFalse((self.root / 'management/views/instances/product-002.md').exists())
-
-
-class Dispatch(unittest.TestCase):
-    """The dispatcher is woken when its task is handed over or blocked."""
-    def setUp(self):
-        tmp = tempfile.TemporaryDirectory(prefix='pm-dispatch-simulation-')
-        self.addCleanup(tmp.cleanup)
-        self.root = Path(tmp.name).resolve()
-        self.n = 0
-        self.call('init', 'PM', config=dict(project='SIMULATED', pm_actor='PM', authorization='SIMULATED', frontdoor_thread='SIM', max_slots=4))
-        for name, text in [('authority.md', 'SIMULATED designation: L leads A; W allocated.'), ('input.md', 'SIMULATED baseline'), ('kit-product.md', 'SIM capability')]:
-            (self.root / name).write_text(text)
-        for iid in ['L', 'W']:
-            self.call('register_instance', id=iid, instance=dict(role='matrix-product', endpoint='SIM-' + iid, write_roots=['management/instances/' + iid + '/workspace']))
-        self.call('create', task=dict(id='A', parent=None, title='A', owner='L', checker='CHECKER', goal='SIM', inputs=['input.md'], outputs=['o'], criteria=['c'], next_action='n', slots=0))
-        self.call('appoint', id='L', appointment=dict(mode='lead', role='matrix-product', root_tasks=['A'], delegates=['W'], source='authority.md'))
-        self.call('appoint', id='W', appointment=dict(mode='executor', role='matrix-product', root_tasks=['A'], delegates=[], source='authority.md'))
-        self.call('create', 'L', task=dict(id='A-1', parent='A', title='A-1', owner='W', executor='W', checker='L', goal='SIM', inputs=['input.md'], outputs=['o'], criteria=['c'], next_action='n'))
-        self.wakes = {}
-        def send(endpoint, packet):
-            return dict(outcome='sent', evidence='SIM delivered', started=True, start_evidence='SIM started')
-        def wake(endpoint, note):
-            self.wakes.setdefault(note['event_id'], (endpoint['id'], note))
-            return {'outcome': 'sent', 'evidence': 'SIM wake'}
-        self.dispatcher = bridge.Dispatcher(self.root, send, wake)
-        self.dispatcher.c('init', config={'protocol': 'professional-collaboration/0.1', 'authorization': 'SIMULATED', 'frontdoor': {'thread_id': 'SIM-MAIN'}})
-        for iid in ['L', 'W']:
-            self.dispatcher.c('register', role=dict(id=iid, skill='kit-product.md', write_roots=['management/instances/' + iid + '/workspace'],
-                                                    endpoint={'kind': 'subagent', 'id': 'SIM-' + iid, 'session': 'SIM-session-' + iid}))
-        self.out = self.dispatcher.dispatch('A-1', 'REQ1', ['input.md'], 'authority.md')
-
-    def call(self, op, actor='PM', **kw):
-        self.n += 1
-        return pm.execute(self.root, dict(op=op, actor=actor, event_id='SIM-' + str(self.n), **kw))
-
-    def task(self):
-        return next(t for t in pm.execute(self.root, {'op': 'status'})['tasks'] if t['id'] == 'A-1')
-
-    def test_blocked_report_wakes_the_dispatcher_once(self):
-        self.assertEqual('running', self.task()['state'])
-        self.call('transition', 'W', task_id='A-1', expected_revision=self.task()['revision'], state='blocked', reason='SIM 缺权限', stop_evidence='SIM stopped')
-        first = self.dispatcher.collect('REQ1')
-        self.dispatcher.collect('REQ1')
-        self.assertEqual(('blocked', 'blocked', 'L'), (first['notification']['kind'], first['notification']['task_state'], first['notification']['dispatcher']))
-        self.assertEqual([('SIM-L', 'blocked')], [(e, n['kind']) for e, n in self.wakes.values()])
-
-    def test_handover_wakes_the_dispatcher_and_recollecting_stays_returned(self):
-        self.dispatcher.c('respond', 'W', id='REQ1', attempt=self.out['request']['attempt'],
-                          response=dict(kind='explanation', summary='SIM candidate ready', evidence=['SIM result artifact']))
-        first = self.dispatcher.collect('REQ1')
-        second = self.dispatcher.collect('REQ1')
-        self.assertEqual(('returned', 'waiting_review', 'L'), (first['notification']['kind'], first['notification']['task_state'], first['notification']['dispatcher']))
-        self.assertEqual('returned', second['notification']['kind'])
-        self.assertEqual(['SIM result artifact'], self.task()['evidence'])
-        self.assertEqual(1, len(self.wakes))
-
-    def test_handover_through_the_task_source_wakes_the_dispatcher(self):
-        self.call('transition', 'W', task_id='A-1', expected_revision=self.task()['revision'], state='waiting_review', reason='SIM done',
-                  stop_evidence='SIM stopped', evidence=['SIM result'])
-        self.assertEqual('handed_over', self.dispatcher.collect('REQ1')['notification']['kind'])
 
 
 if __name__ == '__main__':

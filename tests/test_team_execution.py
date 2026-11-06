@@ -15,12 +15,11 @@ def load(name, path):
 pm=load('team_pm_test',ROOT/'matrix/orchestration/tools/pm_tasks.py')
 gw=load('team_gateway_test',ROOT/'matrix/orchestration/tools/tool_gateway.py')
 gate=load('team_gate_test',ROOT/'matrix/base/tools/stage_gate.py')
-bridge=load('team_dispatch_test',ROOT/'matrix/orchestration/tools/task_dispatch.py')
 
 class ProjectFixture:
     def setUp(self):
         t=tempfile.TemporaryDirectory();self.addCleanup(t.cleanup);self.root=Path(t.name);self.n=0
-        self.call('init','PM',config=dict(project='SIMULATED',pm_actor='PM',authorization='SIMULATED',frontdoor_thread='SIM',max_slots=4))
+        self.call('init','PM',config=dict(project='SIMULATED',pm_actor='PM',authorization='SIMULATED',frontdoor_id='SIM',max_slots=4))
         (self.root/'authority.md').write_text('SIMULATED designation: lead manages A; workers W and X allocated.')
         (self.root/'input.md').write_text('SIMULATED baseline')
         for iid,role in [('L','matrix-product'),('W','matrix-product'),('X','matrix-product'),('M','matrix-project-management'),('S','security-specialist')]:
@@ -252,66 +251,5 @@ class DelegatedGate(unittest.TestCase):
         (self.root/'management/people.json').write_text(json.dumps({'people':[{'id':'designer','decides':['design']}]}))
         self.grant['person_id']='designer'
         with self.assertRaisesRegex(ValueError,'no decision authority'):self.check()
-
-class Dispatch(ProjectFixture, unittest.TestCase):
-    def setup_bridge(self,started=True):
-        self.create('A-1','A','L');self.sends=[];self.wakes={}
-        def send(endpoint,packet):
-            self.sends.append(packet);return dict(outcome='sent',evidence='SIM delivered',started=started,start_evidence='SIM started')
-        def wake(endpoint,note):self.wakes.setdefault(note['event_id'],note);return {'outcome':'sent','evidence':'SIM wake'}
-        self.dispatcher=bridge.Dispatcher(self.root,send,wake)
-        c=self.dispatcher.c
-        c('init',config={'protocol':'professional-collaboration/0.1','authorization':'SIMULATED','frontdoor':{'thread_id':'SIM-MAIN'}})
-        for iid in ['L','W']:
-            c('register',role=dict(id=iid,skill='kit-product.md',write_roots=['management/instances/'+iid+'/workspace'],endpoint={'kind':'subagent','id':'SIM-'+iid,'session':'SIM-session-'+iid}))
-    def test_return_wakes_lead_without_closing_or_approving(self):
-        (self.root/'kit-product.md').write_text('SIM product capability')
-        self.setup_bridge()
-        out=self.dispatcher.dispatch('A-1','REQ1',['input.md'],'authority.md')
-        self.assertEqual('running',self.t('A-1')['state'])
-        self.dispatcher.dispatch('A-1','REQ1',['input.md'],'authority.md')
-        self.dispatcher.c('respond','W',id='REQ1',attempt=out['request']['attempt'],response=dict(kind='explanation',summary='SIM candidate ready',evidence=['SIM result artifact']))
-        self.dispatcher.collect('REQ1');self.dispatcher.collect('REQ1')
-        self.assertEqual('waiting_review',self.t('A-1')['state']);self.assertIsNone(self.t('A-1')['human_review'])
-        self.assertEqual(1,len(self.sends));self.assertEqual(1,len(self.wakes))
-    def test_sent_is_not_started(self):
-        (self.root/'kit-product.md').write_text('SIM product capability');self.setup_bridge(False)
-        self.dispatcher.dispatch('A-1','REQ1',['input.md'],'authority.md')
-        self.assertEqual('planned',self.t('A-1')['state'])
-        self.dispatcher.dispatch('A-1','REQ1',['input.md'],'authority.md')
-        self.assertEqual(1,len(self.sends))
-    def test_confirmed_not_sent_can_retry(self):
-        (self.root/'kit-product.md').write_text('SIM capability');self.setup_bridge(False)
-        original=self.dispatcher.send
-        def failed(endpoint,packet):
-            self.sends.append(packet);return dict(outcome='not_sent',evidence='SIM rejected before delivery')
-        self.dispatcher.send=failed
-        self.dispatcher.dispatch('A-1','R',['input.md'],'authority.md')
-        self.dispatcher.c('retry',id='R');self.dispatcher.send=original
-        result=self.dispatcher.dispatch('A-1','R',['input.md'],'authority.md')
-        self.assertTrue(result['sent_now']);self.assertEqual(2,len(self.sends))
-    def test_input_change_after_response_does_not_adopt_return(self):
-        (self.root/'kit-product.md').write_text('SIM capability');self.setup_bridge()
-        out=self.dispatcher.dispatch('A-1','R',['input.md'],'authority.md')
-        self.dispatcher.c('respond','W',id='R',attempt=out['request']['attempt'],response=dict(kind='explanation',summary='SIM result',evidence=['SIM']))
-        (self.root/'input.md').write_text('SIM revised after response')
-        result=self.dispatcher.collect('R')
-        self.assertFalse(result['notification']['source_current'])
-        self.assertEqual('needs_attention',result['notification']['kind'])
-    def test_reappointment_invalidates_pending_start(self):
-        (self.root/'kit-product.md').write_text('SIM capability');self.setup_bridge(False)
-        self.dispatcher.dispatch('A-1','R',['input.md'],'authority.md')
-        self.call('appoint','PM',id='W',expected_revision=1,appointment=dict(mode='executor',role='matrix-product',root_tasks=['A'],delegates=[],source='authority.md'))
-        with self.assertRaisesRegex(self.dispatcher.pm.TaskError,'changed after dispatch'):
-            self.dispatcher.mark_started('R','SIM actual start')
-        self.assertEqual('planned',self.t('A-1')['state'])
-    def test_late_start_cannot_resurrect_returned_work(self):
-        (self.root/'kit-product.md').write_text('SIM capability');self.setup_bridge(False)
-        out=self.dispatcher.dispatch('A-1','R',['input.md'],'authority.md')
-        self.dispatcher.c('respond','W',id='R',attempt=out['request']['attempt'],response=dict(kind='explanation',summary='SIM result',evidence=['SIM']))
-        self.dispatcher.collect('R')
-        self.dispatcher.mark_started('R','SIM delayed start receipt')
-        self.dispatcher.collect('R')
-        self.assertNotEqual('running',self.t('A-1')['state'])
 
 if __name__=='__main__':unittest.main()

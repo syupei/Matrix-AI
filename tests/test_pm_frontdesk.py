@@ -19,7 +19,7 @@ class FrontDeskTests(unittest.TestCase):
         self.root = Path(tmp.name)
         self.n = 0
         self.call('init', 'SIM-PM', config={'project': 'SIMULATED', 'pm_actor': 'SIM-PM',
-                  'authorization': 'SIMULATED only', 'frontdoor_thread': 'SIMULATED', 'max_slots': 4})
+                  'authorization': 'SIMULATED only', 'frontdoor_id': 'SIMULATED', 'max_slots': 4})
 
     def call(self, op, actor='SIM-OWNER', **fields):
         self.n += 1
