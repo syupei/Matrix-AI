@@ -169,6 +169,20 @@ class Records(Project, unittest.TestCase):
             self.launch('A')
         self.assertEqual('launch_failed', self.summary()['stops']['A']['code'])
 
+    def test_the_dispatcher_records_whom_a_stopped_task_waits_for(self):
+        self.exit(self.launch('A'), 0)  # ended without handover; retrying will not help, a person must decide
+        with self.assertRaisesRegex(pm.TaskError, 'belongs to its owner'):
+            self.call('update', task_id='A', expected_revision=self.t('A')['revision'], changes={'goal': 'SIM other'}, reason='SIM')
+        self.call('update', task_id='A', expected_revision=self.t('A')['revision'], reason='SIM 模型不可用',
+                  changes={'awaiting': [{'person': 'SIM-owner', 'action': 'decide', 'item': 'SIM 选可用的模型并重新确认实例配置'}]})
+        s = self.summary()
+        self.assertEqual(('human', 'needs_human'), (s['stops']['A']['code'], s['stop']))
+        self.assertEqual([{'task': 'A', 'why': '等人'}], s['human_items'])
+
+    def test_a_stale_revision_names_the_current_one(self):
+        with self.assertRaisesRegex(pm.TaskError, r'current revision 1\)'):
+            self.call('update', 'product-001', task_id='A', expected_revision=7, changes={'next_action': 'SIM'}, reason='SIM')
+
     def test_only_the_launcher_uses_a_launch_to_move_a_task(self):
         rid = self.launch('A')
         with self.assertRaisesRegex(pm.TaskError, 'belongs to its owner'):

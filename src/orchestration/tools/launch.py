@@ -90,7 +90,7 @@ def packet(pm, root, rid, purpose, inst, tasks, stops):
             '- 只写自己的工作区 management/instances/' + iid + '/workspace/ 与登记的写入范围（' + bullet(inst.get('write_roots', [])) + '），检查点也放在工作区。'
             '不联网，不安装软件，不启动其他 Agent，不改别人的成果与记录。',
             '- 任务工具：python3 matrix/orchestration/tools/pm_tasks.py --project . --command <命令文件>（命令文件写在你的工作区），actor 写 ' + iid + '。'
-            'expected_revision 先用 {"op":"tasks_for","as":"' + iid + '"} 查当前值，过期就重读。', '']
+            'expected_revision 是该任务自己的 revision：用 {"op":"status"} 返回的 tasks 里这项任务的 revision，过期时按报错里的当前值重写。', '']
     body = []
     if purpose == 'start':
         back = t.get('sent_back')

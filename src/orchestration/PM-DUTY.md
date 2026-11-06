@@ -7,7 +7,8 @@
    - `inbox`：人说的话。新需求按 [反馈规程](../base/FEEDBACK-PROTOCOL.md) 合批，走变更；答复交给对应的任务；"继续"就是恢复。处理完记 `inbox_done`。
    - `start`：`python3 matrix/orchestration/tools/launch.py --project . --task <ID>`。返工的任务按提示加 `--options '{"note":"…","attributed_to":"…"}'`。
    - `check`、`attend`：`launch.py --project . --purpose check 或 attend --tasks <ID,…>`。
-   - `pm`：归你自己的事：检验交给你的、采用并关闭、处理停住的（重做、改派或上报）、超时的（继续等，或 `launch.py --stop`）、超过上限的（交人决定）。
+   - `pm`：归你自己的事，自己做，不用 `launch.py`：检验交给你的、采用并关闭、处理停住的（重做、改派或上报）、超时的（继续等，或 `launch.py --stop`）、超过上限的（交人决定）。
+   - 要人决定的（例如要改实例配置、要真实审定）：用 `update` 在任务上记 `awaiting`（person、action、item），接续就把它列为等人，定时器会提醒人；不要只写在说明里。
    - `derive`：按已确认的实例配置 `derive`（endpoint 写 `platform`），把执行者记到任务上，再启动。
 3. 没有 `actions` 就结束：`stop` 是 needs_human 时，在项目总入口与前台列表写清等谁、做什么，定时器会提醒人；是 waiting 时不用写。
 4. 守住职责：不代专业检验与采用，不替人批准，不凭记忆办事，以任务表为准。

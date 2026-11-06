@@ -709,10 +709,12 @@ def execute(project, cmd, _db=None, _applying=None):
                 tid = cmd['task_id']
                 require(tid in tasks, 'task missing')
                 before = tasks[tid]
-                require(cmd.get('expected_revision') == before['revision'], 'stale revision; reload task before editing')
+                require(cmd.get('expected_revision') == before['revision'], 'stale revision; reload task before editing (current revision ' + str(before['revision']) + ')')
                 after = json.loads(canon(before))
                 if op in {'update', 'transition', 'report'}:
-                    require(actor == after['owner'] or (op == 'transition' and (actor == after['manager'] or platform.launch_bound(api(), db, cfg, cmd, before))),
+                    # The dispatcher may also record coordination facts, such as which person the task now waits for.
+                    coordinating = op == 'update' and actor == after['manager'] and set(cmd.get('changes') or {}) <= COORDINATION | {'next_action'}
+                    require(actor == after['owner'] or coordinating or (op == 'transition' and (actor == after['manager'] or platform.launch_bound(api(), db, cfg, cmd, before))),
                             'task state belongs to its owner')
                 if op == 'update':
                     require(after['state'] not in TERMINAL, 'reopen before editing terminal task')
