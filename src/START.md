@@ -75,7 +75,7 @@ python3 install.py --target "<项目路径>" --skills-dir .claude/skills --entry
 - **项目调整**：在各 skill 的 `GUIDANCE-INDEX.md` 或共用规则索引的"项目说明"列写补充、替换或停用（见 `matrix/base/GUIDANCE-RESOLUTION.md`）。
 - **新建专业**：用 matrix-profession-builder，按 `matrix/base/PROFESSION-SPEC.md` 写登记、职级表与对照、技能和评测情境，用它的检查脚本核对，再重新生成总入口的专业目录。
 - **多人参与**：在 `management/people.json` 登记参与的人及其决定权（格式见 `matrix/orchestration/TEAM.md`；可由你们的成员管理系统同步）。之后 PM 会把事项发给对应的人，并在 `management/views/` 生成全程计划表、项目总入口、群摘要、个人视图与专业组视图。仅个人独立项目可不建名单；受邀专业成员即使只有一人也按名单中实际权限判断。
-- **运行方式**：多人或中型以上项目，建议主对话使用 matrix-front-desk。它启动时检测宿主能否创建子 Agent，经你一次授权后，在各角色第一项任务就绪时为它创建子 Agent；主对话只保留问询与结论。宿主不支持时在主对话里切换角色。
+- **运行方式**：多人或中型以上项目，建议主对话使用 matrix-front-desk。它启动时检测宿主能否创建子 Agent，经你一次授权后，在各角色第一项任务就绪时为它创建子 Agent；主对话只保留问询与结论。宿主不支持时在主对话里切换角色。要让工作在你不在时也接着推进，用下面的平台运行。
 
 ## 按需加载
 
@@ -88,3 +88,28 @@ python3 install.py --target "<项目路径>" --skills-dir .claude/skills --entry
 ## 多实例团队
 
 负责人、执行者和工作流 PM 按 [项目任职](matrix/orchestration/TEAM-EXECUTION.md) 接入，共用专业核心与唯一任务源。负责人在委托内组织日常交付，真人保留关键判断和必要干预；没有团队配置时保持单实例方式。先核对实际宿主派发/接续能力和 [工具授权边界](matrix/orchestration/TOOL-ACCESS.md)，安装不启动服务或取得外部权限。
+
+## 平台运行
+
+宿主有非交互运行命令（读入提示后运行一次再退出）时，可以让实例由平台拉起、PM 统一调度（规则见 `matrix/orchestration/TEAM-RUNTIME.md` 平台运行）。
+
+1. 在项目里写 `management/runtime/platform.json`，内容是宿主命令的模板。权限写在这里，由你确认后再用：
+
+   ```json
+   {
+     "launch": ["<宿主命令>", "<非交互运行>", "<指定模型>", "{model}", "<指定会话编号>", "{session}",
+                "<只允许这些工具>", "读取类工具,{write_permissions},<运行 matrix/orchestration/tools/pm_tasks.py>", "<禁止联网类工具>"],
+     "write_patterns": ["<写入工具>({root}/**)"],
+     "pm": {"launch": ["…同上，另允许运行 matrix/orchestration/tools/launch.py，模型写 PM 用的模型…"],
+            "resume": ["<宿主命令>", "<非交互运行>", "<按会话编号续接>", "{session}", "…权限同上…"]},
+     "models": {"<实例配置里的模型名>": "<宿主认得的模型名>"},
+     "notify": ["<本机提醒命令>", "{message}"]
+   }
+   ```
+
+   - 宿主命令须能：从标准输入读提示；指定模型；指定会话编号，PM 的命令还要能按编号续接；只允许列出的工具，没列出的直接拒绝而不弹窗询问。
+   - `{write_permissions}` 按 `write_patterns` 展开成该实例每个写入范围的写权限；不要用跳过全部权限的方式。
+   - 可选的数值：`check_seconds`（60）、`patrol_minutes`（60）、`pm_timeout_minutes`（20）、`resume_limit`（20）、`resume_idle_minutes`（60）。
+2. 启动定时器：在项目根目录运行 `python3 matrix/orchestration/tools/timer.py --project .`，关掉终端或中断即停止；也可以交给你授权的定时任务，每次运行 `timer.py --project . --once`。
+3. 停下：告诉前台"暂停项目"，或停掉定时器。电脑关机或定时器停止后，不会有任何运行；再启动时从任务表接着做。
+

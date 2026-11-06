@@ -1,100 +1,150 @@
 #!/usr/bin/env python3
-"""Synthetic local CLI transport probe: actual workers -> actual lead.
-No external project, human approvals, SaaS tools or OS isolation are claimed.
+"""Live platform probe: installs a built kit into a new synthetic project, sets up a small team and lets the real
+timer, PM and launch command run it with an actual host command line. Nothing is simulated except the project.
+
+  team_live.py --source <built kit> --output <new dir> --host claude [--minutes 40]
+  team_live.py --source <built kit> --output <new dir> --host stub      (path check without model calls)
+
+Scenario: A (product master) and C (content-design master) start in parallel; B (product master) depends on A and
+starts only after the PM checked and adopted A. The PM is the checker of all three. No external project, real person, approval or isolation
+is claimed; the receipt records every run, its model, its exit and the timer's log.
 """
 import argparse
-from contextlib import ExitStack
 import hashlib
-import importlib.util
 import json
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
-import uuid
+
+TOOLS = 'matrix/orchestration/tools'
+CONFIG = {'entries': [{'id': 'P-M', 'profession': 'product', 'level': 'T7', 'model': 'sonnet', 'count': 1, 'master': True},
+                      {'id': 'C-M', 'profession': 'content-design', 'level': 'T6', 'model': 'haiku', 'count': 1, 'master': True}]}
+PERMIT = 'Read,Glob,Grep,{write},Bash(python3 ' + TOOLS + '/pm_tasks.py:*)'
 
 
-def load(name,path):
-    spec=importlib.util.spec_from_file_location(name,path);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+def host_settings(host, root):
+    if host == 'claude':
+        deny = ['--disallowedTools', 'WebFetch,WebSearch']
+        worker = PERMIT.replace('{write}', '{write_permissions}')
+        pm = PERMIT.replace('{write}', 'Edit(management/runtime/pm/**),Write(management/runtime/pm/**)') + ',Bash(python3 ' + TOOLS + '/launch.py:*)'
+        return {'launch': ['claude', '-p', '--model', '{model}', '--session-id', '{session}', '--permission-mode', 'dontAsk', '--allowedTools', worker, *deny],
+                'write_patterns': ['Edit({root}/**)', 'Write({root}/**)'],
+                'pm': {'launch': ['claude', '-p', '--model', 'sonnet', '--session-id', '{session}', '--permission-mode', 'dontAsk', '--allowedTools', pm, *deny],
+                       'resume': ['claude', '-p', '--resume', '{session}', '--permission-mode', 'dontAsk', '--allowedTools', pm, *deny]},
+                'check_seconds': 20}
+    stub = root / 'stub_host.py'
+    stub.write_text(STUB, encoding='utf-8')
+    return {'launch': [sys.executable, '-B', str(stub), 'worker', '--session', '{session}'],
+            'pm': {'launch': [sys.executable, '-B', str(stub), 'pm', '--session', '{session}'],
+                   'resume': [sys.executable, '-B', str(stub), 'pm', '--resume', '{session}']}, 'check_seconds': 5}
+
+
+# Path check only: a worker that hands over, and a PM that does what continuation lists (start, check, adopt).
+STUB = r'''
+import json, re, subprocess, sys
+from pathlib import Path
+T = 'matrix/orchestration/tools/'
+def call(cmd):
+    return json.loads(subprocess.run([sys.executable, '-B', T + 'pm_tasks.py', '--project', '.'], input=json.dumps(cmd), capture_output=True, text=True).stdout)
+def task(tid):
+    return next(t for t in call({'op': 'status'})['tasks'] if t['id'] == tid)
+text = sys.stdin.read()
+if sys.argv[1] == 'worker':
+    rid, iid = re.search(r'# 任务包 (\S+?)（', text).group(1), re.search(r'actor 写 (\S+?)。', text).group(1)
+    tid = re.search(r'## 任务 (\S+?)：', text).group(1)
+    Path('management/instances/' + iid + '/workspace').mkdir(parents=True, exist_ok=True)
+    Path('management/instances/' + iid + '/workspace/' + tid + '.md').write_text('STUB result of ' + tid)
+    call({'op': 'transition', 'actor': iid, 'event_id': rid + '-handover', 'task_id': tid, 'expected_revision': task(tid)['revision'], 'state': 'waiting_review',
+          'reason': 'stub done', 'stop_evidence': rid + ' stub run done', 'evidence': ['management/instances/' + iid + '/workspace/' + tid + '.md']})
+else:
+    for n in range(30):
+        s = call({'op': 'continue'})
+        act = next((a for a in s['actions'] if a['kind'] in {'start', 'pm'}), None)
+        if not act:
+            break
+        if act['kind'] == 'start':
+            subprocess.run([sys.executable, '-B', T + 'launch.py', '--project', '.', '--task', act['task']], capture_output=True)
+            continue
+        t, code = task(act['task']), s['stops'][act['task']]['code']
+        if code == 'review':
+            call({'op': 'review', 'actor': 'PM', 'event_id': 'stub-review-' + str(n) + t['id'], 'task_id': t['id'], 'expected_revision': t['revision'],
+                  'outcome': 'passed', 'criteria_checked': t['criteria'], 'evidence': t['evidence']})
+        elif code == 'adopt':
+            call({'op': 'transition', 'actor': 'PM', 'event_id': 'stub-done-' + str(n) + t['id'], 'task_id': t['id'], 'expected_revision': t['revision'],
+                  'state': 'done', 'reason': 'stub adopted'})
+        else:
+            break
+'''
+
+
+def run(*args, cwd=None, data=None):
+    r = subprocess.run([sys.executable, '-B', *args], cwd=cwd, input=json.dumps(data) if data is not None else None, capture_output=True, text=True)
+    if r.returncode:
+        raise RuntimeError(' '.join(args[:2]) + ': ' + (r.stdout + r.stderr)[-800:])
+    return json.loads(r.stdout) if r.stdout.strip().startswith('{') else r.stdout
+
+
+def setup(source, root, host):
+    run(str(source / 'install.py'), '--target', str(root), '--skills-dir', '.claude/skills', '--entry', 'CLAUDE.md', '--apply')
+    n = 0
+    def call(op, actor='PM', **kw):
+        nonlocal n
+        n += 1
+        return run(TOOLS + '/pm_tasks.py', '--project', '.', cwd=root, data=dict(op=op, actor=actor, event_id='LIVE-' + str(n), **kw))
+    (root / 'BRIEF.md').write_text('合成项目：内部意见箱。已确定：员工提交意见、管理员查看列表。未定：是否匿名、附件大小上限。'
+                                   '只在自己的工作区写候选，不补未定的规则。', encoding='utf-8')
+    call('init', config=dict(project='SYNTHETIC suggestion box', pm_actor='PM', authorization='BRIEF.md', frontdoor_id='LIVE-PROBE', max_slots=3))
+    (root / 'management/instance-config.json').write_text(json.dumps(CONFIG), encoding='utf-8')
+    call('confirm_config', person='SYNTHETIC-owner', quote='SYNTHETIC: 按这个配置试跑', presented_ref='BRIEF.md',
+         choices={e['id']: 'acknowledge_unregistered' for e in CONFIG['entries']})
+    for entry in ['P-M', 'C-M']:
+        call('derive', entry=entry, endpoint='platform')
+    common = dict(checker='PM', inputs=['BRIEF.md'], criteria=['只用 BRIEF.md 已确定的规则', '未定的列为待人决定'], next_action='制作候选')
+    call('create', task=dict(id='A', parent=None, title='意见提交流程候选', owner='product-001', executor='product-001', goal='写意见提交的主流程与异常',
+                             outputs=['流程候选（工作区内）'], **common))
+    call('create', task=dict(id='C', parent=None, title='提交成功与失败的提示文字候选', owner='content-design-001', executor='content-design-001',
+                             goal='写提交成功、失败与重试时的提示文字', outputs=['文字候选（工作区内）'], **common))
+    call('create', task=dict(id='B', parent=None, title='验收情境候选', owner='product-001', executor='product-001', goal='按 A 的流程写验收情境',
+                             outputs=['验收情境候选（工作区内）'], dependencies=['A'], **common))
+    (root / 'management/runtime/platform.json').write_text(json.dumps(host_settings(host, root), ensure_ascii=False, indent=1), encoding='utf-8')
 
 
 def main():
-    ap=argparse.ArgumentParser();ap.add_argument('--source',type=Path,required=True);ap.add_argument('--output',type=Path,required=True);a=ap.parse_args()
-    source=a.source.resolve();output=a.output.resolve();output.mkdir(parents=True,exist_ok=False)
-    with tempfile.TemporaryDirectory(prefix='matrix-live-team-') as temporary, ExitStack() as cleanup:
-        work=Path(temporary);shutil.copytree(source,work/'kit',ignore=shutil.ignore_patterns('__pycache__'))
-        bridge=load('live_bridge',source/'matrix/orchestration/tools/task_dispatch.py')
-        pm=load('live_pm',source/'matrix/orchestration/tools/pm_tasks.py')
-        coord=load('live_coord',source/'matrix/orchestration/tools/coordination.py')
-        n=0
-        def cmd(op,actor='PM',**kw):
-            nonlocal n
-            n+=1;return pm.execute(work,dict(op=op,actor=actor,event_id='LIVE-SETUP-'+str(n),**kw))
-        (work/'AUTHORITY.md').write_text('合成试跑授权：P1 为产品负责人，P2/P3 为执行者；只处理未支付订单可取消的已确定范围。已支付后取消与退款时效待真人决定。允许在此隔离项目中实际调用本机模型进程制作候选，禁止外部业务操作。没有任何人工批准或专业通过记录。')
-        (work/'BASELINE.md').write_text('已确定：未支付订单可以取消。已支付后能否取消、退款时效仍待决定。P2 准备状态表，P3 准备取消流程和异常场景；P1 整合，不填补未定规则。')
-        cmd('init',config=dict(project='SYNTHETIC-LIVE',pm_actor='PM',authorization='AUTHORITY.md',frontdoor_thread='LOCAL-TEST',max_slots=3))
-        def task(tid,owner,goal,parent=None,actor='PM',slots=1):
-            return cmd('create',actor,task=dict(id=tid,parent=parent,title=goal,owner=owner,executor=owner,checker='UNASSIGNED-CHECKER',
-                goal=goal,inputs=['BASELINE.md'],outputs=['candidate.md'],criteria=['保留已确定规则和未决范围'],next_action='prepare candidate',slots=slots))
-        task('PRODUCT','P1','整合订单产品候选',slots=0)
-        sessions={iid:uuid.uuid4().hex for iid in ['P1','P2','P3']}
-        # Endpoints identify actual host-managed CLI sessions, allocated after local readiness checks.
-        for iid in sessions:
-            root='management/instances/'+iid+'/workspace';(work/root).mkdir(parents=True)
-            cmd('register_instance',id=iid,instance=dict(role='matrix-product',endpoint='local-cli:'+sessions[iid],write_roots=[root]))
-        cmd('appoint',id='P1',appointment=dict(mode='lead',role='matrix-product',root_tasks=['PRODUCT'],delegates=['P2','P3'],source='AUTHORITY.md'))
-        task('STATES','P2','仅制作未支付订单取消相关的状态表候选，保存 candidate.md','PRODUCT','P1')
-        task('FLOW','P3','仅制作未支付订单取消流程、异常与验收情境候选，保存 candidate.md','PRODUCT','P1')
-        for iid,tid in [('P2','STATES'),('P3','FLOW')]:
-            cmd('appoint',id=iid,appointment=dict(mode='executor',role='matrix-product',root_tasks=[tid],delegates=[],source='AUTHORITY.md'))
-        coord.execute(work,dict(op='init',actor='coordinator',config=dict(protocol='professional-collaboration/0.1',authorization='AUTHORITY.md',frontdoor={'thread_id':'LOCAL-TEST'})))
-        for iid,session in sessions.items():
-            coord.execute(work,dict(op='register',actor='coordinator',role=dict(id=iid,skill='kit/.agents/skills/matrix-product/SKILL.md',write_roots=['management/instances/'+iid+'/workspace'],endpoint=dict(kind='subagent',id='local-cli:'+session,session=session))))
-        processes={};notifications={};raw=[]
-        # Preserve partial evidence and stop only the probe's own children on failure.
-        cleanup.callback(lambda: shutil.copytree(work, output/'project', dirs_exist_ok=True, ignore=shutil.ignore_patterns('kit','__pycache__')))
-        def stop(proc):
-            if proc.poll() is None:
-                proc.terminate()
-                try: proc.wait(timeout=5)
-                except subprocess.TimeoutExpired: proc.kill();proc.wait()
-        def start(iid,prompt,label):
-            reply=output/(label+'.md');events=output/(label+'.jsonl');errors=output/(label+'.stderr')
-            out=events.open('w');err=errors.open('w')
-            proc=subprocess.Popen(['codex','exec','--skip-git-repo-check','--ephemeral','--sandbox','workspace-write','--json','-C',str(work),'-o',str(reply),'-'],stdin=subprocess.PIPE,stdout=out,stderr=err,text=True)
-            cleanup.callback(out.close);cleanup.callback(err.close);cleanup.callback(stop,proc)
-            proc.stdin.write(prompt);proc.stdin.close()
-            row=dict(instance=iid,pid=proc.pid,session=sessions[iid],label=label,started_at=time.time())
-            raw.append(row)
-            return proc,out,err,reply,row
-        def send(endpoint,packet):
-            iid=packet['target_role']['id'];binding=packet['request']['payload']['task_binding']
-            prompt='这是隔离合成项目的实际执行试跑。读取 kit/.agents/skills/matrix-product/SKILL.md、AUTHORITY.md、BASELINE.md 和本任务包。不要联网、创建其他 Agent 或修改任务库/共享基线/任职。只在自己工作区制作实际候选并最终返回摘要、产物引用、未知和自检范围；不宣称已验收或人已确认。回交通道由宿主处理，你不自行调用 respond。\n'+json.dumps(packet,ensure_ascii=False)
-            p=start(iid,prompt,iid);processes[iid]=(p,packet)
-            return dict(outcome='sent',evidence='local CLI stdin accepted; pid '+str(p[0].pid),started=True,start_evidence='actual subprocess '+str(p[0].pid)+' started for '+binding['task_id'])
-        def wake(endpoint,note):
-            notifications.setdefault(note['event_id'],note)
-            # Host coalesces current return notifications, then invokes the lead once below.
-            return dict(outcome='queued',evidence='local host wake queue '+note['event_id'])
-        dispatcher=bridge.Dispatcher(work,send,wake)
-        for tid in ['STATES','FLOW']:dispatcher.dispatch(tid,'LIVE-'+tid,['BASELINE.md','AUTHORITY.md'],'AUTHORITY.md')
-        for iid,(p,packet) in processes.items():
-            proc,out,err,reply,row=p;code=proc.wait(timeout=480);out.close();err.close();row.update(exit=code,finished_at=time.time())
-            if code or not reply.is_file():raise RuntimeError('actual worker failed: '+iid)
-            req=packet['request']
-            refs=[str(x.relative_to(work)) for x in (work/'management/instances'/iid/'workspace').rglob('*') if x.is_file()]
-            if not refs:raise RuntimeError('worker produced no candidate: '+iid)
-            coord.execute(work,dict(op='respond',actor=iid,id=req['id'],attempt=req['attempt'],response=dict(kind='explanation',summary=reply.read_text(),evidence=refs)))
-            dispatcher.collect(req['id'])
-        leadprompt='这是隔离合成项目。使用 kit/.agents/skills/matrix-product/SKILL.md。你是已有任职的 P1，请读 AUTHORITY.md、BASELINE.md、任务库和 management/instances/P2/workspace/、P3/workspace/ 的实际成果。两个执行者已回交，通知如下。请核对两个候选的一致性并在 management/instances/P1/workspace/integrated.md 整合，指出矛盾和未决事实。不得改任务库、源授权或原候选，不伪造独立验收/人工批准，不联网或启动其他 Agent。最后给真人产品一条答复。\n'+json.dumps(list(notifications.values()),ensure_ascii=False)
-        proc,out,err,reply,row=start('P1',leadprompt,'P1-returned');code=proc.wait(timeout=480);out.close();err.close();row.update(exit=code,finished_at=time.time())
-        if code or not reply.is_file() or not (work/'management/instances/P1/workspace/integrated.md').is_file():raise RuntimeError('lead integration missing')
-        shutil.copytree(work,output/'project',ignore=shutil.ignore_patterns('kit','__pycache__'))
-        source_hash=load('live_runner_hash',Path(__file__).with_name('run.py')).fingerprint(source)
-        receipt=dict(source_hash=source_hash,runner='codex exec',cli_version=subprocess.check_output(['codex','--version'],text=True).strip(),processes=raw,notifications=list(notifications.values()),
-            tasks=pm.execute(work,{'op':'status'}),limitations=['Synthetic project and preassigned work packages; no real human approval.', 'Host callback records actual CLI outputs; sessions share a filesystem and do not prove OS/tool isolation.', 'No external tool, autonomous daemon, professional acceptance or real user trial.'])
-        receipt['evidence']={str(p.relative_to(output)):hashlib.sha256(p.read_bytes()).hexdigest() for p in output.rglob('*') if p.is_file()}
-        (output/'receipt.json').write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+'\n')
-        print(json.dumps(dict(actual_processes=len(raw),candidate_files=len(list((output/'project/management/instances').rglob('*.md'))),output=str(output))),flush=True)
-if __name__=='__main__':main()
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument('--source', type=Path, required=True); ap.add_argument('--output', type=Path, required=True)
+    ap.add_argument('--host', choices=['claude', 'stub'], required=True); ap.add_argument('--minutes', type=float, default=40)
+    a = ap.parse_args()
+    source, output = a.source.resolve(), a.output.resolve()
+    output.mkdir(parents=True, exist_ok=False)
+    with tempfile.TemporaryDirectory(prefix='matrix-live-platform-') as temporary:
+        root = Path(temporary)
+        setup(source, root, a.host)
+        timer = subprocess.Popen([sys.executable, '-B', TOOLS + '/timer.py', '--project', '.'], cwd=root,
+                                 stdout=open(output / 'timer.stdout', 'w'), stderr=subprocess.STDOUT)
+        end, status = time.time() + a.minutes * 60, {}
+        try:
+            while time.time() < end:
+                status = run(TOOLS + '/pm_tasks.py', '--project', '.', cwd=root, data={'op': 'continue'})
+                if status['stop'] in {'done', 'needs_human', 'idle'} and not status['active_runs']:
+                    break
+                time.sleep(10)
+        finally:
+            timer.terminate()
+            timer.wait(timeout=30)
+        shutil.copytree(root / 'management', output / 'management', ignore=shutil.ignore_patterns('install-backups'))
+        tasks = run(TOOLS + '/pm_tasks.py', '--project', '.', cwd=root, data={'op': 'status'})
+        receipt = dict(host=a.host, cli=subprocess.run(['claude', '--version'], capture_output=True, text=True).stdout.strip() if a.host == 'claude' else 'stub',
+                       final_stop=status.get('stop'), tasks={t['id']: t['state'] for t in tasks['tasks']},
+                       runs=sorted(tasks['integrity']['launch'].values(), key=lambda l: (l['started_at'], l['id'])),
+                       limitations=['Synthetic project and synthetic person; no real approval.', 'One machine; instances share the project folder.',
+                                    'The PM is the checker, so professional acceptance is not shown.'])
+        receipt['evidence'] = {str(p.relative_to(output)): hashlib.sha256(p.read_bytes()).hexdigest() for p in output.rglob('*') if p.is_file()}
+        (output / 'receipt.json').write_text(json.dumps(receipt, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        print(json.dumps({'final_stop': receipt['final_stop'], 'tasks': receipt['tasks'], 'output': str(output)}, ensure_ascii=False))
+
+
+if __name__ == '__main__':
+    main()

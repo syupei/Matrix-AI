@@ -6,7 +6,7 @@
 
 ## 初始化与登记
 
-- `init`：由对人主任务（PM 接管时为 PM）在首次需要跨角色协作时执行；`authorization` 写用户在对话中给出的协作授权原话与时间，没有授权就不初始化。`config` 含 `protocol:"professional-collaboration/0.1"`、真实 `authorization`、`frontdoor.thread_id`（对人主任务 ID），`max_rounds`、`max_attempts` 缺省 3（1–10）。同配置重复执行幂等，不同配置拒绝；没有迁移或清除命令，改配置前先处理在途工作。
+- `init`：由对人主任务（PM 接管时为 PM）在首次需要跨角色协作时执行；`authorization` 写用户在对话中给出的协作授权原话与时间，没有授权就不初始化。`config` 含 `protocol:"professional-collaboration/0.1"`、真实 `authorization`、`frontdoor_id`（对人主任务 ID），`max_rounds`、`max_attempts` 缺省 3（1–10）；投递重试按每轮人答复重新计数。同配置重复执行幂等，不同配置拒绝；没有迁移或清除命令，改配置前先处理在途工作。
 - `register`（coordinator）：`role={id,skill,write_roots,endpoint}`。skill 须存在；write_roots 为项目内路径，不能是整个项目；未启动的角色 endpoint 为 null，否则 `{kind,id,session}`。kind：subagent（按 id 与 session 识别）；thread（独立任务，按 id 识别）；inline（主任务顺序处理，不能投递）。有在途租约时不能改路由。
 
 ## 一次问答

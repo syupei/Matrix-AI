@@ -16,8 +16,9 @@
 
 ## 初始化与创建
 
-- `init`：`config={project,pm_actor,authorization,frontdoor_thread,max_slots}`（max_slots 1–64），actor 为 pm_actor。用本项目真实主任务与委托，不复制其他项目的库；只能初始化一次。
-- `configure`（仅 pm_actor）：`frontdesk_actor` 登记项目前台的身份，此后前台也可以录入 `human_review`；写 null 取消。
+- `init`：`config={project,pm_actor,authorization,frontdoor_id,max_slots}`（max_slots 1–64），actor 为 pm_actor。用本项目真实主任务与委托，不复制其他项目的库；只能初始化一次。
+- `configure`（仅 pm_actor）：`frontdesk_actor` 登记项目前台的身份，此后前台也可以录入 `human_review`；写 null 取消。`max_slots` 与 `limits`（unattended_launches 30、run_timeout_minutes 60、rework_cap 2、reassign_cap 2、launch_retries 3）是人的决定，带 person 与 quote。
+- 平台运行（见 [TEAM-RUNTIME](TEAM-RUNTIME.md)）：`{"op":"continue"}` 只读，给出要做的事、每项未完成任务的停止原因与额度；`inbox`（PM 或前台，kind=request/answer/continue/note、text，有人的话带 person 与 quote）与 `inbox_done`（PM，带 note）；`pause_project` / `resume_project`（person、quote、reason）。`launch_start` 等运行记录由启动命令与定时器写，不手写。返工、改派超过上限时带 `escalation={decided_by,note}`，PM 派发的任务另带人的 quote。
 - `create`：`task` 字段——`id`、`parent`（顶层 null）；必填 `title`、`goal`、`next_action`、`owner`（工作维护）、`checker`（专业检验）；`inputs`/`outputs`/`criteria` 为非空字符串数组（输入及版本、成果、判据，可引用专业源）；`dependencies` 为开始前须已完成的任务或里程碑 ID；`completion_requires` 为完成前置，即可以先开始、但标为完成前须已完成的任务 ID（何时用见 workflow），不与 dependencies 重复；两者都不得成环（含父子等待）；`executor` 为真实实例，未知 null；`slots` 默认 1，纯协调容器可为 0；`resources` 为独占资源名；`human_required`；`expanded`（本任务子计划已完整展开）；`source`（专业有效源）。
 - 规划与协作字段（均可选）：
   - `kind`：`work` 或 `stage`，阶段里程碑写 `stage`；
@@ -25,6 +26,7 @@
   - `direction`：子方向；
   - `people`：关系到人员 id 列表，关系为 decide、clarify、designate、execute、inform；
   - `derived_from`：派生来源任务；
+  - `order`：就绪任务多于空位时的先后（小的先）；`timeout_minutes`：本任务运行多久算超时（缺省按 limits）；
   - `awaiting`：`[{person, action, item, ref?}]`，action 为 decide、clarify、designate、execute。
 - 职级、风险与来源（均可选）：`difficulty`（T1–T9）、`risk`（F0–F5）、`risk_reason`；`origin` 为 `{kind:"request", id, from}`，记来自别的专业请求的工作。owner 或 executor 是已登记实例时，职级不低于 difficulty，没有职级的实例不能接有难度的任务；创建、改执行者或难度、开始前都核对。PM 的项目层任务，owner 是有专业的实例时须是该专业的 master。
 - 有 `management/people.json` 时，出现的人员 id 必须在名单中。

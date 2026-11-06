@@ -10,6 +10,8 @@ def populate(root, case_id):
     spec = importlib.util.spec_from_file_location('synthetic_pm_fixture', tool)
     # The role label follows the kit under test: a skill name in Matrix-AI, the role identifier before it.
     DEV_ROLE = 'matrix-code-engineering-build' if (root/'kit/matrix').is_dir() else 'engineering-build'
+    # The front-door field is named as the kit under test names it.
+    FRONTDOOR = 'frontdoor_id' if 'frontdoor_id' in tool.read_text(encoding='utf-8') else 'frontdoor_thread'
     pm = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(pm)
     counter = 0
@@ -19,7 +21,7 @@ def populate(root, case_id):
         counter += 1
         return pm.execute(root, dict(op=op, actor=actor, event_id='FIXTURE-'+str(counter), **kw))
 
-    call('init', config=dict(project='SYNTHETIC suggestion board', pm_actor='PM', authorization='Synthetic local evaluation only', frontdoor_id='SYNTHETIC', max_slots=6))
+    call('init', config=dict(project='SYNTHETIC suggestion board', pm_actor='PM', authorization='Synthetic local evaluation only', max_slots=6, **{FRONTDOOR: 'SYNTHETIC'}))
     (root/'product').mkdir()
     (root/'product/requirements.json').write_text(json.dumps({'version':'1','items':[{'id':'SUGGESTION','rule':'employees submit suggestions'},{'id':'ATTACHMENT','rule':'optional attachments'}]},ensure_ascii=False))
     (root/'artifact-v1.txt').write_text('SYNTHETIC completed company-wide suggestion list v1')

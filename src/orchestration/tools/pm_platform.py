@@ -367,8 +367,8 @@ def summary(pm, root, db, cfg, tasks):
     ready = sorted((t for t in tasks.values() if reasons.get(t['id'], {}).get('code') == 'ready'),
                    key=lambda t: (t.get('order', 10 ** 6), t['created_at'], t['id']))
     for t in ready:
-        if t['executor'] in busy or left <= 0 or (t['slots'] and free < t['slots']):
-            continue
+        if t['executor'] not in instances or t['executor'] in busy or left <= 0 or (t['slots'] and free < t['slots']):
+            continue  # an executor that is not a registered instance starts the work itself
         hint = {'rework': dict(cause=t['sent_back']['cause'], attribution_required=t['sent_back']['cause'] != 'execution')} if t.get('sent_back') else {}
         actions.append(dict(kind='start', task=t['id'], instance=t['executor'], **hint))
         busy.add(t['executor']); free -= t['slots']; left -= 1

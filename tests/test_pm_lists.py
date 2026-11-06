@@ -142,7 +142,7 @@ class Lists(Fixture, unittest.TestCase):
         worker = self.rows('code-engineering-002')['T-0031']
         self.assertEqual(('T-0005 · 代码工程-001', '受阻：缺测试环境的数据库权限', '交 代码工程-001'), (worker['上游'], worker['状态'], worker['完成后']))
         product = self.rows('product-001')
-        self.assertEqual('检验并整合 产品-002 的 T-0003.a', product['T-0003']['下一步'])
+        self.assertEqual('检验并整合 产品-002 的 T-0003.a；派出 T-0003.b 给 产品-002', product['T-0003']['下一步'])  # a lead sees what it should dispatch
         self.assertNotIn('T-0003.a', product)  # dispatched downstream, not received
         self.assertEqual('等检验：产品-001', self.rows('product-002')['T-0003.a']['状态'])
         self.assertEqual('未开始：就绪', self.rows('product-002')['T-0003.b']['状态'])

@@ -6,4 +6,5 @@
 | --- | --- | --- | --- |
 | R01 | [编排](references/workflow.md) | 阶段 1–6 | |
 | R02 | [任务工具](../../../matrix/orchestration/TASK-TOOL.md) | 调用 `pm_tasks.py` 前 | |
+| R03 | [值班说明](../../../matrix/orchestration/PM-DUTY.md) | 平台定时器唤起你时 | |
 | L01 | [本专业的职级与对照](../../../matrix/professions/project-management/levels.md) | 标难度、定风险、给缺陷定级 | |

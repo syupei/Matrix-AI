@@ -18,6 +18,11 @@ EXITS = {'production': '制作', 'qa': '检验', 'human': '人审', 'adoption': 
 GAPS = {'delivery_unmapped': '未绑定', 'delivery_not_current': '未完成', 'independent_check_missing': '缺独立检验',
         'human_gate_missing': '缺人审', 'adoption_evidence_missing': '缺采用记录'}
 REASSIGN = {'failed_check': '检验没过', 'executor_unable': '实例说做不了', 'other': '其他'}
+# Why a planned task with its dependencies done has not started: the tool's one stop reason, in list words.
+NOT_STARTED = {'ready': '就绪', 'busy': '就绪，执行者在忙', 'derive': '待派生', 'executor': '未指定执行者', 'slots': '空位已满',
+               'budget': '就绪，自动拉起的次数已用完', 'paused': '项目已暂停', 'launch_failed': '启动失败', 'cap': '返工超过上限，等上一级决定'}
+GATES = {'appointment_required': '缺任职', 'instance_or_write_busy': '执行者或写入范围被占用', 'specialist_review_pending': '等专业审查',
+         'change_plan_pending': '等变更方案', 'change_source_changed': '变更来源已变', 'artifact_changed': '成果文件已变', 'instance_level': '职级不够'}
 
 
 def esc(s):
@@ -46,6 +51,7 @@ def when(value):
 def context(pm, root, db):
     data, people = pm.snapshot(db), pm.roster(root)
     return SimpleNamespace(pm=pm, root=root, db=db, data=data, cfg=data['config'], tasks={t['id']: t for t in data['tasks']},
+                           stops=pm.platform.stops(pm, root, db, data['config'], pm.task_map(db))[0],
                            records=data['integrity'], instances=data['integrity']['instance'], regs=pm.team.registries(pm, root), gaps=data['gaps'],
                            people=(people or {}).get('people', {}), names={pid: p['name'] for pid, p in (people or {}).get('people', {}).items()}, blocked={})
 
@@ -123,7 +129,10 @@ def progress(c, t):
     back, again = t.get('sent_back'), t.get('rework') or {}
     if back or (again and t['state'] in {'planned', 'running'}):
         return '返工中（第 ' + str(1 + again.get('count', 0) + bool(back)) + ' 版）：' + CAUSES[back['cause'] if back else again['reason']]
+    code = c.stops.get(t['id'], {}).get('code')
     if t['state'] == 'waiting_review':
+        if code == 'stale':
+            return '等检验：' + name(c, t['manager']) + '（依据已变，待核对）'
         b = c.pm.basis(t, c.tasks)
         checked = bool(t.get('review') and t['review']['basis'] == b and t['review']['outcome'] == 'passed')
         approved = bool(t.get('human_review') and t['human_review']['basis'] == b and t['human_review']['outcome'] == 'approved')
@@ -131,20 +140,32 @@ def progress(c, t):
             return '等人审：' + deciders(c, t)
         return '等检验：' + name(c, t['manager'] if checked else t['checker'])
     if t['state'] == 'running':
+        if code == 'timeout':
+            return '进行中：超时待核实'
         k = kids(c, t)
         return '进行中' + ('（下游 ' + str(sum(handed(x) or x['state'] == 'done' for x in k)) + '/' + str(len(k)) + ' 已交出）' if k else '')
     unmet = [c.tasks[d] for d in t['dependencies'] if not done(c, d)]
-    return '未开始：' + ('等 ' + '、'.join(name(c, d['owner']) + ' 的 ' + d['id'] for d in unmet) if unmet else '就绪')
+    if unmet:
+        return '未开始：等 ' + '、'.join(name(c, d['owner']) + ' 的 ' + d['id'] for d in unmet)
+    if code in NOT_STARTED:
+        return '未开始：' + NOT_STARTED[code]
+    issue = next(iter(t['readiness_issues']), '')
+    return '未开始：前置未满足' + ('（' + GATES.get(issue, issue) + '）' if issue else '')
 
 
 def next_step(c, t, s, pm_list):
     """Computed actions for the asker; the recorded next_action otherwise."""
     # An instance checks and integrates what its children hand over; the PM, what its own tasks hand over to it.
     steps = [] if pm_list else ['检验并整合 ' + name(c, k['owner']) + ' 的 ' + k['id'] for k in sorted(kids(c, t), key=lambda k: k['id']) if handed(k)]
+    # A lead dispatches its ready subtasks (on the platform the PM launches them).
+    steps += [] if pm_list else ['派出 ' + k['id'] + ' 给 ' + name(c, k['executor']) for k in sorted(kids(c, t), key=lambda k: k['id'])
+                                 if c.stops.get(k['id'], {}).get('code') == 'ready']
     if pm_list and s.split('｜')[0] == '等检验：' + name(c, c.cfg['pm_actor']):
         steps.append('检验并整合 ' + name(c, t['owner']) + ' 的 ' + t['id'])
-    if pm_list and t['state'] == 'planned' and t['dependencies'] and all(done(c, d) for d in t['dependencies']) and not unresolved(c, t):
-        steps.append('派出给 ' + name(c, t['owner']))
+    if pm_list and c.stops.get(t['id'], {}).get('code') == 'ready' and t['executor'] != c.cfg['pm_actor']:
+        steps.append('派出给 ' + name(c, t['executor']))
+    if pm_list and c.stops.get(t['id'], {}).get('code') == 'derive':
+        steps.append('按实例配置派生后派出')
     for scope in c.records['scope'].values() if pm_list and t['state'] not in CLOSED else []:
         if scope['root_task'] == t['id']:
             open_ = {i.get('member_id') for i in c.pm.integrity.scope_issues(c.pm, c.root, scope, c.tasks)}

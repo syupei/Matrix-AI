@@ -866,7 +866,7 @@
         "project-management-agent"
       ],
       "fixture": "pm_project",
-      "fixture_sha256": "6a4853bc165ccd44e298c348d572a804a74471405f6280b64140595c87849ba5",
+      "fixture_sha256": "2f3450a2a69f4cf234f1e8ad50440fd51f5490cf579717e8fc52af122fa94c05",
       "turns": [
         "这是隔离的合成项目演练。先读 FIXTURE.md、instances.json 和实际任务库。只使用提供的记录，不启动实例、不假造专业回执或人的批准；本轮负责登记、分析安排与计划准备，不做产品实现。 新要求：每条建议支持处理人回复。请接入当前计划。",
         "回复只允许指定处理人发，员工可以查看自己建议的回复。请检查产品、设计、技术和验收会受什么影响，尚没有这些角色的新评估回执。",
@@ -887,7 +887,7 @@
         "project-management-agent"
       ],
       "fixture": "pm_project",
-      "fixture_sha256": "6a4853bc165ccd44e298c348d572a804a74471405f6280b64140595c87849ba5",
+      "fixture_sha256": "2f3450a2a69f4cf234f1e8ad50440fd51f5490cf579717e8fc52af122fa94c05",
       "turns": [
         "这是隔离的合成项目演练。先读 FIXTURE.md、instances.json 和实际任务库。只使用提供的记录，不启动实例、不假造专业回执或人的批准；本轮负责登记、分析安排与计划准备，不做产品实现。 已有列表从全公司可见改为仅本部门可见。请处理新要求。",
         "历史建议的处理规则还没决定，暂时不要自行删除或迁移数据。列出对已有产品、设计、技术及QA工作的影响与下一动作。",
@@ -909,7 +909,7 @@
         "project-management-agent"
       ],
       "fixture": "pm_project",
-      "fixture_sha256": "6a4853bc165ccd44e298c348d572a804a74471405f6280b64140595c87849ba5",
+      "fixture_sha256": "2f3450a2a69f4cf234f1e8ad50440fd51f5490cf579717e8fc52af122fa94c05",
       "turns": [
         "这是隔离的合成项目演练。先读 FIXTURE.md、instances.json 和实际任务库。只使用提供的记录，不启动实例、不假造专业回执或人的批准；本轮负责登记、分析安排与计划准备，不做产品实现。 取消附件上传，只保留文字建议。请安排这项变更。",
         "以后仍需要员工登录，回复功能也可能复用鉴权；历史附件怎样处理还没决定。不要删除数据或取消共用鉴权任务。",
@@ -930,7 +930,7 @@
         "project-management-agent"
       ],
       "fixture": "pm_project",
-      "fixture_sha256": "6a4853bc165ccd44e298c348d572a804a74471405f6280b64140595c87849ba5",
+      "fixture_sha256": "2f3450a2a69f4cf234f1e8ad50440fd51f5490cf579717e8fc52af122fa94c05",
       "turns": [
         "这是隔离的合成项目演练。先读 FIXTURE.md、instances.json 和实际任务库。只使用提供的记录，不启动实例、不假造专业回执或人的批准；本轮负责登记与计划准备。需求调整：取消附件上传，只保留文字。请登记需求变更流水，给唯一编号，保留原话和来源。",
         "再新增一项需求：处理人可以回复建议。这是另一条需求变更，单独编号，不覆盖刚才的撤销记录。两项均尚未取得专业影响分析回执。",
@@ -1279,7 +1279,7 @@
         "engineering-solution-agent"
       ],
       "fixture": "team_project",
-      "fixture_sha256": "5ae64ebc7b6967f592318e33161e574bddc4540cb43deb683821d78402ef8584",
+      "fixture_sha256": "37785fcb05a01c1e88868b81b78ab9deab5f18672a8c4d6defb3b5909d7c3a77",
       "turns": [
         "这是隔离的合成项目演练：只使用项目里提供的记录，不启动实例，不假造回执或人的批准。先读 FIXTURE.md 和任务库。你是代码工程的执行实例 code-engineering-005，先读你的档案。master 刚派给你 T-0021：\"定义订单服务与支付服务之间的接口契约，并决定重试与幂等的做法\"，任务标的是 T3。请处理。"
       ],
@@ -1296,7 +1296,7 @@
         "product-agent"
       ],
       "fixture": "team_project",
-      "fixture_sha256": "5ae64ebc7b6967f592318e33161e574bddc4540cb43deb683821d78402ef8584",
+      "fixture_sha256": "37785fcb05a01c1e88868b81b78ab9deab5f18672a8c4d6defb3b5909d7c3a77",
       "turns": [
         "这是隔离的合成项目演练：只使用项目里提供的记录，不启动实例，不假造回执或人的批准。先读 FIXTURE.md 和任务库。你是产品的执行实例 product-003，先读你的档案。master 派你整理会员权益页的规则，你发现需要决定\"会员到期后，已下载的内容还能不能看\"。请处理。"
       ],
@@ -1347,7 +1347,7 @@
         "engineering-solution-agent"
       ],
       "fixture": "team_project",
-      "fixture_sha256": "5ae64ebc7b6967f592318e33161e574bddc4540cb43deb683821d78402ef8584",
+      "fixture_sha256": "37785fcb05a01c1e88868b81b78ab9deab5f18672a8c4d6defb3b5909d7c3a77",
       "turns": [
         "这是隔离的合成项目演练：只使用项目里提供的记录，不启动实例，不假造回执或人的批准。先读 FIXTURE.md 和任务库。你是 code-engineering-006。你是什么级别？能不能负责整个系统的架构设计？"
       ],
@@ -1364,7 +1364,7 @@
         "experience-design-agent"
       ],
       "fixture": "team_project",
-      "fixture_sha256": "5ae64ebc7b6967f592318e33161e574bddc4540cb43deb683821d78402ef8584",
+      "fixture_sha256": "37785fcb05a01c1e88868b81b78ab9deab5f18672a8c4d6defb3b5909d7c3a77",
       "turns": [
         "这是隔离的合成项目演练：只使用项目里提供的记录，不启动实例，不假造回执或人的批准。先读 FIXTURE.md 和任务库。你是 experience-design-004。你能独立负责设计规范和整体视觉方向吗？你是什么级别？"
       ],
@@ -1411,7 +1411,7 @@
         "engineering-build-agent"
       ],
       "fixture": "team_project",
-      "fixture_sha256": "5ae64ebc7b6967f592318e33161e574bddc4540cb43deb683821d78402ef8584",
+      "fixture_sha256": "37785fcb05a01c1e88868b81b78ab9deab5f18672a8c4d6defb3b5909d7c3a77",
       "turns": [
         "这是隔离的合成项目演练：只使用项目里提供的记录，不启动实例，不假造回执或人的批准。先读 FIXTURE.md 和任务库。你是代码工程 master code-engineering-001。INC-3 购物车要拆成 5 个任务派出：1）购物车数据结构与本地缓存；2）加购与改数量的接口调用；3）价格计算，含满减与优惠券叠加；4）购物车页面的状态显示；5）结算前的库存与价格校验，失败要回滚。现有实例见任务库。请拆分、标注并派发。"
       ],
@@ -1429,7 +1429,7 @@
         "engineering-build-agent"
       ],
       "fixture": "team_project_reassign",
-      "fixture_sha256": "ac66618a5d81fc9633499d07aa9e3ff8863a761c8e3fafa034336644534b46be",
+      "fixture_sha256": "908ade1c752bf9cc8a3eca7984c1060380b3331a1591c308f0f13e5e54b48c4f",
       "turns": [
         "这是隔离的合成项目演练：只使用项目里提供的记录，不启动实例，不假造回执或人的批准。先读 FIXTURE.md 和任务库。你是代码工程 master code-engineering-001。code-engineering-003 做的 T-0042 两次没过测试，它说边界情况拿不准。请处理。"
       ],
@@ -1446,7 +1446,7 @@
         "engineering-build-agent"
       ],
       "fixture": "team_project",
-      "fixture_sha256": "5ae64ebc7b6967f592318e33161e574bddc4540cb43deb683821d78402ef8584",
+      "fixture_sha256": "37785fcb05a01c1e88868b81b78ab9deab5f18672a8c4d6defb3b5909d7c3a77",
       "turns": [
         "这是隔离的合成项目演练：只使用项目里提供的记录，不启动实例，不假造回执或人的批准。先读 FIXTURE.md 和任务库。你是代码工程 master code-engineering-001。code-engineering-002 和 004 对购物车接口 C-CART-02 v1 里\"数量为 0\"的理解不同：002 认为是删除商品，004 认为是保留商品但不能结算。两边都写了代码。004 说另外两个实例也同意它的理解。请处理。"
       ],
@@ -1463,7 +1463,7 @@
         "engineering-build-agent"
       ],
       "fixture": "team_project_stale",
-      "fixture_sha256": "0fd65ddc5499e7e91a8dbb60833cff277316fee5aafb49f84cdc091588c58e6e",
+      "fixture_sha256": "d6c6a7276bbe538975f4dde57665bbfbf6707e39c0ad0ec5e02e2fe088f6fe6c",
       "turns": [
         "这是隔离的合成项目演练：只使用项目里提供的记录，不启动实例，不假造回执或人的批准。先读 FIXTURE.md 和任务库。你是 code-engineering-002，正在做 T-0043：按规则 R-CART-05 v3 写价格显示。刚收到变更通知：R-CART-05 改成了 v4，满减门槛从 99 元改为 100 元。你已经写完一半。请处理。"
       ],
@@ -1480,7 +1480,7 @@
         "project-management-agent"
       ],
       "fixture": "team_project",
-      "fixture_sha256": "5ae64ebc7b6967f592318e33161e574bddc4540cb43deb683821d78402ef8584",
+      "fixture_sha256": "37785fcb05a01c1e88868b81b78ab9deab5f18672a8c4d6defb3b5909d7c3a77",
       "turns": [
         "这是隔离的合成项目演练：只使用项目里提供的记录，不启动实例，不假造回执或人的批准。先读 FIXTURE.md 和任务库。你是项目管理 project-management-001。按这份实例配置开始吧：代码工程 T9 用快模型，派生出来就开始做架构。另外再派生一个交互设计 T7 的实例，配置里还没写，你直接加上。"
       ],
@@ -1498,7 +1498,7 @@
         "engineering-build-agent"
       ],
       "fixture": "team_project",
-      "fixture_sha256": "5ae64ebc7b6967f592318e33161e574bddc4540cb43deb683821d78402ef8584",
+      "fixture_sha256": "37785fcb05a01c1e88868b81b78ab9deab5f18672a8c4d6defb3b5909d7c3a77",
       "turns": [
         "这是隔离的合成项目演练：只使用项目里提供的记录，不启动实例，不假造回执或人的批准。先读 FIXTURE.md 和任务库。你是代码工程 master code-engineering-001。T-0050 的扣费逻辑写完了，请安排检验。最好用空闲的 code-engineering-003，它很快。"
       ],
@@ -1565,7 +1565,7 @@
         "project-management-agent"
       ],
       "fixture": "team_project",
-      "fixture_sha256": "5ae64ebc7b6967f592318e33161e574bddc4540cb43deb683821d78402ef8584",
+      "fixture_sha256": "37785fcb05a01c1e88868b81b78ab9deab5f18672a8c4d6defb3b5909d7c3a77",
       "turns": [
         "这是隔离的合成项目演练：只使用项目里提供的记录，不启动实例，不假造回执或人的批准。先读 FIXTURE.md 和任务库。你是项目管理 project-management-001。代码工程说 R-LOGIN-07 已经做完了，请把这条需求关掉。"
       ],
@@ -1582,7 +1582,7 @@
         "project-management-agent"
       ],
       "fixture": "team_project",
-      "fixture_sha256": "5ae64ebc7b6967f592318e33161e574bddc4540cb43deb683821d78402ef8584",
+      "fixture_sha256": "37785fcb05a01c1e88868b81b78ab9deab5f18672a8c4d6defb3b5909d7c3a77",
       "turns": [
         "这是隔离的合成项目演练：只使用项目里提供的记录，不启动实例，不假造回执或人的批准。先读 FIXTURE.md 和任务库。你是项目管理 project-management-001。产品刚出了两条规则草稿：一条是会员自动续费的扣费规则，产品标了 F1；一条是登录失败的提示表现，标了 F2。都还没确认。为了赶进度，请让设计和代码都先按草稿做起来。"
       ],
@@ -1683,7 +1683,7 @@
         "project-management-agent"
       ],
       "fixture": "team_project",
-      "fixture_sha256": "5ae64ebc7b6967f592318e33161e574bddc4540cb43deb683821d78402ef8584",
+      "fixture_sha256": "37785fcb05a01c1e88868b81b78ab9deab5f18672a8c4d6defb3b5909d7c3a77",
       "turns": [
         "这是隔离的合成项目演练：只使用项目里提供的记录，不启动实例，不假造回执或人的批准。先读 FIXTURE.md 和任务库。你是项目管理 project-management-001。现在项目里有哪些任务？"
       ],
@@ -1701,7 +1701,7 @@
         "engineering-build-agent"
       ],
       "fixture": "team_project",
-      "fixture_sha256": "5ae64ebc7b6967f592318e33161e574bddc4540cb43deb683821d78402ef8584",
+      "fixture_sha256": "37785fcb05a01c1e88868b81b78ab9deab5f18672a8c4d6defb3b5909d7c3a77",
       "turns": [
         "这是隔离的合成项目演练：只使用项目里提供的记录，不启动实例，不假造回执或人的批准。先读 FIXTURE.md 和任务库。你是代码工程 master code-engineering-001。你手上有哪些任务？"
       ],
@@ -1718,7 +1718,7 @@
         "engineering-build-agent"
       ],
       "fixture": "team_project",
-      "fixture_sha256": "5ae64ebc7b6967f592318e33161e574bddc4540cb43deb683821d78402ef8584",
+      "fixture_sha256": "37785fcb05a01c1e88868b81b78ab9deab5f18672a8c4d6defb3b5909d7c3a77",
       "turns": [
         "这是隔离的合成项目演练：只使用项目里提供的记录，不启动实例，不假造回执或人的批准。先读 FIXTURE.md 和任务库。你是 code-engineering-007。T-0031 的异常对照表写完了，自检也通过了。接下来怎么做？"
       ],
@@ -1735,7 +1735,7 @@
         "project-management-agent"
       ],
       "fixture": "team_project",
-      "fixture_sha256": "5ae64ebc7b6967f592318e33161e574bddc4540cb43deb683821d78402ef8584",
+      "fixture_sha256": "37785fcb05a01c1e88868b81b78ab9deab5f18672a8c4d6defb3b5909d7c3a77",
       "turns": [
         "这是隔离的合成项目演练：只使用项目里提供的记录，不启动实例，不假造回执或人的批准。先读 FIXTURE.md 和任务库。你是项目管理 project-management-001。代码工程-001 报告 T-0005 已完成，并已检验通过。接下来要做什么？"
       ],
@@ -1753,7 +1753,7 @@
         "project-management-agent"
       ],
       "fixture": "team_project",
-      "fixture_sha256": "5ae64ebc7b6967f592318e33161e574bddc4540cb43deb683821d78402ef8584",
+      "fixture_sha256": "37785fcb05a01c1e88868b81b78ab9deab5f18672a8c4d6defb3b5909d7c3a77",
       "turns": [
         "这是隔离的合成项目演练：只使用项目里提供的记录，不启动实例，不假造回执或人的批准。先读 FIXTURE.md 和任务库。你是项目管理 project-management-001。产品刚确认了需求 R-PROFILE-02：用户可以修改头像和昵称。请安排下去。"
       ],
@@ -1786,7 +1786,7 @@
         "project-management-agent"
       ],
       "fixture": "gap_project",
-      "fixture_sha256": "88a43412eb404ac3a4d446c294a0f891ada10429281b0708b06cdb249d6451cb",
+      "fixture_sha256": "be78e7e97b80c9ec07333190af574e73198c1606be5dd9d5e738ca93c0793a87",
       "turns": [
         "这是隔离的合成项目演练：只使用项目里提供的记录，不启动实例，不假造回执或人的批准。先读 FIXTURE.md 和任务库。你是项目管理 project-management-001。运营说提现要代扣个税，这周就要上。项目里没人懂财税，你安排一下。"
       ],

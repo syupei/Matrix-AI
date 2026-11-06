@@ -55,6 +55,7 @@ GAP_OPS = {'gap_open', 'gap_decide', 'gap_close'}
 GAP_KINDS = {'not_in_kit': '本包没有', 'not_set_up': '项目未设立'}
 GAP_CHOICES = {'expert': '指定专家', 'self': '由当前实例完成', 'human': '列为人工待办'}
 GAP_STATES = dict(GAP_CHOICES, open='等人选择', closed='已关闭')
+ROOT_MARK = '\x00root/'  # resolved to the relative path from each view file to the project root
 
 
 class TaskError(ValueError):
@@ -355,7 +356,8 @@ def snapshot(db):
     gaps = integrity.records(db, 'gap')
     held = {tid: [x for x in [gap_issue(t, gaps, 'running')] if x] for tid, t in tasks.items()}  # an expertise gap that stops the start
     return {'schema': SCHEMA, 'config': cfg, 'revision': seq, 'observed_at': now(),
-            'integrity': {k: integrity.records(db,k) for k in ['instance','scope','change','pause','appointment','participation_rule','participation_obligation','instance_config','conflict','notice']},
+            'integrity': {k: integrity.records(db,k) for k in ['instance','scope','change','pause','appointment','participation_rule','participation_obligation','instance_config','conflict','notice',
+                                                               'launch','inbox','project_pause']},
             'gaps': {gid: gap_view(g, tasks) for gid, g in gaps.items()},
             'top_level': counts(children(tasks, None), tasks),
             'tasks': [dict(t, state_label=STATE_NAMES[t['state']], dispatcher=t['manager'], child_counts=counts(children(tasks, t['id']), tasks),
@@ -982,8 +984,11 @@ def render(project):
         plain = ref.split('#',1)[0]
         candidate = root / plain
         if plain and not Path(plain).is_absolute() and '..' not in Path(plain).parts and candidate.is_file():
-            return '['+esc(ref)+'](<'+str(candidate)+(' #'+ref.split('#',1)[1] if '#' in ref else '').replace(' #','#')+'>)'
+            return '['+esc(ref)+'](<'+ROOT_MARK+plain+('#'+ref.split('#',1)[1] if '#' in ref else '')+'>)'
         return esc(ref)
+    def save(rel, text):
+        # Links in a view are relative to the view file, so the project can move and the views can be shared.
+        atomic(local(root, rel), text.replace(ROOT_MARK, os.path.relpath(root, (root / rel).parent) + '/'))
     def who(pid):
         return esc(names.get(pid, pid))
     def state_of(t):
@@ -1090,12 +1095,12 @@ def render(project):
         for e in events:
             if e['task_id']==t['id']:
                 body+=f"- #{e['seq']} {e['recorded_at']}｜{esc(e['actor'])}｜{e['command']['op']}｜{esc(e['command'].get('reason',e['command'].get('summary','')))}\n"
-        atomic(local(root,'management/views/tasks/'+t['id']+'.md'),body)
+        save('management/views/tasks/'+t['id']+'.md',body)
     event_text='# 任务事件时间线\n\n只读；发生/接收时间和完整变更见任务账本 events 查询。\n\n'
     for e in events:
         event_text+=f"- #{e['seq']} {e['recorded_at']}｜{esc(e['task_id'])}｜{esc(e['actor'])}｜{e['command']['op']}｜{esc(e['command'].get('reason',e['command'].get('summary','')))}\n"
-    atomic(local(root,'management/views/events.md'),event_text)
-    atomic(local(root,'management/views/index.md'),head)
+    save('management/views/events.md',event_text)
+    save('management/views/index.md',head)
     ledger = data['integrity']['change']
     change_text = '# 需求变更流水\n\n只读派生视图；编号在本项目内唯一，完整修订见[事件时间线](events.md)。\n\n'
     change_text += '| 变更编号 | 需求 | 类型 | 状态 | 登记时间 | 来源 | 关联任务 |\n|---|---|---|---|---|---|---|\n'
@@ -1105,7 +1110,7 @@ def render(project):
         change_text += '| '+ ' | '.join([esc(change.get('change_no', change['id'])), esc(change.get('title', change['quote'])),
                       esc(change['type']), esc(change['state']), esc(change.get('created_at', '历史记录未登记')),
                       link(change['source']), refs or '待分析'])+' |\n'
-    atomic(local(root, 'management/views/changes.md'), change_text)
+    save('management/views/changes.md', change_text)
     written = ['index.md', 'events.md', 'changes.md']
 
     # Whole-lifecycle plan: stage milestones in dependency order, near stages expanded.
@@ -1135,7 +1140,7 @@ def render(project):
     loose = [t for t in children(tasks, None) if t.get('kind') != 'stage' and not t.get('stage')]
     if loose:
         plan += '\n### 未归入阶段的顶层任务\n\n' + ''.join(f"- {tlink(x)}：{state_of(x)}\n" for x in loose)
-    atomic(local(root,'management/views/plan.md'),plan)
+    save('management/views/plan.md',plan)
     written.append('plan.md')
 
     # Project front page: one row per sub-direction with outputs, progress and who is awaited.
@@ -1153,7 +1158,7 @@ def render(project):
         waiting = sorted(set(a['person'] for x in items for a in x.get('awaiting', []) if x['state'] not in TERMINAL))
         sources = sorted(set(x['source'] for x in items if x.get('source')))
         proj += f"| {esc(name)} | {'、'.join(who(p) for p in owners) or '—'} | {'；'.join(tlink(x) + '（' + state_of(x) + '；执行：' + esc(x.get('executor') or '未登记') + '）' for x in active[:3]) or '—'} | {latest} | {'、'.join(who(p) for p in waiting) or '—'} | {'、'.join(link(s) for s in sources) or '—'} |\n"
-    atomic(local(root,'management/views/project.md'),proj)
+    save('management/views/project.md',proj)
     written.append('project.md')
 
     # Group digest: stage progress, items blocking others first, recent decisions with the deciding person.
@@ -1164,7 +1169,7 @@ def render(project):
     dig += '\n## 在等的人（阻塞他人的在前）\n\n' + (choosing + ''.join(awaiting_line(t, a) for t, a in awaiting) or '- 无\n')
     decided = sorted([t for t in tasks.values() if t.get('human_review')], key=lambda t: t['human_review'].get('at', ''), reverse=True)
     dig += '\n## 最近的人工决定\n\n' + (''.join(f"- {tlink(t)}：{esc(t['human_review']['outcome'])}；范围：{esc(t['human_review']['scope'])}" + (f"；决定人：{who(t['human_review']['person'])}" if t['human_review'].get('person') else '') + '\n' for t in decided[:10]) or '- 无\n')
-    atomic(local(root,'management/views/digest.md'),dig)
+    save('management/views/digest.md',dig)
     written.append('digest.md')
 
     # Personal and group views exist only when two or more people take part.
@@ -1210,16 +1215,16 @@ def render(project):
                 local(root, 'management/views/' + sub + '/' + old.name).unlink()
     if team_mode(people):
         for pid, p in sorted(people['people'].items()):
-            atomic(local(root, f'management/views/people/{pid}.md'), scoped_view(esc(p['name']) + '的视图', [pid], '只读派生视图。只列与你有关系（决定、澄清、指定、执行或试用）的事项，以及与它们直接相连的上层任务；AI 内部子任务不在此列。'))
+            save(f'management/views/people/{pid}.md', scoped_view(esc(p['name']) + '的视图', [pid], '只读派生视图。只列与你有关系（决定、澄清、指定、执行或试用）的事项，以及与它们直接相连的上层任务；AI 内部子任务不在此列。'))
             written.append(f'people/{pid}.md')
         group_ids = sorted(set(g for p in people['people'].values() for g in p.get('groups', [])))
         for gid in group_ids:
             members = [pid for pid, p in people['people'].items() if gid in p.get('groups', [])]
             label = esc(people['groups'].get(gid, gid))
-            atomic(local(root, f'management/views/groups/{gid}.md'), scoped_view(label + '的视图', members, '只读派生视图。成员：' + '、'.join(who(m) for m in members) + '。列出与本组成员有关的事项与跨组依赖。'))
+            save(f'management/views/groups/{gid}.md', scoped_view(label + '的视图', members, '只读派生视图。成员：' + '、'.join(who(m) for m in members) + '。列出与本组成员有关的事项与跨组依赖。'))
             written.append(f'groups/{gid}.md')
     for rel, text in pages.items():  # instance lists, ledger, human review points, delivery sets
-        atomic(local(root, 'management/views/' + rel), text)
+        save('management/views/' + rel, text)
         written.append(rel)
     return {'view':str(root/'management/views/index.md'),'revision':data['revision'],'task_count':len(tasks),'views':written}
 

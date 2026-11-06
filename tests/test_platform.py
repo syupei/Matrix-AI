@@ -216,6 +216,14 @@ class Records(Project, unittest.TestCase):
         with self.assertRaisesRegex(pm.TaskError, 'in the confirmed instance configuration'):
             self.call('gap_open', task_ids=['A'], domain='quality-engineering', kind='not_set_up', why='SIM 需要验收', qualification='SIM 测试', risk='F2')
 
+    def test_views_link_project_files_relatively(self):
+        (self.root / 'result.md').write_text('SIMULATED result')
+        self.call('update', 'product-001', task_id='A', expected_revision=self.t('A')['revision'], changes={'evidence': ['result.md']}, reason='SIM')
+        pm.render(self.root)
+        page = (self.root / 'management/views/tasks/A.md').read_text()
+        self.assertIn('](<../../../result.md>)', page)
+        self.assertFalse(any(str(self.root) in f.read_text() for f in (self.root / 'management/views').rglob('*.md')))
+
     def test_inbox_items_stay_actions_until_the_pm_handles_them(self):
         self.call('inbox', 'PM', id='IN-1', kind='request', text='SIM 加一个导出功能', person='SIM-owner', quote='SIMULATED: 加个导出')
         self.assertEqual('inbox', self.summary()['actions'][0]['kind'])
@@ -300,6 +308,7 @@ class Commands(Project, unittest.TestCase):
         self.wait(lambda: self.records()[rid]['state'] == 'exited')
         self.assertEqual(('waiting_review', 0), (self.t('A')['state'], self.records()[rid]['exit_code']))
         self.assertTrue((self.root / out['packet']).is_file() and (self.root / self.records()[rid]['log']).is_file())
+        self.assertNotIn(str(self.root), (self.root / out['packet']).read_text())  # the packet names project-relative paths only
         again = self.tool('launch.py', '--task', 'A', '--event-id', 'E1')
         self.assertTrue(again['repeated'])
         self.assertEqual(1, len(self.records()))
