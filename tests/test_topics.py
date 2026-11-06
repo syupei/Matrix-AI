@@ -11,8 +11,8 @@ import sqlite3
 import tempfile
 import unittest
 
-KIT = Path(os.environ.get('MATRIX_TEST_KIT', Path(__file__).resolve().parents[1] / 'src'))
-spec = importlib.util.spec_from_file_location('coordination_topics', KIT / '.agents/skills/professional-agent-collaboration/scripts/coordination.py')
+from kit import KIT
+spec = importlib.util.spec_from_file_location('coordination_topics', KIT / 'matrix/orchestration/tools/coordination.py')
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 CoordinationError, execute = module.CoordinationError, module.execute
@@ -80,7 +80,7 @@ class TopicTests(unittest.TestCase):
         return execute(self.root, {'op': 'request', 'actor': source, 'request': payload})
 
     def events(self):
-        con = sqlite3.connect(str(self.root / 'collaboration/runtime/state.sqlite3'))
+        con = sqlite3.connect(str(self.root / 'management/runtime/coordination.sqlite3'))
         try:
             return [kind for (kind,) in con.execute('SELECT kind FROM events ORDER BY seq') if kind.startswith('topic_')]
         finally:
@@ -228,10 +228,11 @@ class TopicTests(unittest.TestCase):
         self.assertEqual(self.view('human:alice')['view'], 'full')
 
     def test_registry_without_binding_types_limits_role_to_advice(self):
-        professions = self.root / 'collaboration/professions'
+        professions = self.root / 'matrix/professions'
         professions.mkdir(parents=True)
-        for role, skill, binding in [('desk', 'project-front-desk-agent', []), ('product-lead', 'product-agent', ['SIMULATED confirmed rules'])]:
-            (professions / (skill + '.json')).write_text(json.dumps(
+        for role, skill, binding in [('desk', 'matrix-front-desk', []), ('product-lead', 'matrix-product', ['SIMULATED confirmed rules'])]:
+            (professions / skill).mkdir()
+            (professions / skill / 'profession.json').write_text(json.dumps(
                 {'id': skill, 'skills': [skill], 'decisions': {'own': ['SIMULATED'], 'escalate': ['SIMULATED'], 'binding': binding}}))
             (self.root / '.agents/skills' / skill).mkdir(parents=True)
             (self.root / '.agents/skills' / skill / 'SKILL.md').write_text(skill)
@@ -387,7 +388,7 @@ class TopicTests(unittest.TestCase):
                 self.runop(op, 'engineering', 'T9')
 
     def test_ledger_initialized_without_topics_gains_the_table(self):
-        con = sqlite3.connect(str(self.root / 'collaboration/runtime/state.sqlite3'))
+        con = sqlite3.connect(str(self.root / 'management/runtime/coordination.sqlite3'))
         con.execute('DROP TABLE topics')
         con.commit()
         con.close()

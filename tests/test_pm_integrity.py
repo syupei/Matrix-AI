@@ -9,8 +9,9 @@ import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 
-SOURCE = Path(os.environ.get('MATRIX_TEST_KIT', str(Path(__file__).resolve().parents[1] / 'src')))
-spec = importlib.util.spec_from_file_location('pm_integrity_test_runtime', SOURCE / '.agents/skills/project-management-agent/scripts/pm_tasks.py')
+from kit import KIT
+SOURCE = KIT
+spec = importlib.util.spec_from_file_location('pm_integrity_test_runtime', SOURCE / 'matrix/orchestration/tools/pm_tasks.py')
 pm = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pm)
 
@@ -176,9 +177,9 @@ class IntegrityTests(unittest.TestCase):
 
     def test_query_counts_project_work_once_and_groups_instances_by_role(self):
         for iid in ['DEV-1','DEV-2']:
-            self.call('register_instance','PM',id=iid,instance=dict(role='engineering-build',endpoint='SIM-'+iid,write_roots=['code/'+iid]))
+            self.call('register_instance','PM',id=iid,instance=dict(role='matrix-code-engineering-build',endpoint='SIM-'+iid,write_roots=['code/'+iid]))
         self.create('ONE'); self.create('TWO',owner='DEV-2',executor='DEV-2'); self.create('CHILD','ONE')
-        q=pm.execute(self.root,dict(op='query',role='engineering-build'))
+        q=pm.execute(self.root,dict(op='query',role='matrix-code-engineering-build'))
         self.assertEqual(2,q['counts']['total']); self.assertEqual({'ONE','TWO'},{t['id'] for t in q['tasks']})
         q=pm.execute(self.root,dict(op='query',level='children',parent='ONE'))
         self.assertEqual(['CHILD'],[t['id'] for t in q['tasks']])
@@ -193,7 +194,7 @@ class IntegrityTests(unittest.TestCase):
 
     def test_parallel_instances_cannot_write_same_registered_range(self):
         for iid in ['DEV-1','DEV-2']:
-            self.call('register_instance','PM',id=iid,instance=dict(role='engineering-build',endpoint='SIM-'+iid,write_roots=['code/common']))
+            self.call('register_instance','PM',id=iid,instance=dict(role='matrix-code-engineering-build',endpoint='SIM-'+iid,write_roots=['code/common']))
         self.create('ONE'); self.create('TWO',owner='DEV-2',executor='DEV-2')
         self.mutate('transition','ONE',state='running',reason='SIM',execution_receipt='SIM')
         with self.assertRaisesRegex(pm.TaskError,'instance_or_write_busy'):
@@ -385,11 +386,11 @@ class IntegrityTests(unittest.TestCase):
 
     def test_disjoint_same_role_instances_can_start_independently(self):
         for iid in ['DEV-1','DEV-2']:
-            self.call('register_instance','PM',id=iid,instance=dict(role='engineering-build',endpoint='SIM-'+iid,write_roots=['code/'+iid]))
+            self.call('register_instance','PM',id=iid,instance=dict(role='matrix-code-engineering-build',endpoint='SIM-'+iid,write_roots=['code/'+iid]))
         self.create('ONE'); self.create('TWO',owner='DEV-2',executor='DEV-2')
         for tid in ['ONE','TWO']:
             self.mutate('transition',tid,state='running',reason='SIM start',execution_receipt='SIM receipt')
-        self.assertEqual(2,len([t for t in pm.execute(self.root,{'op':'query','role':'engineering-build'})['tasks'] if t['state']=='running']))
+        self.assertEqual(2,len([t for t in pm.execute(self.root,{'op':'query','role':'matrix-code-engineering-build'})['tasks'] if t['state']=='running']))
 
     def test_read_audit_does_not_migrate_legacy_database(self):
         path=self.root/'management/runtime/tasks.sqlite3'

@@ -2,9 +2,12 @@
 import importlib.util, json, shutil, tempfile, unittest
 from pathlib import Path
 
+from kit import KIT
+
 ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / 'src'
-SCRIPTS = SRC / '.agents/skills/profession-builder/scripts'
+# The checks run on the package layout, which is also what a project holds after install.
+SRC = KIT
+SCRIPTS = SRC / '.agents/skills/matrix-profession-builder/scripts'
 
 
 def load(name):
@@ -28,7 +31,7 @@ class ProfessionCheckTests(unittest.TestCase):
     def test_every_registry_eval_case_exists_and_new_cases_are_linked(self):
         ids = {c['id'] for c in json.loads((ROOT / 'evals/cases/suite.json').read_text())['cases']}
         linked = set()
-        for p in (SRC / 'collaboration/professions').glob('*.json'):
+        for p in (SRC / 'matrix/professions').glob('*/profession.json'):
             linked |= set(json.loads(p.read_text(encoding='utf-8'))['evals'])
         self.assertLessEqual(linked, ids)
         for case in ['risk_destructive_script', 'risk_billing_rule', 'risk_legal_text', 'defect_wrong_path_delete',
@@ -39,7 +42,7 @@ class ProfessionCheckTests(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         root = Path(tmp.name)
-        shutil.copytree(SRC / 'collaboration', root / 'collaboration', ignore=shutil.ignore_patterns('__pycache__'))
+        shutil.copytree(SRC / 'matrix', root / 'matrix', ignore=shutil.ignore_patterns('__pycache__'))
         shutil.copytree(SRC / '.agents', root / '.agents', ignore=shutil.ignore_patterns('__pycache__'))
         return root, load_from(root)
 
@@ -50,12 +53,12 @@ class ProfessionCheckTests(unittest.TestCase):
 
     def test_missing_field_is_reported(self):
         root, mod = self.copy()
-        self.edit_json(root / 'collaboration/professions/product.json', lambda d: d.pop('not_handles'))
-        self.assertTrue(any('product.json: not_handles' in p for p in mod.check(root)))
+        self.edit_json(root / 'matrix/professions/product/profession.json', lambda d: d.pop('not_handles'))
+        self.assertTrue(any('product/profession.json: not_handles' in p for p in mod.check(root)))
 
     def test_level_row_and_anchor_gaps_are_reported(self):
         root, mod = self.copy()
-        doc = root / 'collaboration/professions/quality-engineering.md'
+        doc = root / 'matrix/professions/quality-engineering/levels.md'
         lines = [l for l in doc.read_text(encoding='utf-8').splitlines() if not l.startswith('| T4 |') and not l.startswith('- F3：')]
         doc.write_text('\n'.join(lines) + '\n', encoding='utf-8')
         problems = mod.check(root)
@@ -64,8 +67,8 @@ class ProfessionCheckTests(unittest.TestCase):
 
     def test_duplicate_stage_flow_and_bad_upstream_are_reported(self):
         root, mod = self.copy()
-        self.edit_json(root / 'collaboration/professions/experience-design.json', lambda d: d['stage_flows'][0].update(key='product'))
-        self.edit_json(root / 'collaboration/professions/code-engineering.json',
+        self.edit_json(root / 'matrix/professions/experience-design/profession.json', lambda d: d['stage_flows'][0].update(key='product'))
+        self.edit_json(root / 'matrix/professions/code-engineering/profession.json',
                        lambda d: d['stage_flows'][2]['upstream'].update({'E-3.1': ['solution', 'E9.9']}))
         problems = mod.check(root)
         self.assertTrue(any('duplicated: product' in p for p in problems))
@@ -73,45 +76,45 @@ class ProfessionCheckTests(unittest.TestCase):
 
     def test_index_without_level_link_and_stale_entry_are_reported(self):
         root, mod = self.copy()
-        index = root / '.agents/skills/product-agent/GUIDANCE-INDEX.md'
+        index = root / '.agents/skills/matrix-product/GUIDANCE-INDEX.md'
         index.write_text('\n'.join(l for l in index.read_text(encoding='utf-8').splitlines() if not l.startswith('| L01 |')) + '\n', encoding='utf-8')
-        self.edit_json(root / 'collaboration/professions/product.json', lambda d: d.update(participation='只在需要时参与'))
+        self.edit_json(root / 'matrix/professions/product/profession.json', lambda d: d.update(participation='只在需要时参与'))
         problems = mod.check(root)
         self.assertTrue(any('must link the level table' in p for p in problems))
         self.assertTrue(any('MATRIX.md is out of date' in p for p in problems))
 
     def test_stage_codes_follow_the_abbreviation(self):
         root, mod = self.copy()
-        self.edit_json(root / 'collaboration/professions/product.json', lambda d: d['stage_flows'][0]['stages'].__setitem__(0, 'S1'))
-        self.edit_json(root / 'collaboration/professions/experience-design.json', lambda d: d.update(abbr='P'))
-        self.edit_json(root / 'collaboration/professions/quality-engineering.json', lambda d: d.pop('abbr'))
+        self.edit_json(root / 'matrix/professions/product/profession.json', lambda d: d['stage_flows'][0]['stages'].__setitem__(0, 'S1'))
+        self.edit_json(root / 'matrix/professions/experience-design/profession.json', lambda d: d.update(abbr='P'))
+        self.edit_json(root / 'matrix/professions/quality-engineering/profession.json', lambda d: d.pop('abbr'))
         problems = mod.check(root)
         self.assertTrue(any('must look like P-1' in p for p in problems))
         self.assertTrue(any('abbr P already used' in p for p in problems))
-        self.assertFalse(any('quality-engineering.json: abbr' in p for p in problems))  # no stages, so no abbreviation needed
+        self.assertFalse(any('quality-engineering/profession.json: abbr' in p for p in problems))  # no stages, so no abbreviation needed
 
     def test_unknown_eval_case_is_reported_with_suite(self):
         root, mod = self.copy()
-        self.edit_json(root / 'collaboration/professions/front-desk.json', lambda d: d['evals'].append('no_such_case'))
+        self.edit_json(root / 'matrix/professions/front-desk/profession.json', lambda d: d['evals'].append('no_such_case'))
         self.assertTrue(any('no_such_case' in p for p in mod.check(root, ROOT / 'evals/cases/suite.json')))
 
     def test_reuse_and_inputs_are_checked(self):
         root, mod = self.copy()
-        self.edit_json(root / 'collaboration/professions/product.json', lambda d: d.update(reuse=[]))
-        self.edit_json(root / 'collaboration/professions/code-engineering.json',
+        self.edit_json(root / 'matrix/professions/product/profession.json', lambda d: d.update(reuse=[]))
+        self.edit_json(root / 'matrix/professions/code-engineering/profession.json',
                        lambda d: d['inputs'].append({'for': 'E-1.1', 'needs': 'experience-design:D-9', 'state': 'confirmed'}))
-        self.edit_json(root / 'collaboration/professions/quality-engineering.json',
+        self.edit_json(root / 'matrix/professions/quality-engineering/profession.json',
                        lambda d: d['item_inputs']['stricter'].append({'item': '扣费规则', 'state': 'draft'}))
         problems = mod.check(root)
-        self.assertTrue(any('product.json: reuse' in p for p in problems))
-        self.assertTrue(any('code-engineering.json: invalid input' in p for p in problems))
-        self.assertTrue(any('quality-engineering.json: item_inputs' in p for p in problems))
-        self.assertFalse(any('project-management.json: reuse' in p for p in problems))  # scheduling professions may leave it empty
+        self.assertTrue(any('product/profession.json: reuse' in p for p in problems))
+        self.assertTrue(any('code-engineering/profession.json: invalid input' in p for p in problems))
+        self.assertTrue(any('quality-engineering/profession.json: item_inputs' in p for p in problems))
+        self.assertFalse(any('project-management/profession.json: reuse' in p for p in problems))  # scheduling professions may leave it empty
 
     def test_inputs_reproduce_the_former_milestone_table(self):
         """The stage inputs and upstream links give the same start conditions as the former fixed milestone table."""
         found = set()
-        for path in (SRC / 'collaboration/professions').glob('*.json'):
+        for path in (SRC / 'matrix/professions').glob('*/profession.json'):
             r = json.loads(path.read_text(encoding='utf-8'))
             for i in r.get('inputs', []):
                 found.add((r['id'], i['for'], i['needs'], i['state'], i.get('kind', 'start')))
@@ -131,7 +134,7 @@ class ProfessionCheckTests(unittest.TestCase):
 
 def load_from(root):
     """The check script as installed in a copied project, so it resolves skills there."""
-    spec = importlib.util.spec_from_file_location('copied_check', root / '.agents/skills/profession-builder/scripts/profession_check.py')
+    spec = importlib.util.spec_from_file_location('copied_check', root / '.agents/skills/matrix-profession-builder/scripts/profession_check.py')
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod

@@ -1,5 +1,7 @@
 """Synthetic project for the core review package: intake handoff, delegation boundary, decision records,
 trial and skeleton records. No real product, person, vendor or approval is represented."""
+import importlib.util
+from pathlib import Path
 
 
 FILES = {
@@ -46,7 +48,7 @@ FILES = {
 ''',
     'engineering/solution/00-工作状态.md': '''# 工作状态（合成数据）
 
-- 负责人：用户 / engineering-solution-agent
+- 负责人：用户 / matrix-code-engineering-solution
 - 当前位置：技术方案共 4 步，E-2.3 骨架与工程基础已完成；下一步 E-2.4 技术评审与交接。
 - 工作情况：等待准备核心评审包。
 - 最新已确认成果：研发承接交接（E-1.4）。
@@ -63,3 +65,11 @@ def populate(root, case_id):
         path = root / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding='utf-8')
+    _layout().adapt(root)
+
+
+def _layout():
+    spec = importlib.util.spec_from_file_location('fixture_layout', Path(__file__).with_name('layout.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module

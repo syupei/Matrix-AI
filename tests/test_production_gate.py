@@ -24,7 +24,7 @@ class PublishingGateTests(unittest.TestCase):
  def test_complete_fixture_validates_schema(self):self.assertTrue(self.check())
  def waiver(self,**changes):
   config=json.loads((p.ROOT/'package.json').read_text())
-  data={'package':'professional-agents-kit-v'+config['package'].split('/')[1],'source_hash':p.fingerprint(self.files),'authorized_by':'user','date':'2026-11-04','authorization':'explicit human authorization to skip the comparison','scope':'behavior comparison for this version','existing_evidence':['simulated'],'limitations':['simulated']}
+  data={'package':p.release_name(config),'source_hash':p.fingerprint(self.files),'authorized_by':'user','date':'2026-11-04','authorization':'explicit human authorization to skip the comparison','scope':'behavior comparison for this version','existing_evidence':['simulated'],'limitations':['simulated']}
   data.update(changes);path=self.root/'waiver.json';path.write_text(json.dumps(data));return path
  def test_explicit_waiver_for_this_source_passes(self):self.assertTrue(p.check_waiver(self.waiver(),self.files))
  def test_waiver_for_other_source_blocks(self):

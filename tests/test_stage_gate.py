@@ -1,6 +1,7 @@
 import importlib.util,json,tempfile,unittest,hashlib,copy
 from pathlib import Path
-P=Path(__file__).resolve().parents[1]/'src/collaboration/tools/stage_gate.py'
+from kit import KIT
+P=KIT/'matrix/base/tools/stage_gate.py'
 s=importlib.util.spec_from_file_location('gate',P);g=importlib.util.module_from_spec(s);s.loader.exec_module(g)
 class GateTests(unittest.TestCase):
  def test_flows_from_registries_match_previous_gate(self):
@@ -75,8 +76,8 @@ class GateTests(unittest.TestCase):
   self.state.update(role='solution',current='E-2.2',next='complete')
   with self.assertRaises(ValueError):self.run_check()
  def test_team_reply_must_name_a_deciding_person(self):
-  (self.root/'collaboration').mkdir()
-  (self.root/'collaboration/people.json').write_text(json.dumps({'people':[{'id':'lead','name':'P','decides':['product']},{'id':'art','name':'A','decides':['design']},{'id':'dev','name':'D'}]}))
+  (self.root / 'management').mkdir(parents=True, exist_ok=True)
+  (self.root/'management/people.json').write_text(json.dumps({'people':[{'id':'lead','name':'P','decides':['product']},{'id':'art','name':'A','decides':['design']},{'id':'dev','name':'D'}]}))
   with self.assertRaises(ValueError):self.run_check()
   self.reply.update(actor='person',person_id='dev')
   with self.assertRaises(ValueError):self.run_check()
@@ -128,8 +129,8 @@ class GateTests(unittest.TestCase):
   self.state.update(current='E-4.1',next='E-4.3')
   with self.assertRaises(ValueError):self.run_check()  # cannot skip the decision
  def test_release_decision_is_not_inherited_from_professional_flows(self):
-  (self.root/'collaboration').mkdir()
-  (self.root/'collaboration/people.json').write_text(json.dumps({'people':[{'id':'boss','name':'B','decides':['project']},{'id':'rel','name':'R','decides':['release']},{'id':'pm','name':'P','decides':['product']},{'id':'lead','name':'L','decides':['build']}]}))
+  (self.root / 'management').mkdir(parents=True, exist_ok=True)
+  (self.root/'management/people.json').write_text(json.dumps({'people':[{'id':'boss','name':'B','decides':['project']},{'id':'rel','name':'R','decides':['release']},{'id':'pm','name':'P','decides':['product']},{'id':'lead','name':'L','decides':['build']}]}))
   self.req.update(role='release',stage='E-4.2');self.state.update(role='release',current='E-4.2',next='E-4.3');self.reply['actor']='person'
   for pid in ('pm','lead'):
    self.reply['person_id']=pid

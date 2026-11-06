@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Preserving installer for the professional-agents kit.
+"""Preserving installer for Matrix-AI.
 
-Installs the skills and shared collaboration rules into a project, adds or
-updates one managed entry block in the project's instruction file(s), retires
-unmodified files from earlier releases of the same line, and never touches
-business outputs. Each release is for new projects only: a project that has an
-earlier release installed is refused, not upgraded or migrated. Run without
---apply first to preview.
+Installs the skills into the host's skills directory and the rules and tools
+into matrix/, adds or updates one managed entry block in the project's
+instruction file(s), and never touches project data or business outputs. Each
+release is for new projects only: a project that has any other release
+installed is refused, not upgraded or migrated. Run without --apply first to
+preview.
 """
 import argparse
 import hashlib
@@ -19,38 +19,39 @@ from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parent
 PKG_SKILLS = '.agents/skills/'
-BEGIN = '<!-- professional-agents:begin -->'
-END = '<!-- professional-agents:end -->'
-# Projects with a release before this one installed are refused (each release is for new projects only).
-FIRST_RELEASE = (0, 30)
-KIT_VERSION = re.compile(r'professional-agents-kit/(\d+)\.(\d+)')
-# Entry text written by earlier standalone kits.
-LEGACY_MARKERS = ['<!-- pm-agent-test:begin -->', '# 产品与设计联合试验入口', '# 产品 Agent 试验项目',
-                  '<!-- professional-agent-collaboration:begin -->']
-ROLES = ['project-front-desk-agent', 'project-management-agent', 'product-agent', 'experience-design-agent',
-         'engineering-intake-agent', 'engineering-solution-agent', 'engineering-build-agent', 'quality-verification-agent',
-         'professional-agent-collaboration', 'content-design-review', 'profession-builder']
+PKG_RULES = 'matrix/'
+BEGIN = '<!-- matrix-ai:begin -->'
+END = '<!-- matrix-ai:end -->'
+# A project with any other release installed is refused (each release is for new projects only).
+KIT_VERSION = re.compile(r'(?:professional-agents-kit|matrix-ai)/(\d+)\.(\d+)')
+# Entry text and rule files written by earlier kits, including the professional-agents line before Matrix-AI.
+LEGACY_MARKERS = ['<!-- professional-agents:begin -->', '<!-- pm-agent-test:begin -->', '# 产品与设计联合试验入口',
+                  '# 产品 Agent 试验项目', '<!-- professional-agent-collaboration:begin -->']
+LEGACY_FILES = ['collaboration/CORE.md', 'collaboration/MATRIX.md', 'shared/stage_gate.py']
+ROLES = ['matrix-front-desk', 'matrix-project-management', 'matrix-product', 'matrix-experience-design',
+         'matrix-code-engineering-intake', 'matrix-code-engineering-solution', 'matrix-code-engineering-build', 'matrix-quality-engineering',
+         'matrix-collaboration', 'matrix-content-design', 'matrix-profession-builder']
 # Shared rules that every role depends on: a custom copy must be merged by hand first.
-CRITICAL_COMMON = ['collaboration/CORE.md', 'collaboration/USER-INTERACTION.md',
-                   'collaboration/PM-REPORTING.md', 'collaboration/COPY-QUALITY.md',
-                   'collaboration/STRUCTURED-HANDOFF.md', 'collaboration/TEAM.md']
+CRITICAL_COMMON = ['matrix/base/CORE.md', 'matrix/base/USER-INTERACTION.md',
+                   'matrix/orchestration/PM-REPORTING.md', 'matrix/base/COPY-QUALITY.md',
+                   'matrix/professions/product/STRUCTURED-HANDOFF.md', 'matrix/orchestration/TEAM.md']
 BLOCK_TEMPLATE = BEGIN + '''
 ## 专业 Agent（{package}）
 
-按任务选一个角色，读它的 SKILL.md，不同时加载所有角色；专业目录、选专业与单对话用法见 [总入口](collaboration/MATRIX.md)。
+按任务选一个角色，读它的 SKILL.md，不同时加载所有角色；专业目录、选专业与单对话用法见 [总入口](matrix/base/MATRIX.md)。
 
 | 任务 | 角色 |
 | --- | --- |
-| 主对话：问询、转交、启动引导 | [project-front-desk-agent]({skills}/project-front-desk-agent/SKILL.md) |
-| 项目统筹与调度 | [project-management-agent]({skills}/project-management-agent/SKILL.md) |
-| 产品 | [product-agent]({skills}/product-agent/SKILL.md) |
-| 用户看到的文字 | [content-design-review]({skills}/content-design-review/SKILL.md) |
-| 交互与视觉设计 | [experience-design-agent]({skills}/experience-design-agent/SKILL.md) |
-| 代码工程 E-1：承接与建模 | [engineering-intake-agent]({skills}/engineering-intake-agent/SKILL.md) |
-| 代码工程 E-2：方案与骨架 | [engineering-solution-agent]({skills}/engineering-solution-agent/SKILL.md) |
-| 代码工程 E-3–4：构建与发布 | [engineering-build-agent]({skills}/engineering-build-agent/SKILL.md) |
-| 质量工程 | [quality-verification-agent]({skills}/quality-verification-agent/SKILL.md) |
-| 新建或修改专业 | [profession-builder]({skills}/profession-builder/SKILL.md) |
+| 主对话：问询、转交、启动引导 | [matrix-front-desk]({skills}/matrix-front-desk/SKILL.md) |
+| 项目统筹与调度 | [matrix-project-management]({skills}/matrix-project-management/SKILL.md) |
+| 产品 | [matrix-product]({skills}/matrix-product/SKILL.md) |
+| 用户看到的文字 | [matrix-content-design]({skills}/matrix-content-design/SKILL.md) |
+| 交互与视觉设计 | [matrix-experience-design]({skills}/matrix-experience-design/SKILL.md) |
+| 代码工程 E-1：承接与建模 | [matrix-code-engineering-intake]({skills}/matrix-code-engineering-intake/SKILL.md) |
+| 代码工程 E-2：方案与骨架 | [matrix-code-engineering-solution]({skills}/matrix-code-engineering-solution/SKILL.md) |
+| 代码工程 E-3–4：构建与发布 | [matrix-code-engineering-build]({skills}/matrix-code-engineering-build/SKILL.md) |
+| 质量工程 | [matrix-quality-engineering]({skills}/matrix-quality-engineering/SKILL.md) |
+| 新建或修改专业 | [matrix-profession-builder]({skills}/matrix-profession-builder/SKILL.md) |
 
 跨专业的请求与接续、能力标准原文由各角色按需调用。安装本包不代表任何 Agent 已在运行。
 ''' + END + '\n'
@@ -107,12 +108,7 @@ def atomic(path, data):
 
 
 def managed(rel):
-    return rel.startswith(PKG_SKILLS) or rel.startswith('collaboration/')
-
-
-def retirable(rel):
-    # shared/ was installed by an earlier release line; only removal applies to it.
-    return managed(rel) or rel.startswith('shared/')
+    return rel.startswith(PKG_SKILLS) or rel.startswith(PKG_RULES)
 
 
 def target_path(rel, skills_dir):
@@ -128,24 +124,24 @@ def update_entry(content, new_block):
     return new_block + '\n' + content
 
 
-def earlier_release(root):
-    """What shows that a release before FIRST_RELEASE, or an earlier standalone kit, is installed."""
+def other_release(root, package):
+    """What shows that a release other than this one, or an earlier kit, is installed."""
     found = []
     receipt = root / 'management/install-receipt.json'
     if receipt.is_file() and not receipt.is_symlink():
-        package = str(json.loads(receipt.read_text()).get('package', ''))
-        m = KIT_VERSION.fullmatch(package)
-        if not m or (int(m[1]), int(m[2])) < FIRST_RELEASE:
-            found.append('management/install-receipt.json: ' + (package or 'unknown package'))
+        installed = str(json.loads(receipt.read_text()).get('package', ''))
+        if installed != package:
+            found.append('management/install-receipt.json: ' + (installed or 'unknown package'))
     for entry in sorted(root.glob('*.md')):
         if not entry.is_file() or entry.is_symlink():
             continue
         text = entry.read_text(errors='replace')
         if BEGIN in text and END in text and text.index(BEGIN) < text.index(END):
             for m in KIT_VERSION.finditer(text[text.index(BEGIN):text.index(END)]):
-                if (int(m[1]), int(m[2])) < FIRST_RELEASE:
+                if m[0] != package:
                     found.append(f'{entry.name}: {m[0]}')
         found += [f'{entry.name}: {marker}' for marker in LEGACY_MARKERS if marker in text]
+    found += [rel for rel in LEGACY_FILES if (root / rel).exists()]
     return found
 
 
@@ -155,14 +151,13 @@ def install(target, apply=False, skills_dir='.agents/skills', entries=('AGENTS.m
         raise ValueError('target project must exist')
     skills_dir = check_skills_dir(skills_dir)
     entries = [check_entry(e) for e in (entries or ['AGENTS.md'])]
-    earlier = earlier_release(root)
-    if earlier:
-        raise ValueError('an earlier release is installed (' + '; '.join(earlier) + '); this release is for new projects '
-                         'only and does not upgrade or migrate them')
-    bases = json.loads((ROOT / 'upgrade-bases.json').read_text())
     manifest = json.loads((ROOT / 'MANIFEST.json').read_text())
-    guidance_keys = {PKG_SKILLS + r + '/GUIDANCE-INDEX.md' for r in ROLES} | {'collaboration/GUIDANCE-INDEX.md'}
-    plans, preserved, guidance, retire, retired_kept = [], [], [], [], []
+    other = other_release(root, manifest['package'])
+    if other:
+        raise ValueError('another release is installed (' + '; '.join(other) + '); this release is for new projects '
+                         'only and does not upgrade or migrate them')
+    guidance_keys = {PKG_SKILLS + r + '/GUIDANCE-INDEX.md' for r in ROLES} | {'matrix/base/GUIDANCE-INDEX.md'}
+    plans, preserved, guidance = [], [], []
 
     for rel, expected in sorted(manifest['files'].items()):
         if not managed(rel):
@@ -175,27 +170,15 @@ def install(target, apply=False, skills_dir='.agents/skills', entries=('AGENTS.m
         before = dest.read_bytes() if dest.exists() else None
         if before == data:
             continue
-        if before is not None and sha(before) not in bases.get(rel, []):
+        if before is not None:
             if rel in guidance_keys:
                 guidance.append(dest_rel)
                 continue
-            if rel.startswith('collaboration/') and rel not in CRITICAL_COMMON:
+            if rel.startswith(PKG_RULES) and rel not in CRITICAL_COMMON:
                 preserved.append(dest_rel)
                 continue
             raise ValueError('custom/unknown existing file requires merge before install: ' + dest_rel)
         plans.append((dest_rel, before, data))
-
-    # Files shipped by earlier releases but no longer part of this one.
-    for rel in sorted(k for k in bases if retirable(k) and k not in manifest['files']):
-        dest_rel = target_path(rel, skills_dir)
-        dest = safe(root, dest_rel)
-        if not dest.exists():
-            continue
-        before = dest.read_bytes()
-        if sha(before) in bases[rel]:
-            retire.append((dest_rel, before))
-        else:
-            retired_kept.append(dest_rel)
 
     package = manifest['package']
     new_block = block(package, skills_dir)
@@ -208,7 +191,7 @@ def install(target, apply=False, skills_dir='.agents/skills', entries=('AGENTS.m
             plans.append((entry, before, updated.encode()))
 
     # Validate every destination before any mutation.
-    for rel, before, _ in plans + [(r, b, None) for r, b in retire]:
+    for rel, before, _ in plans:
         if before is not None:
             backup = safe(root, 'management/install-backups/' + sha(before) + '/' + rel)
             if backup.exists() and backup.read_bytes() != before:
@@ -216,11 +199,11 @@ def install(target, apply=False, skills_dir='.agents/skills', entries=('AGENTS.m
     safe(root, 'management/install-receipt.json')
     report = {'package': package, 'target': str(root), 'skills_dir': skills_dir, 'entries': entries,
               'preserved_custom_common': preserved, 'preserved_custom_guidance': guidance,
-              'guidance_review_required': guidance, 'retired_modified_kept': retired_kept}
+              'guidance_review_required': guidance}
     if not apply:
-        return {'dry_run': True, 'changes': [x[0] for x in plans], 'retire': [x[0] for x in retire], **report}
+        return {'dry_run': True, 'changes': [x[0] for x in plans], **report}
 
-    written, removed = [], []
+    written = []
     for rel, before, data in plans:
         dest = safe(root, rel)
         current = dest.read_bytes() if dest.exists() else None
@@ -232,25 +215,12 @@ def install(target, apply=False, skills_dir='.agents/skills', entries=('AGENTS.m
                 atomic(backup, before)
         atomic(dest, data)
         written.append({'path': rel, 'before': sha(before) if before is not None else None, 'after': sha(data)})
-    for rel, before in retire:
-        dest = safe(root, rel)
-        if dest.read_bytes() != before:
-            raise ValueError('concurrent edit; earlier writes kept, rerun preflight: ' + rel)
-        backup = safe(root, 'management/install-backups/' + sha(before) + '/' + rel)
-        if not backup.exists():
-            atomic(backup, before)
-        dest.unlink()
-        removed.append({'path': rel, 'before': sha(before)})
-        parent = dest.parent
-        while parent != root and parent.is_dir() and not any(parent.iterdir()):
-            parent.rmdir()
-            parent = parent.parent
     result = {'installed': True, 'at': datetime.now(timezone.utc).isoformat(), 'written': written,
-              'retired': removed, **report, 'runtime_initialized': False,
+              **report, 'runtime_initialized': False,
               'professional_business_sources_modified': False,
               'note': 'Per-file atomic and rerunnable; not a project-wide transaction. Runtime and adoption are verified separately.'}
     receipt = safe(root, 'management/install-receipt.json')
-    if written or removed or not receipt.exists():
+    if written or not receipt.exists():
         atomic(receipt, json.dumps(result, ensure_ascii=False, indent=2).encode())
     return result
 

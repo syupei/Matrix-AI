@@ -36,12 +36,12 @@ class InstallTests(unittest.TestCase):
 
     def test_install_preserves_business_and_root_and_backs_up(self):
         self.put('AGENTS.md','human project instructions\n')
-        for path in ['product/source.md','design/confirmed.md','engineering/intake/baseline.md','collaboration/feedback.md','collaboration/runtime/state.sqlite3']:
+        for path in ['product/source.md','design/confirmed.md','engineering/intake/baseline.md','shared/feedback.md','management/runtime/coordination.sqlite3']:
             self.put(path,'untouched '+path)
         mod.install(self.root,True)
         self.assertIn('human project instructions',(self.root/'AGENTS.md').read_text())
         self.assertTrue(list((self.root/'management/install-backups').rglob('AGENTS.md')))
-        for path in ['product/source.md','design/confirmed.md','engineering/intake/baseline.md','collaboration/feedback.md','collaboration/runtime/state.sqlite3']:
+        for path in ['product/source.md','design/confirmed.md','engineering/intake/baseline.md','shared/feedback.md','management/runtime/coordination.sqlite3']:
             self.assertEqual((self.root/path).read_text(),'untouched '+path)
 
     def test_reinstall_is_idempotent_and_keeps_first_receipt(self):
@@ -53,20 +53,20 @@ class InstallTests(unittest.TestCase):
         self.assertEqual((self.root/'AGENTS.md').read_text().count(mod.BEGIN),1)
 
     def test_unknown_professional_customization_stops_before_any_write(self):
-        self.put('.agents/skills/product-agent/SKILL.md','custom professional requirements')
+        self.put('.agents/skills/matrix-product/SKILL.md','custom professional requirements')
         with self.assertRaisesRegex(ValueError,'custom/unknown'):
             mod.install(self.root,True)
         self.assertFalse((self.root/'AGENTS.md').exists())
-        self.assertFalse((self.root/'.agents/skills/project-management-agent').exists())
+        self.assertFalse((self.root/'.agents/skills/matrix-project-management').exists())
 
     def test_common_project_customization_is_preserved_and_reported(self):
-        self.put('collaboration/CONTRACT.md','project custom contract')
+        self.put('matrix/base/CONTRACT.md','project custom contract')
         result=mod.install(self.root,True)
-        self.assertIn('collaboration/CONTRACT.md',result['preserved_custom_common'])
-        self.assertEqual((self.root/'collaboration/CONTRACT.md').read_text(),'project custom contract')
+        self.assertIn('matrix/base/CONTRACT.md',result['preserved_custom_common'])
+        self.assertEqual((self.root/'matrix/base/CONTRACT.md').read_text(),'project custom contract')
 
     def test_copy_rule_conflict_stops_before_installing_any_role(self):
-        self.put('collaboration/COPY-QUALITY.md','custom copy policy')
+        self.put('matrix/base/COPY-QUALITY.md','custom copy policy')
         self.put('AGENTS.md','existing project instructions')
         before={str(x.relative_to(self.root)):x.read_bytes() for x in self.root.rglob('*') if x.is_file()}
         with self.assertRaisesRegex(ValueError,'custom/unknown'):
@@ -74,7 +74,7 @@ class InstallTests(unittest.TestCase):
         self.assertEqual(before,{str(x.relative_to(self.root)):x.read_bytes() for x in self.root.rglob('*') if x.is_file()})
 
     def test_structured_handoff_conflict_stops_before_any_write(self):
-        self.put('collaboration/STRUCTURED-HANDOFF.md','project custom handoff rules')
+        self.put('matrix/professions/product/STRUCTURED-HANDOFF.md','project custom handoff rules')
         before={str(x.relative_to(self.root)):x.read_bytes() for x in self.root.rglob('*') if x.is_file()}
         with self.assertRaisesRegex(ValueError,'custom/unknown'):
             mod.install(self.root,True)
@@ -92,10 +92,10 @@ class InstallTests(unittest.TestCase):
 
     def test_all_roles_installed_without_runtime_initialization(self):
         result=mod.install(self.root,True)
-        for role in ['project-front-desk-agent','product-agent','experience-design-agent','engineering-intake-agent','engineering-solution-agent','engineering-build-agent','quality-verification-agent','project-management-agent','professional-agent-collaboration','content-design-review','product-capability-model','profession-builder']:
+        for role in ['matrix-front-desk','matrix-product','matrix-experience-design','matrix-code-engineering-intake','matrix-code-engineering-solution','matrix-code-engineering-build','matrix-quality-engineering','matrix-project-management','matrix-collaboration','matrix-content-design','matrix-product-capability-model','matrix-profession-builder']:
             self.assertTrue((self.root/'.agents/skills'/role/'SKILL.md').is_file())
-        self.assertTrue((self.root/'collaboration/MATRIX.md').is_file())
-        self.assertTrue((self.root/'collaboration/professions/product.json').is_file())
+        self.assertTrue((self.root/'matrix/base/MATRIX.md').is_file())
+        self.assertTrue((self.root/'matrix/professions/product/profession.json').is_file())
         self.assertFalse(result['runtime_initialized'])
         self.assertFalse(list(self.root.rglob('*.sqlite3')))
         self.assertFalse((self.root/'product').exists())
@@ -115,7 +115,7 @@ class InstallTests(unittest.TestCase):
         self.assertFalse((self.root/'.agents').exists())
 
     def test_custom_guidance_preserved_in_preflight_install_and_repeat(self):
-        rel='.agents/skills/experience-design-agent/GUIDANCE-INDEX.md'
+        rel='.agents/skills/matrix-experience-design/GUIDANCE-INDEX.md'
         custom='项目引用：采用现有动效规范；禁用额外声音。\n'
         self.put(rel,custom)
         before={str(x.relative_to(self.root)):x.read_bytes() for x in self.root.rglob('*') if x.is_file()}
@@ -127,7 +127,7 @@ class InstallTests(unittest.TestCase):
         result=mod.install(self.root,True)
         self.assertEqual(result['preserved_custom_guidance'],[rel])
         self.assertEqual((self.root/rel).read_text(),custom)
-        self.assertTrue((self.root/'.agents/skills/experience-design-agent/SKILL.md').is_file())
+        self.assertTrue((self.root/'.agents/skills/matrix-experience-design/SKILL.md').is_file())
         again=mod.install(self.root,True)
         self.assertEqual(again['written'],[])
         self.assertEqual(again['guidance_review_required'],[rel])
@@ -135,33 +135,15 @@ class InstallTests(unittest.TestCase):
 
     def test_all_six_fresh_guidance_indexes_installed(self):
         result=mod.install(self.root,True)
-        roles=['project-front-desk-agent','product-agent','experience-design-agent','engineering-intake-agent','engineering-solution-agent','engineering-build-agent','quality-verification-agent','project-management-agent','professional-agent-collaboration','content-design-review','profession-builder']
+        roles=['matrix-front-desk','matrix-product','matrix-experience-design','matrix-code-engineering-intake','matrix-code-engineering-solution','matrix-code-engineering-build','matrix-quality-engineering','matrix-project-management','matrix-collaboration','matrix-content-design','matrix-profession-builder']
         for role in roles:
             rel=Path('.agents/skills')/role/'GUIDANCE-INDEX.md'
             self.assertEqual((self.root/rel).read_bytes(),(KIT/rel).read_bytes())
-        self.assertEqual((self.root/'collaboration/GUIDANCE-INDEX.md').read_bytes(),(KIT/'collaboration/GUIDANCE-INDEX.md').read_bytes())
+        self.assertEqual((self.root/'matrix/base/GUIDANCE-INDEX.md').read_bytes(),(KIT/'matrix/base/GUIDANCE-INDEX.md').read_bytes())
         self.assertEqual(result['preserved_custom_guidance'],[])
-
-    def test_known_old_guidance_default_upgrades_and_is_backed_up(self):
-        from unittest.mock import patch
-        import shutil
-        rel='.agents/skills/product-agent/GUIDANCE-INDEX.md'
-        old=b'original previous release index'
-        self.put(rel,old.decode())
-        with tempfile.TemporaryDirectory() as package:
-            package=Path(package)
-            shutil.copytree(KIT,package,dirs_exist_ok=True,ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
-            bases=json.loads((package/'upgrade-bases.json').read_text())
-            bases[rel]=[mod.sha(old)]
-            (package/'upgrade-bases.json').write_text(json.dumps(bases))
-            with patch.object(mod,'ROOT',package):
-                result=mod.install(self.root,True)
-        self.assertEqual(result['preserved_custom_guidance'],[])
-        self.assertEqual((self.root/rel).read_bytes(),(KIT/rel).read_bytes())
-        self.assertEqual((self.root/'management/install-backups'/mod.sha(old)/rel).read_bytes(),old)
 
     def test_custom_guidance_symlink_is_rejected_before_write(self):
-        rel='.agents/skills/product-agent/GUIDANCE-INDEX.md'
+        rel='.agents/skills/matrix-product/GUIDANCE-INDEX.md'
         self.put('outside.md','user index')
         dest=self.root/rel
         dest.parent.mkdir(parents=True)
@@ -171,23 +153,10 @@ class InstallTests(unittest.TestCase):
         self.assertFalse((self.root/'AGENTS.md').exists())
         self.assertEqual((self.root/'outside.md').read_text(),'user index')
 
-    def package_copy(self, bases_update):
-        """A temporary copy of the kit whose upgrade bases include extra known releases."""
-        import shutil
-        tmp=tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        package=Path(tmp.name)
-        shutil.copytree(KIT,package,dirs_exist_ok=True,ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
-        bases=json.loads((package/'upgrade-bases.json').read_text())
-        for rel,digest in bases_update.items():
-            bases.setdefault(rel,[]).append(digest)
-        (package/'upgrade-bases.json').write_text(json.dumps(bases))
-        return package
-
     def assert_refused_without_change(self,*args):
         before={str(x.relative_to(self.root)):x.read_bytes() for x in self.root.rglob('*') if x.is_file()}
         for apply in (False,True):
-            with self.assertRaisesRegex(ValueError,'earlier release.*new projects only'):
+            with self.assertRaisesRegex(ValueError,'another release.*new projects only'):
                 mod.install(self.root,apply,*args)
         self.assertEqual(before,{str(x.relative_to(self.root)):x.read_bytes() for x in self.root.rglob('*') if x.is_file()})
 
@@ -211,7 +180,7 @@ class InstallTests(unittest.TestCase):
         mod.install(self.root,True)
         receipt=json.loads((self.root/'management/install-receipt.json').read_text())
         self.assertEqual(receipt['package'],PACKAGE)
-        self.assertEqual(mod.earlier_release(self.root),[])
+        self.assertEqual(mod.other_release(self.root,PACKAGE),[])
         self.assertEqual(mod.install(self.root,True)['written'],[])
 
     def test_entry_block_within_budget(self):
@@ -221,12 +190,12 @@ class InstallTests(unittest.TestCase):
     def test_host_specific_skills_dir_and_entry(self):
         result=mod.install(self.root,True,'.claude/skills',['CLAUDE.md'])
         self.assertEqual(result['skills_dir'],'.claude/skills')
-        self.assertTrue((self.root/'.claude/skills/product-agent/SKILL.md').is_file())
+        self.assertTrue((self.root/'.claude/skills/matrix-product/SKILL.md').is_file())
         self.assertFalse((self.root/'.agents').exists())
         self.assertFalse((self.root/'AGENTS.md').exists())
         entry=(self.root/'CLAUDE.md').read_text()
-        self.assertIn('(.claude/skills/product-agent/SKILL.md)',entry)
-        self.assertTrue((self.root/'collaboration/CORE.md').is_file())
+        self.assertIn('(.claude/skills/matrix-product/SKILL.md)',entry)
+        self.assertTrue((self.root/'matrix/base/CORE.md').is_file())
 
     def test_multiple_entries_receive_the_same_block(self):
         self.put('CLAUDE.md','host notes\n')
@@ -243,43 +212,8 @@ class InstallTests(unittest.TestCase):
             mod.install(self.root,True,'.agents/skills',['docs/AGENTS.md'])
         self.assertEqual(list(self.root.iterdir()),[])
 
-    def test_unmodified_retired_file_is_removed_with_backup(self):
-        from unittest.mock import patch
-        rel='.agents/skills/product-agent/references/retired-guide.md'
-        old=b'guide shipped by an earlier release'
-        self.put(rel,old.decode())
-        package=self.package_copy({rel:mod.sha(old)})
-        with patch.object(mod,'ROOT',package):
-            preview=mod.install(self.root)
-            self.assertIn(rel,preview['retire'])
-            result=mod.install(self.root,True)
-        self.assertFalse((self.root/rel).exists())
-        self.assertEqual([x['path'] for x in result['retired']],[rel])
-        self.assertEqual((self.root/'management/install-backups'/mod.sha(old)/rel).read_bytes(),old)
-
-    def test_modified_retired_file_is_kept_and_reported(self):
-        from unittest.mock import patch
-        rel='.agents/skills/product-agent/references/retired-guide.md'
-        package=self.package_copy({rel:mod.sha(b'released content')})
-        self.put(rel,'project edited this guide')
-        with patch.object(mod,'ROOT',package):
-            result=mod.install(self.root,True)
-        self.assertEqual(result['retired_modified_kept'],[rel])
-        self.assertEqual((self.root/rel).read_text(),'project edited this guide')
-
-    def test_unmodified_shared_file_from_other_release_is_retired(self):
-        from unittest.mock import patch
-        rel='shared/stage_gate.py'
-        old=b'shipped by another release line'
-        self.put(rel,old.decode())
-        package=self.package_copy({rel:mod.sha(old)})
-        with patch.object(mod,'ROOT',package):
-            result=mod.install(self.root,True)
-        self.assertEqual([x['path'] for x in result['retired']],[rel])
-        self.assertFalse((self.root/'shared').exists())
-
     def test_custom_core_rules_stop_before_any_write(self):
-        self.put('collaboration/CORE.md','project rewrote the shared baseline')
+        self.put('matrix/base/CORE.md','project rewrote the shared baseline')
         with self.assertRaisesRegex(ValueError,'custom/unknown'):
             mod.install(self.root,True)
         self.assertFalse((self.root/'.agents').exists())
@@ -288,6 +222,23 @@ class InstallTests(unittest.TestCase):
         self.put('AGENTS.md','# 产品与设计联合试验入口\nlegacy text\n')
         self.assert_refused_without_change()
         self.assertIn('legacy text',(self.root/'AGENTS.md').read_text())
+
+    def test_kit_before_the_rename_is_refused(self):
+        self.put('management/install-receipt.json',json.dumps({'package':'professional-agents-kit/0.30'}))
+        self.assert_refused_without_change()
+
+    def test_entry_block_of_the_kit_before_the_rename_is_refused(self):
+        self.put('AGENTS.md','notes\n<!-- professional-agents:begin -->\n## 专业 Agent（professional-agents-kit/0.30）\n<!-- professional-agents:end -->\n')
+        self.assert_refused_without_change()
+
+    def test_rule_files_of_an_earlier_layout_are_refused(self):
+        self.put('collaboration/CORE.md','rules installed by an earlier kit')
+        self.assert_refused_without_change()
+
+    def test_other_matrix_release_is_refused(self):
+        name,version=PACKAGE.split('/')
+        self.put('management/install-receipt.json',json.dumps({'package':name+'/0.99'}))
+        self.assert_refused_without_change()
 
 
 if __name__=='__main__':

@@ -8,7 +8,8 @@ import sys
 import tempfile
 import unittest
 
-SCRIPT = Path(__import__('os').environ.get('MATRIX_TEST_KIT', str(Path(__file__).resolve().parents[2]/'src'))) / '.agents/skills/product-agent/scripts/product_contract.py'
+from kit import KIT
+SCRIPT = KIT / '.agents/skills/matrix-product/scripts/product_contract.py'
 spec = importlib.util.spec_from_file_location('product_contract', SCRIPT)
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
@@ -301,7 +302,7 @@ class ContractTests(unittest.TestCase):
             self.put(self.source, self.body + '\n```product-contract\n' + json.dumps(meta, ensure_ascii=False) + '\n```\n')
             with self.assertRaisesRegex(ValueError, 'exits'):
                 mod.capture(self.root, [self.source])
-        self.put('collaboration/professions/code-engineering.json', json.dumps({'id': 'code-engineering'}))
+        self.put('matrix/professions/code-engineering/profession.json', json.dumps({'id': 'code-engineering'}))
         self.meta['items'][0]['exits'] = ['code-engineering', 'astrology']
         self.source_write()
         with self.assertRaisesRegex(ValueError, '未登记的专业: astrology'):

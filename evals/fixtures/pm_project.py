@@ -5,7 +5,11 @@ import json
 
 
 def populate(root, case_id):
-    spec = importlib.util.spec_from_file_location('synthetic_pm_fixture', root/'kit/.agents/skills/project-management-agent/scripts/pm_tasks.py')
+    # The kit under test builds its own task library, so the state is in that kit's layout.
+    tool = next(p for p in [root/'kit/matrix/orchestration/tools/pm_tasks.py', root/'kit/.agents/skills/project-management-agent/scripts/pm_tasks.py'] if p.is_file())
+    spec = importlib.util.spec_from_file_location('synthetic_pm_fixture', tool)
+    # The role label follows the kit under test: a skill name in Matrix-AI, the role identifier before it.
+    DEV_ROLE = 'matrix-code-engineering-build' if (root/'kit/matrix').is_dir() else 'engineering-build'
     pm = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(pm)
     counter = 0
@@ -20,7 +24,7 @@ def populate(root, case_id):
     (root/'product/requirements.json').write_text(json.dumps({'version':'1','items':[{'id':'SUGGESTION','rule':'employees submit suggestions'},{'id':'ATTACHMENT','rule':'optional attachments'}]},ensure_ascii=False))
     (root/'artifact-v1.txt').write_text('SYNTHETIC completed company-wide suggestion list v1')
     instances = []
-    for iid, role in [('PROD-1','product'),('PROD-2','product'),('DES-1','design')]+[('DEV-'+str(n),'engineering-build') for n in range(1,5)]:
+    for iid, role in [('PROD-1','product'),('PROD-2','product'),('DES-1','design')]+[('DEV-'+str(n),DEV_ROLE) for n in range(1,5)]:
         instances.append(dict(id=iid,role=role,endpoint='SYNTHETIC-'+iid,write_roots=['work/'+iid]))
     (root/'instances.json').write_text(json.dumps(instances))
     for tid, owner, title in [('P-SCOPE','PROD-1','maintain product rules'),('D-LIST','DES-1','design suggestion list'),('T-LIST','DEV-1','company-wide suggestion list v1'),('T-ATTACH','DEV-2','attachment upload'),('T-AUTH','DEV-3','shared employee authentication')]:

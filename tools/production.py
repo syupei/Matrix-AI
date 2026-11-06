@@ -4,41 +4,62 @@ import argparse,hashlib,json,os,re,shutil,subprocess,sys
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 SOURCE=ROOT/'src'
-ALLOWED=('.agents/skills/','collaboration/','shared/')
-TOP={'START.md','BEHAVIOR-CHECKS.md','install.py','upgrade-bases.json'}
+# The source is grouped by layer; the package (and a project after install) has skills flat in the host's skills
+# directory and everything else under matrix/. LAYERS are the source folders; TOP files stay at the package root.
+LAYERS=('base','orchestration','professions','knowledge')
+TOP={'START.md','BEHAVIOR-CHECKS.md','install.py'}
 # Consumer text must stay host-neutral and free of build history (the capability model is quoted source text).
 HOST_OR_HISTORY=re.compile(r'[Cc]odex|[Oo]pen[Aa][Ii]|[Cc]laude|[Aa]nthropic|functions\.|request_user_input|mcp__|~/|试验|来源项目|原项目|旧版|旧项目|此前版本|历史版本|本版新增|\bv0\.\d+|[A-Z]+-(?:DEC|Q)-\d{3}|COPY-00\d|STRUCT-00\d')
-TEXT_EXEMPT=('.agents/skills/product-capability-model/standards/',)
+TEXT_EXEMPT=('.agents/skills/matrix-product-capability-model/standards/',)
 RUNNERS={'codex exec':'turn.completed','claude -p':'result','claude subagent':'result'}
 PRIVATE=re.compile(r'DFW(?:[-_ ]TEST)?|EC[-_ ](?:TEST|CHINA)|EAST[-_ ]CHINA|/Users/|[A-Z]:\\Users\\',re.I)
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
-def source_files():
- files={}
+def package_path(rel):
+ """Where a source file lands in the package: a skill folder goes to .agents/skills/, the rest under matrix/."""
+ if rel in TOP:return rel
+ parts=rel.split('/')
+ if parts[0] in ('base','orchestration','knowledge') and len(parts)>2 and parts[1]=='skills':return '.agents/skills/'+'/'.join(parts[2:])
+ if parts[0]=='professions' and len(parts)>3 and parts[2]=='skills':return '.agents/skills/'+'/'.join(parts[3:])
+ if parts[0] in LAYERS:return 'matrix/'+rel
+ raise ValueError('non-runtime source: '+rel)
+def layout():
+ """Package path -> source file, for every runtime source file."""
+ out={}
  for p in sorted(SOURCE.rglob('*')):
   if not p.is_file():continue
   rel=str(p.relative_to(SOURCE))
   if '__pycache__' in p.parts or p.name in ['.DS_Store','MANIFEST.json']:continue
   if p.name.startswith('test_') or 'tests' in p.parts:raise ValueError('maintainer test in runtime source: '+rel)
-  if p.is_symlink() or not (rel in TOP or rel.startswith(ALLOWED)):raise ValueError('non-runtime source: '+rel)
+  if p.is_symlink():raise ValueError('non-runtime source: '+rel)
+  dest=package_path(rel)
+  if dest in out:raise ValueError('two sources for one package path: '+dest)
+  out[dest]=p
+ return out
+def source_files():
+ files={}
+ for rel,p in layout().items():
   if p.suffix in {'.md','.py','.html','.json','.yaml','.txt'} and PRIVATE.search(p.read_text()):raise ValueError('internal identity in package: '+rel)
   files[rel]=sha(p)
  return files
 
 def fingerprint(files):return hashlib.sha256(json.dumps(files,sort_keys=True).encode()).hexdigest()
 def check_sources():
- files=source_files();errors=[];links=0
+ files=source_files();src=layout();errors=[];links=0
+ dirs={str(Path(r).parent) for r in files}
+ dirs|={str(Path(d).parents[i]) for d in list(dirs) for i in range(len(Path(d).parts))}
  for rel in files:
-  p=SOURCE/rel
+  p=src[rel]
   if p.name=='SKILL.md' and len(p.read_text())>3500:errors.append('entry exceeds 3500 characters: '+rel)
   if p.suffix in {'.md','.html'} and not rel.startswith(TEXT_EXEMPT):
    text=p.read_text().replace('.claude/skills','.<host>/skills') if rel=='START.md' else p.read_text()
    for m in HOST_OR_HISTORY.finditer(text):errors.append(f'host name or build history in consumer text: {rel}: {m.group(0)}')
-  if p.suffix=='.md' and not rel.startswith('shared/'):
+  if p.suffix=='.md':
+   # Links are written for the installed layout, so they are checked against package paths.
    for href in re.findall(r'\]\(([^)]+)\)',p.read_text()):
     path=href.split('#')[0]
     if not path or '://' in path or path.startswith('mailto:'):continue
-    dest=(p.parent/path).resolve()
-    if not dest.is_relative_to(SOURCE.resolve()) or not dest.exists():errors.append('broken link: '+rel+' -> '+href)
+    dest=os.path.normpath(os.path.join(os.path.dirname(rel),path))
+    if dest.startswith('..') or (dest not in files and dest not in dirs):errors.append('broken link: '+rel+' -> '+href)
     links+=1
  if errors:raise ValueError('\n'.join(errors))
  return files,links
@@ -97,17 +118,20 @@ def check_evidence(report,files):
  if not data.get('reviewer') or not data.get('limitations'):raise ValueError('review attribution and limits required')
  return data
 
+def release_name(config):
+ name,version=config['package'].split('/');return name+'-v'+version
+
 WAIVER_FIELDS=('authorized_by','date','authorization','scope','existing_evidence','limitations')
 def check_waiver(path,files):
  # Only an explicit human authorization to skip verification waives the comparison; a plain request to publish does not.
  data=json.loads(path.read_text());config=json.loads((ROOT/'package.json').read_text())
- if data.get('package')!='professional-agents-kit-v'+config['package'].split('/')[1]:raise ValueError('waiver names a different version')
+ if data.get('package')!=release_name(config):raise ValueError('waiver names a different version')
  if data.get('source_hash')!=fingerprint(files):raise ValueError('waiver belongs to different source')
  if any(not data.get(k) for k in WAIVER_FIELDS):raise ValueError('waiver requires '+', '.join(WAIVER_FIELDS))
  return data
 
 def build(destination):
- files,links=check_sources();config=json.loads((ROOT/'package.json').read_text());name='professional-agents-kit-v'+config['package'].split('/')[1]
+ files,links=check_sources();config=json.loads((ROOT/'package.json').read_text());name=release_name(config);src=layout()
  destination=destination/name
  manifest={k:config[k] for k in ['package','components','extensions']}|{'files':files}
  if destination.exists():
@@ -115,7 +139,7 @@ def build(destination):
   if existing!=manifest or any(not (destination/r).is_file() or sha(destination/r)!=h for r,h in files.items()):raise ValueError('existing build differs; move failed candidate aside or use new version')
  else:
   for rel in files:
-   p=destination/rel;p.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(SOURCE/rel,p)
+   p=destination/rel;p.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(src[rel],p)
   (destination/'MANIFEST.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
  return destination,files,links
 

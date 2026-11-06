@@ -8,7 +8,7 @@ import importlib.util
 from pathlib import Path
 
 TEAM = Path(__file__).resolve().with_name('team_project.py')
-TEAM_SHA256 = 'dd91efe8ac02be5bc7663e6d8387941fc86470ed726bd36971b5f2042aeed60c'
+TEAM_SHA256 = '5ae64ebc7b6967f592318e33161e574bddc4540cb43deb683821d78402ef8584'
 
 
 def populate(root, case_id):

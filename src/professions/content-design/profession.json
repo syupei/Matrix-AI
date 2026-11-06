@@ -1,0 +1,96 @@
+{
+  "schema": "profession/1",
+  "id": "content-design",
+  "name": "内容设计与审读",
+  "class": "制作",
+  "version": "1.0",
+  "kit": "matrix-ai/0.31",
+  "skills": [
+    "matrix-content-design"
+  ],
+  "handles": [
+    "界面文案、提示与错误提示、空状态、通知、引导",
+    "语气与用语的统一、术语表",
+    "带键的文案表与它的变更通知"
+  ],
+  "not_handles": [
+    "程序内部的异常与错误码、日志、接口文档（属代码工程）",
+    "法律条款的内容（属法务，可协助可读性）",
+    "产品规则与承诺（属产品）"
+  ],
+  "participation": "产品有面向最终用户的文字时参与；项目里没有设立时按缺专家处理（CORE §7）",
+  "owns": [
+    {
+      "deliverable": "文案表：键、情境、文字、版本与使用位置",
+      "source": "项目的文案表文件（由产品与设计引用）"
+    }
+  ],
+  "reuse": [
+    "文案键：同一情境下按原因区分文字"
+  ],
+  "standards": [
+    "面向读者的文字（C03）"
+  ],
+  "stage_flows": [],
+  "decisions": {
+    "own": [
+      "已确认语气与术语范围内的措辞"
+    ],
+    "escalate": [
+      "改变产品事实、风险或承诺交产品",
+      "对外声明与公告交人"
+    ],
+    "binding": [
+      "文案表中已确认的文字"
+    ]
+  },
+  "interfaces": [
+    {
+      "with": "产品",
+      "needs": "规则、情境与语气要求",
+      "gives": "文案表与审读结论"
+    },
+    {
+      "with": "交互与视觉设计",
+      "needs": "文字出现的位置与长度限制",
+      "gives": "文案键"
+    },
+    {
+      "with": "代码工程",
+      "needs": "情境与键的对照",
+      "gives": "文案表版本"
+    }
+  ],
+  "inputs": [],
+  "item_inputs": {
+    "default": "by_risk",
+    "stricter": []
+  },
+  "tools": [
+    "文档编辑"
+  ],
+  "model_capabilities": [
+    "中文写作与审读"
+  ],
+  "levels": {
+    "range": [
+      "T2",
+      "T7"
+    ],
+    "master_min": "T6",
+    "doc": "levels.md"
+  },
+  "anchors": {
+    "risk": "levels.md",
+    "defect": "levels.md"
+  },
+  "verification": "按风险级别安排独立检验（C22）；单实例时记录写明同一实例检验",
+  "reporting": "向 PM 汇报进度、阻碍与需人决定的事项；F1、Q1 主动告知，Q0 立即告知（C01）",
+  "evals": [
+    "copy",
+    "risk_legal_text",
+    "content_copy_only",
+    "single_next_step",
+    "gap_self_with_risk"
+  ]
+}

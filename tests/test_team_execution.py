@@ -9,13 +9,13 @@ import unittest
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
-ROOT = Path(__file__).resolve().parents[1]/'src'
+from kit import KIT as ROOT
 def load(name, path):
     s=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
-pm=load('team_pm_test',ROOT/'.agents/skills/project-management-agent/scripts/pm_tasks.py')
-gw=load('team_gateway_test',ROOT/'collaboration/tools/tool_gateway.py')
-gate=load('team_gate_test',ROOT/'collaboration/tools/stage_gate.py')
-bridge=load('team_dispatch_test',ROOT/'collaboration/tools/task_dispatch.py')
+pm=load('team_pm_test',ROOT/'matrix/orchestration/tools/pm_tasks.py')
+gw=load('team_gateway_test',ROOT/'matrix/orchestration/tools/tool_gateway.py')
+gate=load('team_gate_test',ROOT/'matrix/base/tools/stage_gate.py')
+bridge=load('team_dispatch_test',ROOT/'matrix/orchestration/tools/task_dispatch.py')
 
 class ProjectFixture:
     def setUp(self):
@@ -23,8 +23,8 @@ class ProjectFixture:
         self.call('init','PM',config=dict(project='SIMULATED',pm_actor='PM',authorization='SIMULATED',frontdoor_thread='SIM',max_slots=4))
         (self.root/'authority.md').write_text('SIMULATED designation: lead manages A; workers W and X allocated.')
         (self.root/'input.md').write_text('SIMULATED baseline')
-        for iid,role in [('L','product-agent'),('W','product-agent'),('X','product-agent'),('M','project-management-agent'),('S','security-specialist')]:
-            self.call('register_instance','PM',id=iid,instance=dict(role=role,endpoint='SIM-'+iid,write_roots=['.agent-runtime/instances/'+iid+'/workspace']))
+        for iid,role in [('L','matrix-product'),('W','matrix-product'),('X','matrix-product'),('M','matrix-project-management'),('S','security-specialist')]:
+            self.call('register_instance','PM',id=iid,instance=dict(role=role,endpoint='SIM-'+iid,write_roots=['management/instances/'+iid+'/workspace']))
         self.create('A',owner='L',slots=0);self.create('B',owner='X')
         self.app('L','lead',['A'],['W'])
         self.app('W','executor',['A'])
@@ -124,7 +124,7 @@ class Appointments(ProjectFixture, unittest.TestCase):
     def test_render_cannot_silently_discard_mutation(self):
         self.create('A-1','A','L');task=self.t('A-1')
         command=dict(op='update',actor='W',event_id='CLI',task_id='A-1',expected_revision=task['revision'],changes={'next_action':'updated'},reason='SIM')
-        cli=[sys.executable,str(ROOT/'.agents/skills/project-management-agent/scripts/pm_tasks.py'),'--project',str(self.root)]
+        cli=[sys.executable,str(ROOT/'matrix/orchestration/tools/pm_tasks.py'),'--project',str(self.root)]
         rejected=subprocess.run(cli+['--render'],input=json.dumps(command),text=True,capture_output=True)
         self.assertNotEqual(0,rejected.returncode);self.assertIn('render does not execute',rejected.stdout)
         self.assertEqual(task['revision'],self.t('A-1')['revision'])
@@ -134,8 +134,8 @@ class Appointments(ProjectFixture, unittest.TestCase):
         self.assertEqual(0,rendered.returncode,rendered.stdout)
         self.assertEqual('updated',self.t('A-1')['next_action'])
     def test_single_listed_person_does_not_get_all_decisions(self):
-        (self.root/'collaboration').mkdir(exist_ok=True)
-        (self.root/'collaboration/people.json').write_text(json.dumps({'people':[{'id':'product-human','name':'Product','decides':['product']}]}))
+        (self.root / 'management').mkdir(parents=True, exist_ok=True)
+        (self.root/'management/people.json').write_text(json.dumps({'people':[{'id':'product-human','name':'Product','decides':['product']}]}))
         self.create('H',owner='X',human_required=True)
         with self.assertRaisesRegex(pm.TaskError,'no decision authority'):
             self.mutate('human_review','H','PM',person='product-human',outcome='approved',presented_ref='SIM',source='SIM',quote='SIM',scope='SIM')
@@ -214,7 +214,7 @@ class ToolIsolation(unittest.TestCase):
 
 class DelegatedGate(unittest.TestCase):
     def setUp(self):
-        t=tempfile.TemporaryDirectory();self.addCleanup(t.cleanup);self.root=Path(t.name);(self.root/'collaboration').mkdir()
+        t=tempfile.TemporaryDirectory();self.addCleanup(t.cleanup);self.root=Path(t.name);(self.root / 'management').mkdir(parents=True, exist_ok=True)
         for ref,text in {'authority.md':'SIM human delegates P-3 for A to P1', 'artifact.md':'SIM rules A', 'decision.md':'SIM professional rationale', 'check.md':'SIM independent verification', 'conversation.md':'P-3 → P-4'}.items():(self.root/ref).write_text(text)
         art=gate.digests(self.root,['artifact.md'])
         self.grant=dict(id='D',revision=1,person_id='user',instance_id='P1',role='product',stages=['P-3'],scope=['A'],source='authority.md',source_sha256=gate.digest(self.root/'authority.md'),expires_at='2099-01-01T00:00:00+00:00',revoked=False)
@@ -222,7 +222,7 @@ class DelegatedGate(unittest.TestCase):
         self.review=dict(checker='P2',outcome='passed',scope=['A'],artifact_sha256=art['artifact_sha256'],evidence='check.md')
         self.state=dict(role='product',current='P-3',next='P-4',scope=['A'],blockers=[],conversation_check='conversation.md',delegated_decision='decision.json',**art)
     def check(self):
-        for ref,data in [('collaboration/delegations.json',{'delegations':[self.grant]}),('decision.json',self.decision),('review.json',self.review)]: (self.root/ref).write_text(json.dumps(data))
+        for ref,data in [('management/delegations.json',{'delegations':[self.grant]}),('decision.json',self.decision),('review.json',self.review)]: (self.root/ref).write_text(json.dumps(data))
         return gate.check(self.root,self.state)
     def test_delegation_is_not_human_confirmation(self):
         result=self.check();self.assertEqual('delegated',result['decision_basis']);self.assertNotIn('confirmed_by',result)
@@ -249,7 +249,7 @@ class DelegatedGate(unittest.TestCase):
         self.state.update(role='release',current='E-4.2',next='E-4.3');(self.root/'conversation.md').write_text('E-4.2 → E-4.3')
         with self.assertRaisesRegex(ValueError,'cannot be delegated'):self.check()
     def test_single_listed_person_needs_actual_role_authority(self):
-        (self.root/'collaboration/people.json').write_text(json.dumps({'people':[{'id':'designer','decides':['design']}]}))
+        (self.root/'management/people.json').write_text(json.dumps({'people':[{'id':'designer','decides':['design']}]}))
         self.grant['person_id']='designer'
         with self.assertRaisesRegex(ValueError,'no decision authority'):self.check()
 
@@ -259,11 +259,11 @@ class Dispatch(ProjectFixture, unittest.TestCase):
         def send(endpoint,packet):
             self.sends.append(packet);return dict(outcome='sent',evidence='SIM delivered',started=started,start_evidence='SIM started')
         def wake(endpoint,note):self.wakes.setdefault(note['event_id'],note);return {'outcome':'sent','evidence':'SIM wake'}
-        self.dispatcher=bridge.Dispatcher(self.root,ROOT/'.agents/skills',send,wake)
+        self.dispatcher=bridge.Dispatcher(self.root,send,wake)
         c=self.dispatcher.c
         c('init',config={'protocol':'professional-collaboration/0.1','authorization':'SIMULATED','frontdoor':{'thread_id':'SIM-MAIN'}})
         for iid in ['L','W']:
-            c('register',role=dict(id=iid,skill='kit-product.md',write_roots=['.agent-runtime/instances/'+iid+'/workspace'],endpoint={'kind':'subagent','id':'SIM-'+iid,'session':'SIM-session-'+iid}))
+            c('register',role=dict(id=iid,skill='kit-product.md',write_roots=['management/instances/'+iid+'/workspace'],endpoint={'kind':'subagent','id':'SIM-'+iid,'session':'SIM-session-'+iid}))
     def test_return_wakes_lead_without_closing_or_approving(self):
         (self.root/'kit-product.md').write_text('SIM product capability')
         self.setup_bridge()
@@ -301,7 +301,7 @@ class Dispatch(ProjectFixture, unittest.TestCase):
     def test_reappointment_invalidates_pending_start(self):
         (self.root/'kit-product.md').write_text('SIM capability');self.setup_bridge(False)
         self.dispatcher.dispatch('A-1','R',['input.md'],'authority.md')
-        self.call('appoint','PM',id='W',expected_revision=1,appointment=dict(mode='executor',role='product-agent',root_tasks=['A'],delegates=[],source='authority.md'))
+        self.call('appoint','PM',id='W',expected_revision=1,appointment=dict(mode='executor',role='matrix-product',root_tasks=['A'],delegates=[],source='authority.md'))
         with self.assertRaisesRegex(self.dispatcher.pm.TaskError,'changed after dispatch'):
             self.dispatcher.mark_started('R','SIM actual start')
         self.assertEqual('planned',self.t('A-1')['state'])

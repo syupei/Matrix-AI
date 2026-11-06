@@ -1,8 +1,10 @@
 """Synthetic community app for topic_promote: the leaderboard topic record and the product rules for places that
 show user names. No real product, legal advice or person is represented."""
+import importlib.util
+from pathlib import Path
 
 FILES = {
-    'collaboration/议题记录/TOP-RANK-01.md': '# TOP-RANK-01 排行榜能否显示真实姓名（已结论，合成）\n\n'
+    'exchange/议题记录/TOP-RANK-01.md': '# TOP-RANK-01 排行榜能否显示真实姓名（已结论，合成）\n\n'
                                             '- 类型：咨询；发起方：产品；决定方：产品；参与方：外部法务（意见）。\n'
                                             '- 结论（法务意见，产品已核对采用）：未经用户同意，不能公开显示真实姓名；默认显示昵称。\n'
                                             '- 落到：product/rules/R-RANK-02.md v2。\n',
@@ -18,3 +20,11 @@ def populate(root, case_id):
         path = root / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding='utf-8')
+    _layout().adapt(root)
+
+
+def _layout():
+    spec = importlib.util.spec_from_file_location('fixture_layout', Path(__file__).with_name('layout.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module

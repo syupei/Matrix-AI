@@ -8,11 +8,12 @@ import sqlite3
 import tempfile
 import unittest
 
-SOURCE = Path(os.environ.get('MATRIX_TEST_KIT', str(Path(__file__).resolve().parents[1] / 'src')))
-spec = importlib.util.spec_from_file_location('pm_gaps_under_test', SOURCE / '.agents/skills/project-management-agent/scripts/pm_tasks.py')
+from kit import KIT
+SOURCE = KIT
+spec = importlib.util.spec_from_file_location('pm_gaps_under_test', SOURCE / 'matrix/orchestration/tools/pm_tasks.py')
 pm = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pm)
-REGISTRIES = {r['id']: r for r in (json.loads(p.read_text(encoding='utf-8')) for p in (SOURCE / 'collaboration/professions').glob('*.json'))}
+REGISTRIES = {r['id']: r for r in (json.loads(p.read_text(encoding='utf-8')) for p in (SOURCE / 'matrix/professions').glob('*/profession.json'))}
 CAPABILITIES = sorted({c for r in REGISTRIES.values() for c in r.get('model_capabilities', [])})
 MODELS = {'models': [{'model': m, 'levels': {p: r['levels']['range'][1] for p, r in REGISTRIES.items()}, 'capabilities': CAPABILITIES,
                       'filled_by': 'SIMULATED person'} for m in ['SIM-big', 'SIM-other']]}
@@ -33,9 +34,9 @@ class Fixture:
         tmp = tempfile.TemporaryDirectory(prefix='pm-gaps-simulation-')
         self.addCleanup(tmp.cleanup)
         self.root = Path(tmp.name).resolve()
-        (self.root / 'collaboration').mkdir()
+        (self.root / 'management').mkdir(parents=True, exist_ok=True)
         for name, data in [('model-fit.json', MODELS), ('instance-config.json', TEAM), ('people.json', PEOPLE)]:
-            (self.root / 'collaboration' / name).write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+            (self.root / 'management' / name).write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
         self.n = 0
         self.call('init', config=dict(project='SIMULATED 记账 App', pm_actor='PM', authorization='SIMULATED only', frontdoor_thread='SIMULATED', max_slots=8))
         self.call('confirm_config', person='boss', quote='SIMULATED: 按配置来', presented_ref='SIM shown', choices={})

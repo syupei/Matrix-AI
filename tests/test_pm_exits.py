@@ -7,14 +7,15 @@ from pathlib import Path
 import tempfile
 import unittest
 
-SOURCE = Path(os.environ.get('MATRIX_TEST_KIT', str(Path(__file__).resolve().parents[1] / 'src')))
-spec = importlib.util.spec_from_file_location('pm_exits_under_test', SOURCE / '.agents/skills/project-management-agent/scripts/pm_tasks.py')
+from kit import KIT
+SOURCE = KIT
+spec = importlib.util.spec_from_file_location('pm_exits_under_test', SOURCE / 'matrix/orchestration/tools/pm_tasks.py')
 pm = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pm)
-contract_spec = importlib.util.spec_from_file_location('pm_exits_product_contract', SOURCE / '.agents/skills/product-agent/scripts/product_contract.py')
+contract_spec = importlib.util.spec_from_file_location('pm_exits_product_contract', SOURCE / '.agents/skills/matrix-product/scripts/product_contract.py')
 contract = importlib.util.module_from_spec(contract_spec)
 contract_spec.loader.exec_module(contract)
-REGISTRIES = {r['id']: r for r in (json.loads(p.read_text(encoding='utf-8')) for p in (SOURCE / 'collaboration/professions').glob('*.json'))}
+REGISTRIES = {r['id']: r for r in (json.loads(p.read_text(encoding='utf-8')) for p in (SOURCE / 'matrix/professions').glob('*/profession.json'))}
 MODELS = {'models': [{'model': 'SIM-big', 'levels': {p: r['levels']['range'][1] for p, r in REGISTRIES.items()},
                       'capabilities': sorted({c for r in REGISTRIES.values() for c in r.get('model_capabilities', [])}), 'filled_by': 'SIMULATED person'}]}
 MASTERS = ['product', 'experience-design', 'code-engineering', 'quality-engineering']
@@ -30,9 +31,9 @@ class DeliveryExits(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory(prefix='pm-exits-simulation-')
         self.addCleanup(tmp.cleanup)
         self.root = Path(tmp.name).resolve()
-        (self.root / 'collaboration').mkdir()
-        (self.root / 'collaboration/model-fit.json').write_text(json.dumps(MODELS, ensure_ascii=False), encoding='utf-8')
-        (self.root / 'collaboration/instance-config.json').write_text(json.dumps(TEAM, ensure_ascii=False), encoding='utf-8')
+        (self.root / 'management').mkdir(parents=True, exist_ok=True)
+        (self.root / 'management/model-fit.json').write_text(json.dumps(MODELS, ensure_ascii=False), encoding='utf-8')
+        (self.root / 'management/instance-config.json').write_text(json.dumps(TEAM, ensure_ascii=False), encoding='utf-8')
         (self.root / 'product').mkdir()
         self.items(ITEMS)
         self.n = 0

@@ -7,11 +7,12 @@ from pathlib import Path
 import tempfile
 import unittest
 
-SOURCE = Path(os.environ.get('MATRIX_TEST_KIT', str(Path(__file__).resolve().parents[1] / 'src')))
-spec = importlib.util.spec_from_file_location('pm_instances_under_test', SOURCE / '.agents/skills/project-management-agent/scripts/pm_tasks.py')
+from kit import KIT
+SOURCE = KIT
+spec = importlib.util.spec_from_file_location('pm_instances_under_test', SOURCE / 'matrix/orchestration/tools/pm_tasks.py')
 pm = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pm)
-REGISTRIES = {r['id']: r for r in (json.loads(p.read_text(encoding='utf-8')) for p in (SOURCE / 'collaboration/professions').glob('*.json'))}
+REGISTRIES = {r['id']: r for r in (json.loads(p.read_text(encoding='utf-8')) for p in (SOURCE / 'matrix/professions').glob('*/profession.json'))}
 ALL_CAPABILITIES = sorted({c for r in REGISTRIES.values() for c in r.get('model_capabilities', [])})
 MODELS = {'models': [
     {'model': 'SIM-big', 'levels': {p: r['levels']['range'][1] for p, r in REGISTRIES.items()}, 'capabilities': ALL_CAPABILITIES, 'filled_by': 'SIMULATED person'},
@@ -31,14 +32,14 @@ class Fixture:
         tmp = tempfile.TemporaryDirectory(prefix='pm-instances-simulation-')
         self.addCleanup(tmp.cleanup)
         self.root = Path(tmp.name).resolve()
-        (self.root / 'collaboration').mkdir()
+        (self.root / 'management').mkdir(parents=True, exist_ok=True)
         self.n = 0
         self.call('init', 'PM', config=dict(project='SIMULATED', pm_actor='PM', authorization='SIMULATED only',
                                              frontdoor_thread='SIMULATED', max_slots=8))
         self.write('model-fit.json', MODELS)
 
     def write(self, name, data):
-        (self.root / 'collaboration' / name).write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+        (self.root / 'management' / name).write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
 
     def call(self, op, actor='PM', **kw):
         self.n += 1
@@ -161,7 +162,7 @@ class Configuration(Fixture, unittest.TestCase):
 
     def test_confirming_person_needs_project_authority_and_a_front_desk_or_pm_recorder(self):
         self.write('instance-config.json', TEAM)
-        (self.root / 'collaboration/people.json').write_text(json.dumps({'people': [
+        (self.root / 'management/people.json').write_text(json.dumps({'people': [
             {'id': 'boss', 'name': 'BOSS', 'decides': ['project']}, {'id': 'dev', 'name': '工程师', 'decides': ['build']}]}))
         with self.assertRaisesRegex(pm.TaskError, 'no decision authority'):
             self.confirm(person='dev')
@@ -198,12 +199,12 @@ class Derivation(Fixture, unittest.TestCase):
         for key, value in dict(role='code-engineering', profession='code-engineering', level='T4', model='SIM-small', config_entry='E-T4',
                                fit='fit', master=False, derived_by='PM', active=True).items():
             self.assertEqual(value, inst[key])
-        self.assertIn('.agent-runtime/instances/code-engineering-002/workspace', inst['write_roots'])
+        self.assertIn('management/instances/code-engineering-002/workspace', inst['write_roots'])
 
     def test_profile_is_generated_from_registry_and_configuration_without_endpoint(self):
         iid = self.derive('E-T9')
-        text = (self.root / '.agent-runtime/instances' / iid / 'profile.md').read_text(encoding='utf-8')
-        row = next(line for line in (SOURCE / 'collaboration/professions/code-engineering.md').read_text(encoding='utf-8').splitlines() if line.startswith('| T9 |'))
+        text = (self.root / 'management/instances' / iid / 'profile.md').read_text(encoding='utf-8')
+        row = next(line for line in (SOURCE / 'matrix/professions/code-engineering/levels.md').read_text(encoding='utf-8').splitlines() if line.startswith('| T9 |'))
         can, judge, cannot = [c.strip() for c in row.strip('|').split('|')][1:4]
         for expected in ['编号：code-engineering-001', '专业：代码工程', '职级：T9', '身份：master', '模型名称：SIM-big', '配置项：E-T9',
                          '派生人与时间：PM', '配置的确认人与原话：SIM-owner：「SIMULATED: 就按这个配置」', '适用性：适用',
@@ -213,7 +214,7 @@ class Derivation(Fixture, unittest.TestCase):
 
     def test_plain_registration_is_refused_once_a_configuration_is_confirmed(self):
         with self.assertRaisesRegex(pm.TaskError, 'derive from the confirmed instance configuration'):
-            self.call('register_instance', id='LEGACY', instance=dict(role='engineering-build', endpoint='SIM-legacy'))
+            self.call('register_instance', id='LEGACY', instance=dict(role='matrix-code-engineering-build', endpoint='SIM-legacy'))
 
     def test_retire_and_relevel_follow_a_new_confirmation(self):
         workers = [self.derive('E-T4'), self.derive('E-T4')]
@@ -231,7 +232,7 @@ class Derivation(Fixture, unittest.TestCase):
             self.derive('E-T4')  # the lowered count is filled by the remaining worker
         relevelled = self.call('relevel_instance', id=workers[0], expected_revision=revision(workers[0]), reason='SIM level raised by the person')['record']
         self.assertEqual(('T4', 'T5'), (relevelled['previous_level'], relevelled['level']))
-        profile = (self.root / '.agent-runtime/instances' / workers[0] / 'profile.md').read_text(encoding='utf-8')
+        profile = (self.root / 'management/instances' / workers[0] / 'profile.md').read_text(encoding='utf-8')
         self.assertIn('职级：T5', profile)
         self.assertIn('## 本职级（T5）', profile)
         with self.assertRaisesRegex(pm.TaskError, 'does not change'):
@@ -306,7 +307,7 @@ class Levels(Fixture, unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='pm-legacy-simulation-') as d:
             root = Path(d).resolve()
             pm.execute(root, dict(op='init', actor='PM', event_id='L1', config=dict(project='SIM', pm_actor='PM', authorization='SIM', frontdoor_thread='SIM', max_slots=2)))
-            pm.execute(root, dict(op='register_instance', actor='PM', event_id='L2', id='OLD', instance=dict(role='engineering-build', endpoint='SIM-old')))
+            pm.execute(root, dict(op='register_instance', actor='PM', event_id='L2', id='OLD', instance=dict(role='matrix-code-engineering-build', endpoint='SIM-old')))
             task = dict(id='X', parent=None, title='SIM', owner='OLD', checker='C', goal='g', inputs=['i'], outputs=['o'], criteria=['c'], next_action='n')
             with self.assertRaisesRegex(pm.TaskError, 'has no level'):
                 pm.execute(root, dict(op='create', actor='PM', event_id='L3', task=dict(task, difficulty='T3')))
@@ -326,7 +327,7 @@ class Levels(Fixture, unittest.TestCase):
         changes = dict(changes={'risk': 'F3'}, reason='SIM relabel', scope_authorization='SIM PM decision')
         with self.assertRaisesRegex(pm.TaskError, 'person and exact quote'):
             self.mutate('update', 'T-1', **changes)
-        (self.root / 'collaboration/people.json').write_text(json.dumps({'people': [
+        (self.root / 'management/people.json').write_text(json.dumps({'people': [
             {'id': 'boss', 'name': 'BOSS', 'decides': ['project']}, {'id': 'dev', 'name': '工程师'}]}))
         with self.assertRaisesRegex(pm.TaskError, 'no decision authority'):
             self.mutate('update', 'T-1', person='dev', quote='SIMULATED ok', **changes)

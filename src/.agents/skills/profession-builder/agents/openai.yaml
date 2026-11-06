@@ -1,4 +1,0 @@
-interface:
-  display_name: "专业创建"
-  short_description: "按专业规范新建或修改专业：登记、职级与对照、技能入口、评测情境与检查"
-  default_prompt: "使用 $profession-builder 按专业规范新建或修改一个专业，每一步请人确认后再继续。"

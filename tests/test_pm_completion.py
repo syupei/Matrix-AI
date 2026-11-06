@@ -5,7 +5,8 @@ from pathlib import Path
 import tempfile
 import unittest
 
-SCRIPT = Path(os.environ.get('MATRIX_TEST_KIT', str(Path(__file__).resolve().parents[1] / 'src'))) / '.agents/skills/project-management-agent/scripts/pm_tasks.py'
+from kit import KIT
+SCRIPT = KIT / 'matrix/orchestration/tools/pm_tasks.py'
 spec = importlib.util.spec_from_file_location('pm_completion_under_test', SCRIPT)
 pm = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pm)

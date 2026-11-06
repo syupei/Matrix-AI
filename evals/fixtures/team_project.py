@@ -1,13 +1,22 @@
 """Synthetic multi-instance project for the instance, task-chain and task-list cases.
 
 No real person, vendor, model, endpoint or approval is represented. The same state is used whichever kit is
-under evaluation: it is built with the candidate tools from this repository's source, never with root/'kit'.
+under evaluation: it is built with the tools of the candidate package built from this repository's source, never
+with root/'kit', and then placed where the kit under test reads it (layout.py).
 """
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
 
-SOURCE = Path(__file__).resolve().parents[2] / 'src'
+LAYOUT = Path(__file__).with_name('layout.py')
+LAYOUT_SHA256 = '3701121f70faa302f858a567a7cf7d0324563eed3416c63cc1c6cb27f0cb5103'
+if hashlib.sha256(LAYOUT.read_bytes()).hexdigest() != LAYOUT_SHA256:
+    raise ValueError('layout.py changed; update team_project.py and the suite')
+_layout_spec = importlib.util.spec_from_file_location('team_fixture_layout', LAYOUT)
+layout = importlib.util.module_from_spec(_layout_spec)
+_layout_spec.loader.exec_module(layout)
+SOURCE = layout.candidate()  # package layout: matrix/... and .agents/skills/...
 PM = 'project-management-001'
 ENTRIES = [  # id, profession, level, model, count, master
     ('P-T7', 'product', 'T7', 'strong-model', 1, True), ('P-T5', 'product', 'T5', 'fast-model', 1, False),
@@ -23,9 +32,9 @@ LOGIN_EXITS = {'content-design': '提示文字', 'experience-design': '弹窗与
 FIXTURE = ('This is a synthetic project for an isolated evaluation. Every person, model name, endpoint, task, check and '
            'approval in it is simulated; no instance is running and no real person has decided anything. The project '
            'manager is project-management-001 and the only person is user. The instance configuration is in '
-           'collaboration/instance-config.json and collaboration/model-fit.json; instance records, the recorded '
+           'management/instance-config.json and management/model-fit.json; instance records, the recorded '
            'confirmation and the tasks are in the task library (management/runtime/tasks.sqlite3); instance profiles are '
-           'in .agent-runtime/instances/<instance id>/profile.md.\n')
+           'in management/instances/<instance id>/profile.md.\n')
 
 
 def config(extra=()):
@@ -34,7 +43,7 @@ def config(extra=()):
 
 
 def model_fit():
-    regs = [json.loads(p.read_text(encoding='utf-8')) for p in sorted((SOURCE / 'collaboration/professions').glob('*.json'))]
+    regs = [json.loads(p.read_text(encoding='utf-8')) for p in sorted((SOURCE / 'matrix/professions').glob('*/profession.json'))]
     caps = sorted({c for r in regs for c in r.get('model_capabilities', [])})
     code = next(r for r in regs if r['id'] == 'code-engineering')
     return {'models': [
@@ -44,9 +53,10 @@ def model_fit():
         {'model': 'tiny-model', 'levels': {'code-engineering': 'T3'}, 'capabilities': code.get('model_capabilities', []), 'filled_by': 'SYNTHETIC user'}]}
 
 
-def populate(root, case_id):
+def populate(root, case_id, final=True):
+    """final=False leaves the state in the Matrix-AI layout for a fixture that adds to it and then calls layout.adapt."""
     root = Path(root)
-    spec = importlib.util.spec_from_file_location('team_fixture_tools', SOURCE / '.agents/skills/project-management-agent/scripts/pm_tasks.py')
+    spec = importlib.util.spec_from_file_location('team_fixture_tools', SOURCE / 'matrix/orchestration/tools/pm_tasks.py')
     pm = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(pm)
     counter = 0
@@ -103,8 +113,8 @@ def populate(root, case_id):
 
     call('init', config=dict(project='SYNTHETIC 合成电商 App', pm_actor=PM, authorization='SYNTHETIC local evaluation only; no real delegation',
                              frontdoor_thread='SYNTHETIC-frontdoor', max_slots=12))
-    write('collaboration/model-fit.json', json.dumps(model_fit(), ensure_ascii=False, indent=2) + '\n')
-    write('collaboration/instance-config.json', json.dumps(config(), ensure_ascii=False, indent=2) + '\n')
+    write('management/model-fit.json', json.dumps(model_fit(), ensure_ascii=False, indent=2) + '\n')
+    write('management/instance-config.json', json.dumps(config(), ensure_ascii=False, indent=2) + '\n')
     call('confirm_config', person='user', quote='SYNTHETIC: 按这份配置来（模拟原话）', presented_ref='SYNTHETIC presentation of the instance configuration',
          choices={'D-T5': 'acknowledge_unregistered', 'E-T4-TINY': 'insist'})
     numbers = {}
@@ -157,7 +167,7 @@ def populate(root, case_id):
              inputs=['product/rules/R-CART-05.md v3'])
         start('T-0043')
     elif case_id == 'mi_config_fit':
-        write('collaboration/instance-config.json', json.dumps(config([('E-T9-FAST', 'code-engineering', 'T9', 'fast-model', 1, False)]), ensure_ascii=False, indent=2) + '\n')
+        write('management/instance-config.json', json.dumps(config([('E-T9-FAST', 'code-engineering', 'T9', 'fast-model', 1, False)]), ensure_ascii=False, indent=2) + '\n')
     elif case_id == 'mi_review_independence':
         task('T-0049', 'code-engineering-001', 'INC-4 会员扣费', difficulty='T7', risk='F1', risk_reason='SYNTHETIC: 扣费')
         start('T-0049')
@@ -226,3 +236,5 @@ def populate(root, case_id):
     elif case_id not in {'base_level_answer_code', 'base_level_answer_design', 'mi_dispatch_level'}:
         raise ValueError('unknown team fixture case: ' + case_id)
     write('FIXTURE.md', FIXTURE)
+    if final:
+        layout.adapt(root)

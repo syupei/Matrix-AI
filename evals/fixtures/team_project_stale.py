@@ -7,7 +7,7 @@ from pathlib import Path
 import hashlib
 
 HERE = Path(__file__).resolve().parent
-BASE_SHA256 = 'dd91efe8ac02be5bc7663e6d8387941fc86470ed726bd36971b5f2042aeed60c'
+BASE_SHA256 = '5ae64ebc7b6967f592318e33161e574bddc4540cb43deb683821d78402ef8584'
 
 
 def load(name):
@@ -24,8 +24,8 @@ def base_project(root, case_id):
     if hashlib.sha256(path.read_bytes()).hexdigest() != BASE_SHA256:
         raise ValueError('team_project.py changed; update the extending fixtures')
     base = load('team_project')
-    base.populate(root, case_id)
-    spec = importlib.util.spec_from_file_location('team_extra_tools', base.SOURCE / '.agents/skills/project-management-agent/scripts/pm_tasks.py')
+    base.populate(root, case_id, final=False)
+    spec = importlib.util.spec_from_file_location('team_extra_tools', base.SOURCE / 'matrix/orchestration/tools/pm_tasks.py')
     pm = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(pm)
     counter = [0]
@@ -82,10 +82,11 @@ PROGRESS = '''# T-0043 进度（code-engineering-002，合成）
 def populate(root, case_id):
     root = Path(root)
     base, pm, call = base_project(root, 'mi_stale_basis')
-    write(root, '.agent-runtime/instances/code-engineering-002/workspace/code/cart/price_display.py', CODE)
+    write(root, 'management/instances/code-engineering-002/workspace/code/cart/price_display.py', CODE)
     write(root, 'product/rules/R-CART-06.md', '# R-CART-06 运费规则（v1，合成）\n\n- 商品金额满 59 元免运费，不满 59 元收运费 6 元。\n- 运费按商品金额计算，与满减无关。\n')
-    write(root, '.agent-runtime/instances/code-engineering-002/workspace/T-0043-进度.md', PROGRESS)
+    write(root, 'management/instances/code-engineering-002/workspace/T-0043-进度.md', PROGRESS)
     task = next(t for t in pm.execute(root, {'op': 'status'})['tasks'] if t['id'] == 'T-0043')
     call('update', task['owner'], task_id='T-0043', expected_revision=task['revision'],
-         changes={'next_action': '按 R-CART-05 v3 与 R-CART-06 v1 继续写工作区里的 code/cart/price_display.py；进度见 .agent-runtime/instances/code-engineering-002/workspace/T-0043-进度.md'},
+         changes={'next_action': '按 R-CART-05 v3 与 R-CART-06 v1 继续写工作区里的 code/cart/price_display.py；进度见 management/instances/code-engineering-002/workspace/T-0043-进度.md'},
          reason='SYNTHETIC progress note from code-engineering-002')
+    base.layout.adapt(root)

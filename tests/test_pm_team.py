@@ -6,7 +6,8 @@ from pathlib import Path
 import tempfile
 import unittest
 
-SCRIPT = Path(os.environ.get('MATRIX_TEST_KIT', str(Path(__file__).resolve().parents[1] / 'src'))) / '.agents/skills/project-management-agent/scripts/pm_tasks.py'
+from kit import KIT
+SCRIPT = KIT / 'matrix/orchestration/tools/pm_tasks.py'
 spec = importlib.util.spec_from_file_location('pm_team_under_test', SCRIPT)
 pm = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pm)
@@ -23,8 +24,8 @@ class TeamTests(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory(prefix='pm-team-simulation-')
         self.addCleanup(tmp.cleanup)
         self.root = Path(tmp.name)
-        (self.root / 'collaboration').mkdir()
-        (self.root / 'collaboration/people.json').write_text(json.dumps(ROSTER, ensure_ascii=False))
+        (self.root / 'management').mkdir(parents=True, exist_ok=True)
+        (self.root / 'management/people.json').write_text(json.dumps(ROSTER, ensure_ascii=False))
         self.n = 0
         self.call('init', 'SIM-PM', config={'project': 'SIMULATED', 'pm_actor': 'SIM-PM',
                   'authorization': 'SIMULATED only', 'frontdoor_thread': 'SIMULATED', 'max_slots': 4})
@@ -126,7 +127,7 @@ class TeamTests(unittest.TestCase):
         self.assertIn('engineering/build/01-增量计划.md', project)
 
     def test_single_person_project_has_no_personal_views(self):
-        (self.root / 'collaboration/people.json').write_text(json.dumps({'people': [{'id': 'me', 'name': '我'}]}))
+        (self.root / 'management/people.json').write_text(json.dumps({'people': [{'id': 'me', 'name': '我'}]}))
         self.create('A', title='only task')
         out = pm.render(self.root)
         self.assertNotIn('people/me.md', out['views'])

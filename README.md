@@ -1,6 +1,6 @@
 # Matrix-AI
 
-独立专业 Agent 的协作与交付技能包：产品、交互与视觉设计、研发承接、项目管理、专业协作，以及共用内容设计与审读能力。
+一系列专业 Agent 的基座，分三部分：所有 Agent 共同遵守的基础部分，项目管理与前台负责的调度部分，以及产品、内容设计与审读、交互与视觉设计、代码工程、质量工程等任务专家。每个专家以专业标识为岗位，可以换成项目自己的 Agent。0.30 及更早的版本名为 professional-agents-kit。
 
 [最新完整包及下载](https://github.com/syupei/Matrix-AI/releases/latest) · [全部历史版本](https://github.com/syupei/Matrix-AI/releases) · [版本目录](releases.json) · [下载包 SHA256](SHA256SUMS)
 
@@ -23,7 +23,7 @@
 ```sh
 python3 tools/production.py --build-dir build
 python3 evals/run.py --source /path/to/previous-source --output /path/to/baseline-results
-python3 evals/run.py --source src --output /path/to/candidate-results
+python3 evals/run.py --source build/matrix-ai-v0.31 --output /path/to/candidate-results
 python3 tools/production.py --build-dir build --publish --evidence /path/to/comparison.json --notes /path/to/release-notes.md
 ```
 

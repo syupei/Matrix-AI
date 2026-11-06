@@ -9,8 +9,8 @@ import tempfile
 import unittest
 
 import importlib.util, os
-KIT=Path(os.environ.get('MATRIX_TEST_KIT',Path(__file__).resolve().parents[2]/'src'))
-spec=importlib.util.spec_from_file_location('coordination',KIT/'.agents/skills/professional-agent-collaboration/scripts/coordination.py')
+from kit import KIT
+spec=importlib.util.spec_from_file_location('coordination',KIT/'matrix/orchestration/tools/coordination.py')
 module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
 CoordinationError,execute=module.CoordinationError,module.execute
 
@@ -378,9 +378,9 @@ class LedgerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as outside, tempfile.TemporaryDirectory() as project:
             external = Path(outside) / 'sentinel.db'
             external.write_bytes(b'outside sentinel must remain unchanged')
-            runtime = Path(project) / 'collaboration/runtime'
+            runtime = Path(project) / 'management/runtime'
             runtime.mkdir(parents=True)
-            (runtime / 'state.sqlite3').symlink_to(external)
+            (runtime / 'coordination.sqlite3').symlink_to(external)
             with self.assertRaises(CoordinationError):
                 execute(project, {'op': 'init', 'config': self.config})
             self.assertEqual(external.read_bytes(), b'outside sentinel must remain unchanged')

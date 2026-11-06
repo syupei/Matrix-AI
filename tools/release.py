@@ -215,15 +215,31 @@ def pending_paths():
     return paths
 
 
+def _layout():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('release_layout', ROOT / 'tools/production.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    # Without a layered layout the package path is the source path.
+    return getattr(module, 'package_path', lambda rel: rel), getattr(module, 'LAYERS', ())
+
+
 def verify_tag_source(entry):
     """Check immutable Git source without making another full package copy."""
     manifest = json.loads((ROOT / entry['manifest']).read_text())
     tagged_manifest = subprocess.check_output(['git', 'show', entry['source_ref'] + ':' + entry['manifest']], cwd=ROOT)
     if tagged_manifest != (ROOT / entry['manifest']).read_bytes():
         raise ValueError('Tagged manifest differs from catalog')
+    package_path, LAYERS = _layout()
+    # Package paths map to source paths: identity for releases whose source mirrored the package, layered otherwise.
+    tagged = subprocess.check_output(['git', 'ls-tree', '-r', '--name-only', entry['source_ref'], 'src/'], cwd=ROOT, text=True).splitlines()
+    sources = {}
+    for name in tagged:
+        rel = name[len('src/'):]
+        sources[package_path(rel) if rel.split('/')[0] in LAYERS else rel] = rel
     for rel, digest in manifest['files'].items():
-        safe_path(ROOT / 'src', rel)
-        content = subprocess.check_output(['git', 'show', entry['source_ref'] + ':src/' + rel], cwd=ROOT)
+        safe_path(ROOT / 'src', sources.get(rel, rel))
+        content = subprocess.check_output(['git', 'show', entry['source_ref'] + ':src/' + sources.get(rel, rel)], cwd=ROOT)
         if hashlib.sha256(content).hexdigest() != digest:
             raise ValueError('Tagged source differs: ' + rel)
 

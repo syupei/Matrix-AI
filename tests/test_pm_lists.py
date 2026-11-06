@@ -8,14 +8,15 @@ import re
 import tempfile
 import unittest
 
-SOURCE = Path(os.environ.get('MATRIX_TEST_KIT', str(Path(__file__).resolve().parents[1] / 'src')))
-spec = importlib.util.spec_from_file_location('pm_lists_under_test', SOURCE / '.agents/skills/project-management-agent/scripts/pm_tasks.py')
+from kit import KIT
+SOURCE = KIT
+spec = importlib.util.spec_from_file_location('pm_lists_under_test', SOURCE / 'matrix/orchestration/tools/pm_tasks.py')
 pm = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pm)
-bridge_spec = importlib.util.spec_from_file_location('pm_lists_dispatch', SOURCE / 'collaboration/tools/task_dispatch.py')
+bridge_spec = importlib.util.spec_from_file_location('pm_lists_dispatch', SOURCE / 'matrix/orchestration/tools/task_dispatch.py')
 bridge = importlib.util.module_from_spec(bridge_spec)
 bridge_spec.loader.exec_module(bridge)
-REGISTRIES = {r['id']: r for r in (json.loads(p.read_text(encoding='utf-8')) for p in (SOURCE / 'collaboration/professions').glob('*.json'))}
+REGISTRIES = {r['id']: r for r in (json.loads(p.read_text(encoding='utf-8')) for p in (SOURCE / 'matrix/professions').glob('*/profession.json'))}
 CAPABILITIES = sorted({c for r in REGISTRIES.values() for c in r.get('model_capabilities', [])})
 MODELS = {'models': [{'model': m, 'levels': {p: r['levels']['range'][1] for p, r in REGISTRIES.items()}, 'capabilities': CAPABILITIES,
                       'filled_by': 'SIMULATED person'} for m in ['SIM-big', 'SIM-other']]}
@@ -33,9 +34,9 @@ class Fixture:
         tmp = tempfile.TemporaryDirectory(prefix='pm-lists-simulation-')
         self.addCleanup(tmp.cleanup)
         self.root = Path(tmp.name).resolve()
-        (self.root / 'collaboration').mkdir()
+        (self.root / 'management').mkdir(parents=True, exist_ok=True)
         for name, data in [('model-fit.json', MODELS), ('instance-config.json', TEAM), ('people.json', PEOPLE)]:
-            (self.root / 'collaboration' / name).write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+            (self.root / 'management' / name).write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
         self.n = 0
         self.call('init', 'PM', config=dict(project='记账 App', pm_actor='PM', authorization='SIMULATED only', frontdoor_thread='SIMULATED', max_slots=8))
         self.call('confirm_config', person='boss', quote='SIMULATED: 按配置来', presented_ref='SIM shown', choices={})
@@ -374,7 +375,7 @@ class Views(Fixture, unittest.TestCase):
         self.assertIn('| [T-0031](../tasks/T-0031.md) | 登录模块的异常对照表 | T-0005 · 代码工程-001 |', text)
         index = (self.root / 'management/views/index.md').read_text(encoding='utf-8')
         self.assertIn('| 编号 | 任务 | 受领者 | 难度 / 风险 | 状态 | 下一步 | 完成后 | 更新 |', index)
-        (self.root / 'collaboration/instance-config.json').write_text(json.dumps({'entries': [e for e in TEAM['entries'] if e['id'] != 'P-W']}), encoding='utf-8')
+        (self.root / 'management/instance-config.json').write_text(json.dumps({'entries': [e for e in TEAM['entries'] if e['id'] != 'P-W']}), encoding='utf-8')
         self.call('confirm_config', person='boss', quote='SIMULATED: 去掉产品执行者', presented_ref='SIM', choices={}, expected_revision=1)
         self.call('retire_instance', id='product-002', expected_revision=1, reason='SIM entry removed')
         out = pm.render(self.root)
@@ -393,10 +394,10 @@ class Dispatch(unittest.TestCase):
         for name, text in [('authority.md', 'SIMULATED designation: L leads A; W allocated.'), ('input.md', 'SIMULATED baseline'), ('kit-product.md', 'SIM capability')]:
             (self.root / name).write_text(text)
         for iid in ['L', 'W']:
-            self.call('register_instance', id=iid, instance=dict(role='product-agent', endpoint='SIM-' + iid, write_roots=['.agent-runtime/instances/' + iid + '/workspace']))
+            self.call('register_instance', id=iid, instance=dict(role='matrix-product', endpoint='SIM-' + iid, write_roots=['management/instances/' + iid + '/workspace']))
         self.call('create', task=dict(id='A', parent=None, title='A', owner='L', checker='CHECKER', goal='SIM', inputs=['input.md'], outputs=['o'], criteria=['c'], next_action='n', slots=0))
-        self.call('appoint', id='L', appointment=dict(mode='lead', role='product-agent', root_tasks=['A'], delegates=['W'], source='authority.md'))
-        self.call('appoint', id='W', appointment=dict(mode='executor', role='product-agent', root_tasks=['A'], delegates=[], source='authority.md'))
+        self.call('appoint', id='L', appointment=dict(mode='lead', role='matrix-product', root_tasks=['A'], delegates=['W'], source='authority.md'))
+        self.call('appoint', id='W', appointment=dict(mode='executor', role='matrix-product', root_tasks=['A'], delegates=[], source='authority.md'))
         self.call('create', 'L', task=dict(id='A-1', parent='A', title='A-1', owner='W', executor='W', checker='L', goal='SIM', inputs=['input.md'], outputs=['o'], criteria=['c'], next_action='n'))
         self.wakes = {}
         def send(endpoint, packet):
@@ -404,10 +405,10 @@ class Dispatch(unittest.TestCase):
         def wake(endpoint, note):
             self.wakes.setdefault(note['event_id'], (endpoint['id'], note))
             return {'outcome': 'sent', 'evidence': 'SIM wake'}
-        self.dispatcher = bridge.Dispatcher(self.root, SOURCE / '.agents/skills', send, wake)
+        self.dispatcher = bridge.Dispatcher(self.root, send, wake)
         self.dispatcher.c('init', config={'protocol': 'professional-collaboration/0.1', 'authorization': 'SIMULATED', 'frontdoor': {'thread_id': 'SIM-MAIN'}})
         for iid in ['L', 'W']:
-            self.dispatcher.c('register', role=dict(id=iid, skill='kit-product.md', write_roots=['.agent-runtime/instances/' + iid + '/workspace'],
+            self.dispatcher.c('register', role=dict(id=iid, skill='kit-product.md', write_roots=['management/instances/' + iid + '/workspace'],
                                                     endpoint={'kind': 'subagent', 'id': 'SIM-' + iid, 'session': 'SIM-session-' + iid}))
         self.out = self.dispatcher.dispatch('A-1', 'REQ1', ['input.md'], 'authority.md')
 
