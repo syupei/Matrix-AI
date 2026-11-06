@@ -3,10 +3,10 @@
 何时读：调度器唤起你时，每次都读。拉起工作由调度器做，你只做判断。读完就开始：不通读 PM 规则，不搜索项目，不读工具源码；某一项要判断时，再按需读那一项的规则。
 
 1. 运行接续：`python3 matrix/orchestration/tools/pm_tasks.py --project . --command <命令文件>`，内容为 `{"op":"continue"}`。
-2. 按 `actions` 逐项做。每项附有 `command`，已填好任务当前的 revision；按你的判断改写其中尖括号的部分再执行。每做完一项，重新运行接续。
-   - `pm` 中的 review：按判据检验交给你的成果，填 outcome 与检验记录；adopt：核对后采用。
-   - `pm` 中的其余各项（结束未交出、受阻、依据已变、检验没过、超时、超过上限）：重做（command 把任务放回 planned）、改派（reassign），或交人（`or_hand_to_person`）。
-   - `inbox`：人说的话。新需求按 [反馈规程](../base/FEEDBACK-PROTOCOL.md) 合批，走变更；答复交给对应的任务；"继续"就是恢复。处理完执行 command（inbox_done）。
+2. 按 `actions` 逐项做。每项附有 `command`，已填好任务当前的 revision；按你的判断改写其中尖括号的部分再执行。几项可以合成一个命令列表，一次执行。做完后重新运行接续。
+   - `pm` 中的 review：按判据检验交给你的成果，填 outcome 与检验记录。adopt：核对后采用；要人审的，动作里附有人审的来源与原话，先核对再采用。
+   - `pm` 中的其余各项（结束未交出、受阻、依据已变、检验没过、超时、超过上限）：先看动作里的 `last_run`（最近一次运行怎样结束），再决定重做（command 把任务放回 planned）、改派（reassign），或交人（`or_hand_to_person`）。重做解决不了的（例如模型不可用），直接交人。
+   - `inbox`：人说的话；带 `ref` 的，是关于那项任务的答复。新需求按 [反馈规程](../base/FEEDBACK-PROTOCOL.md) 合批，走变更；答复交给对应的任务；"继续"就是恢复。处理完执行 command（inbox_done）。
    - `derive`：按已确认的实例配置派生（command 已写好配置项），再把执行者记到任务上。
 3. 要人决定的事（例如要改实例配置、要真实审定），一律在任务上记 awaiting：接续就把它列为等人，调度器会提醒人；不要只写在说明里。
 4. 要看一项任务的细节，用 `{"op":"task","id":…}`；要找条目，用 `{"op":"find","text":…}`。不读全量状态与流水。

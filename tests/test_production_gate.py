@@ -97,4 +97,27 @@ class PublishingGateTests(unittest.TestCase):
  def test_reuse_from_other_source_blocks(self):
   self.reuse_intake('product-agent',self.baseline_role_files('product-agent'),source='0'*64)
   with self.assertRaisesRegex(ValueError,'baseline release'):self.check()
+ def reuse_with_reads(self,read,files):
+  self.reuse_intake('product-agent',files);run_path=self.root/'candidate-intake/run.json';run=json.loads(run_path.read_text())
+  run['cases'][0]['read_files']=read;run_path.write_text(json.dumps(run))
+  for item in self.data['cases']['intake']['candidate_evidence']:
+   if item['path']=='candidate-intake/run.json':item['sha256']=p.sha(run_path)
+ def test_reuse_is_judged_by_the_files_the_case_read(self):
+  files=self.baseline_role_files('product-agent');kept,edited=sorted(files)[0],sorted(files)[-1]
+  changed=dict(files);changed[edited]='f'*64  # a file of the role that this case did not read
+  self.reuse_with_reads([kept],changed);self.assertTrue(self.check())
+  self.reuse_with_reads([kept,edited],changed)
+  with self.assertRaisesRegex(ValueError,'read file'):self.check()
+ def carried(self,previous=None,replies=None):
+  case=self.data['cases']['intake'];prev=copy.deepcopy(self.data)
+  if previous:previous(prev['cases']['intake'])
+  (self.root/'previous.json').write_text(json.dumps(prev))
+  turns={s:[t['sha256'] for t in json.loads((self.root/case[s+'_run']).read_text())['cases'][0]['turns']] for s in ['baseline','candidate']}
+  case['carried_from']={'path':'previous.json','sha256':p.sha(self.root/'previous.json'),'replies':replies or turns}
+ def test_carried_scores_need_identical_replies_and_unchanged_scores(self):
+  self.carried();self.assertTrue(self.check())
+  self.build({'file':'0'*64});self.carried(replies={'baseline':['0'*64],'candidate':['0'*64]})
+  with self.assertRaisesRegex(ValueError,'changed reply'):self.check()
+  self.build({'file':'0'*64});self.carried(previous=lambda c:c['baseline'].update({next(iter(c['baseline'])):0}))
+  with self.assertRaisesRegex(ValueError,'carried scores changed'):self.check()
 if __name__=='__main__':unittest.main()

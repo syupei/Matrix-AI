@@ -1262,6 +1262,16 @@ if __name__ == '__main__':
             command=None
         else:
             command=json.loads(Path(args.command).read_text() if args.command else sys.stdin.read())
+        if isinstance(command,list):
+            # Several commands in one call, in order; each returns its own result or error.
+            results=[]
+            for item in command:
+                try:
+                    results.append(execute(args.project,item))
+                except (ValueError,OSError,KeyError,TypeError,sqlite3.Error) as exc:
+                    results.append({'error':str(exc)})
+            print(json.dumps({'results':results},ensure_ascii=False,indent=2))
+            sys.exit(1 if any('error' in r for r in results) else 0)
         print(json.dumps(render(args.project) if args.render else execute(args.project,command),ensure_ascii=False,indent=2))
     except (ValueError,OSError,KeyError,TypeError,sqlite3.Error) as exc:
         print(json.dumps({'error':str(exc)},ensure_ascii=False))

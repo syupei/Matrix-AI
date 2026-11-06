@@ -69,6 +69,19 @@ def waived_release(tag):
  entry=next((e for e in json.loads(catalog.read_text())['releases'] if e['tag']==tag),{}) if catalog.exists() else {}
  return bool((entry.get('behavior_evidence') or {}).get('waived'))
 
+def check_carried(report,cid,case,turns):
+ # Scores carried from a previous comparison stand only for byte-identical replies, unchanged with their re-checks.
+ ref=case.get('carried_from')
+ if not ref:return
+ prev=(report.parent/ref.get('path','')).resolve()
+ if not prev.is_relative_to(report.parent.resolve()) or not prev.is_file() or sha(prev)!=ref.get('sha256'):raise ValueError('carried scores need the previous comparison: '+cid)
+ old=json.loads(prev.read_text())['cases'].get(cid) or {}
+ for side in ['baseline','candidate']:
+  then=(ref.get('replies') or {}).get(side)
+  if not then or turns[side]!=then:raise ValueError('carried scores for a changed reply: '+cid)
+  if not set(then)<={i['sha256'] for i in old.get(side+'_evidence',[])}:raise ValueError('carried replies are not in the previous comparison: '+cid)
+ if any(case.get(k)!=old.get(k) for k in ['baseline','candidate','rechecked','rescored']):raise ValueError('carried scores changed: '+cid)
+
 def check_recheck(cid,case,criteria):
  """A second, blind scorer re-checks the scores that decide the gate or a new mechanism, and flagged borderline calls;
  a disagreement stands only with a person's recorded decision."""
@@ -108,6 +121,7 @@ def check_evidence(report,files):
    b,c=case['baseline'][criterion],case['candidate'][criterion]
    if type(b) is not int or type(c) is not int or b not in (0,1) or c not in (0,1) or c<b or c!=1:raise ValueError('behavior regression/failure: '+cid+'/'+criterion)
   check_recheck(cid,case,criteria)
+  turns={}
   for side in ['baseline','candidate']:
    evidence=case[side+'_evidence']
    if not evidence:raise ValueError('missing actual run output: '+cid)
@@ -126,16 +140,23 @@ def check_evidence(report,files):
    if specs[cid].get('fixture') and records[0].get('fixture_sha256')!=specs[cid].get('fixture_sha256'):raise ValueError('run fixture mismatch: '+cid)
    reuse=records[0].get('reused_from')
    if reuse:
-    # Carried over from the previous release's run: allowed only for a role whose files are unchanged.
+    # Carried over from the previous release's run: allowed only while every file the case read is unchanged. A run
+    # without a record of its reads counts the role's files and the common rules as read.
     if side!='candidate' or reuse.get('source_hash')!=baseline_hash:raise ValueError('reused evidence must come from the baseline release: '+cid)
-    prefix='.agents/skills/'+str(records[0].get('role',''))+'/'
-    old={k:v for k,v in base_files.items() if k.startswith(prefix)};new={k:v for k,v in files.items() if k.startswith(prefix)}
-    if not records[0].get('role') or not new or old!=new:raise ValueError('reused evidence for a changed role: '+cid)
+    read=records[0].get('read_files')
+    if read is None:
+     prefix='.agents/skills/'+str(records[0].get('role',''))+'/'
+     if not records[0].get('role') or not any(k.startswith(prefix) for k in files):raise ValueError('reused evidence for a changed role: '+cid)
+     read=[k for k in set(base_files)|set(files) if k.startswith(prefix) or k.startswith('matrix/base/')]
+    changed=sorted(k for k in read if base_files.get(k)!=files.get(k))
+    if not read or changed:raise ValueError('reused evidence for a changed role or read file: '+cid+' ('+', '.join(changed[:5])+')')
+   turns[side]=[t['sha256'] for t in records[0]['turns']]
    for turn in records[0]['turns']:
     reply=(run_path.parent/turn['reply']).resolve();events=(run_path.parent/turn['events']).resolve()
     if str(reply) not in paths or str(events) not in paths or sha(reply)!=turn['sha256']:raise ValueError('actual turn output missing')
     trace=[json.loads(line) for line in events.read_text().splitlines() if line.strip()]
     if not any(e.get('type')==RUNNERS[run['runner']] and not e.get('is_error') for e in trace):raise ValueError('actual model turn did not complete')
+  check_carried(report,cid,case,turns)
 
  if len(runners)!=1:raise ValueError('baseline and candidate must use the same runner')
  if not data.get('reviewer') or not data.get('limitations'):raise ValueError('review attribution and limits required')

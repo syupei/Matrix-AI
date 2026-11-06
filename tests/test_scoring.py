@@ -64,5 +64,26 @@ class ScoringTests(unittest.TestCase):
         self.assertFalse(rows[ks[1]]['agree'])
 
 
+class Carry(unittest.TestCase):
+    def test_only_cases_with_identical_replies_on_both_sides_keep_their_scores(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root, ks = Path(tmp.name), SUITE[CASE]['criteria']
+        for side in ('base', 'cand'):
+            (root / side).mkdir()
+            (root / side / (CASE + '-0.md')).write_text('SIMULATED reply of ' + side)
+        sha = lambda f: __import__('hashlib').sha256(f.read_bytes()).hexdigest()
+        entry = {s: [{'path': s + '/' + CASE + '-0.md', 'sha256': sha(root / d / (CASE + '-0.md'))}] for s, d in (('baseline', 'base'), ('candidate', 'cand'))}
+        previous = {'cases': {CASE: {'baseline': {k: 1 for k in ks}, 'candidate': {k: 1 for k in ks}, 'baseline_evidence': entry['baseline'],
+                                     'candidate_evidence': entry['candidate'], 'rechecked': {}}}}
+        (root / 'previous.json').write_text(json.dumps(previous))
+        args = ['carry', '--previous', str(root / 'previous.json'), '--baseline', str(root / 'base'), '--candidate', str(root / 'cand'), '--out', str(root / 'carried.json')]
+        self.assertNotIn(CASE, json.loads(run(*args))['to_score'])
+        carried = json.loads((root / 'carried.json').read_text())[CASE]
+        self.assertEqual(({k: 1 for k in ks}, [entry['candidate'][0]['sha256']]), (carried['candidate'], carried['carried_from']['replies']['candidate']))
+        (root / 'cand' / (CASE + '-0.md')).write_text('SIMULATED new reply')
+        self.assertIn(CASE, json.loads(run(*args))['to_score'])
+
+
 if __name__ == '__main__':
     unittest.main()

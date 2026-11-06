@@ -10,11 +10,14 @@
   recheck  --scores FILE [FILE ...] --out FILE
            List the criteria a second scorer must score again: candidate 0, candidate below baseline, baseline 0 with
            candidate 1 (a new mechanism), and every criterion the first scorer flagged as a borderline judgment.
+  carry    --previous COMPARISON --baseline DIR --candidate DIR --out FILE
+           Cases whose replies on both sides are byte-identical to a previous comparison keep that comparison's scores,
+           re-checks and decisions (carried_from names it); prints the cases that still go to the scorers.
   combine  --first FILE [FILE ...] --second FILE [FILE ...] --recheck FILE --out FILE
            Compare the two scorers on the listed criteria. Agreements stand; disagreements go to a person, whose
            decision is recorded as a rescoring with the person's words. Prints the agreement counts.
 """
-import argparse, json, random, shutil
+import argparse, hashlib, json, random, re, shutil
 from pathlib import Path
 
 SUITE = Path(__file__).resolve().parent / 'cases/suite.json'
@@ -82,6 +85,34 @@ def recheck(a):
     print(sum(len(v) for v in out.values()), 'criteria in', len(out), 'cases to re-check')
 
 
+def replies(cid, items):
+    """Reply hashes of one side in turn order, from files on disk or from comparison evidence entries."""
+    turn = lambda name: int(re.fullmatch(re.escape(cid) + r'-(\d+)\.md', name).group(1))
+    if isinstance(items, (str, Path)):
+        files = [p for p in Path(items).glob(cid + '-*.md') if re.fullmatch(re.escape(cid) + r'-\d+\.md', p.name)]
+        return [hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(files, key=lambda p: turn(p.name))]
+    found = [i for i in items if re.fullmatch(re.escape(cid) + r'-\d+\.md', Path(i['path']).name)]
+    return [i['sha256'] for i in sorted(found, key=lambda i: turn(Path(i['path']).name))]
+
+
+def carry(a):
+    previous = json.loads(Path(a.previous).read_text(encoding='utf-8'))
+    digest = hashlib.sha256(Path(a.previous).read_bytes()).hexdigest()
+    out, todo = {}, []
+    for cid in criteria():
+        case = previous['cases'].get(cid)
+        same = case and all(replies(cid, d) and replies(cid, d) == replies(cid, case[s + '_evidence'])
+                            for s, d in (('baseline', a.baseline), ('candidate', a.candidate)))
+        if same:
+            out[cid] = {k: case[k] for k in ('baseline', 'candidate', 'observations', 'flags', 'rechecked', 'rescored') if k in case}
+            out[cid]['carried_from'] = {'path': str(a.previous), 'sha256': digest,
+                                        'replies': {s: replies(cid, case[s + '_evidence']) for s in ('baseline', 'candidate')}}
+        else:
+            todo.append(cid)
+    Path(a.out).write_text(json.dumps(out, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
+    print(json.dumps({'carried': len(out), 'to_score': todo}, ensure_ascii=False))
+
+
 def combine(a):
     first, second = load(a.first), load(a.second)
     listed = json.loads(Path(a.recheck).read_text(encoding='utf-8'))
@@ -109,7 +140,9 @@ if __name__ == '__main__':
     m = sub.add_parser('merge'); m.add_argument('--labels', required=True); m.add_argument('--scores', nargs='+', required=True)
     m.add_argument('--out', required=True); m.add_argument('--partial', action='store_true')
     r = sub.add_parser('recheck'); r.add_argument('--scores', nargs='+', required=True); r.add_argument('--out', required=True)
+    k = sub.add_parser('carry'); k.add_argument('--previous', required=True); k.add_argument('--baseline', required=True)
+    k.add_argument('--candidate', required=True); k.add_argument('--out', required=True)
     c = sub.add_parser('combine'); c.add_argument('--first', nargs='+', required=True); c.add_argument('--second', nargs='+', required=True)
     c.add_argument('--recheck', required=True); c.add_argument('--out', required=True)
     args = p.parse_args()
-    {'blind': blind, 'merge': merge, 'recheck': recheck, 'combine': combine}[args.command](args)
+    {'blind': blind, 'merge': merge, 'recheck': recheck, 'carry': carry, 'combine': combine}[args.command](args)

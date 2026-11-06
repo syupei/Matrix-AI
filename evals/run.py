@@ -2,7 +2,7 @@
 """Run fixed multi-turn skill probes with an actual local agent CLI (Codex or Claude Code).
 Results are ungraded raw evidence; no canned response is treated as model behavior.
 """
-import argparse,hashlib,json,os,shutil,subprocess,tempfile,time,importlib.util
+import argparse,hashlib,json,os,re,shutil,subprocess,tempfile,time,importlib.util
 from pathlib import Path
 
 def fingerprint(root):
@@ -49,6 +49,11 @@ def main():
     reply=last.read_text();history.extend([{'role':'user','text':user},{'role':'assistant','text':reply}])
     record['turns'].append({'user':user,'reply':last.name,'events':events.name,'seconds':round(time.time()-started,2),'sha256':hashlib.sha256(last.read_bytes()).hexdigest()})
     print(case['id'],n,'completed',flush=True)
+   # The kit files this case read, from its traces: its reply may be carried over later only while they are unchanged.
+   # A trace that changes into the kit folder reads by relative paths that cannot be told apart, so it records none.
+   traces=''.join((args.output/t['events']).read_text(errors='ignore') for t in record['turns'])
+   kit_files=json.loads((source/'MANIFEST.json').read_text())['files']
+   record['read_files']=None if re.search(r'cd\s+["\']?(\./)?kit\b',traces) else sorted(f for f in kit_files if 'kit/'+f in traces)
    artifacts=args.output/(case['id']+'-artifacts');artifacts.mkdir(exist_ok=True)
    for item in work.iterdir():
     if item.name=='kit':continue

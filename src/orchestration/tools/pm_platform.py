@@ -454,9 +454,17 @@ def command(op, **fields):
     return json.dumps(dict(op=op, **fields), ensure_ascii=False)
 
 
-def pm_action(cfg, t, code, label):
-    """A decision for the PM, with the task's current version and the command to record it."""
+def pm_action(cfg, t, code, label, root=None, last=None):
+    """A decision for the PM, with the task's current version, what it needs to decide, and the command to record it."""
     pm_actor, rev, tid = cfg['pm_actor'], t['revision'], t['id']
+    extra = {}
+    if last and code in {'ended', 'blocked', 'stale', 'sent_back', 'timeout'}:
+        # How the last run ended, so the PM decides without reading logs: redo, reassign, or hand to a person.
+        note = root / 'management/instances' / last['instance'] / 'runs' / (last['id'] + '-result.md') if root else None
+        extra['last_run'] = dict(id=last['id'], state=last['state'], exit_code=last.get('exit_code'),
+                                 result=note.read_text(encoding='utf-8')[:600] if note and note.is_file() else None)
+    if code == 'adopt' and t.get('human_required') and t.get('human_review'):
+        extra['human_review'] = {k: t['human_review'].get(k) for k in ['outcome', 'person', 'quote', 'source', 'presented_ref']}
     base = dict(actor=pm_actor, task_id=tid, expected_revision=rev)
     if code == 'review':
         cmd = command('review', event_id='pm-review-' + tid + '-' + str(rev), outcome='passed 或 failed', criteria_checked=t['criteria'],
@@ -467,7 +475,7 @@ def pm_action(cfg, t, code, label):
         cmd = command('transition', event_id='pm-redo-' + tid + '-' + str(rev), state='planned', reason='<重做的原因>', **base)
     need_person = command('update', event_id='pm-await-' + tid + '-' + str(rev), reason='<为什么要人决定>',
                           changes={'awaiting': [{'person': '<谁>', 'action': 'decide', 'item': '<要决定什么>'}]}, **base)
-    return dict(kind='pm', task=tid, code=code, why=label, revision=rev, state=t['state'], command=cmd,
+    return dict(kind='pm', task=tid, code=code, why=label, revision=rev, state=t['state'], command=cmd, **extra,
                 **({} if code in {'review', 'adopt'} else {'or_hand_to_person': need_person}))
 
 
@@ -477,7 +485,8 @@ def summary(pm, root, db, cfg, tasks, detail=False):
     reasons, ctx = stops(pm, root, db, cfg, tasks)
     pm_actor, instances = cfg['pm_actor'], ctx['instances']
     busy = {l['instance'] for l in ctx['active']}
-    actions = [dict(kind='inbox', id=i['id'], what=INBOX_KINDS[i['kind']], text=i['text'], person=i.get('person'),
+    actions = [dict(kind='inbox', id=i['id'], what=INBOX_KINDS[i['kind']], text=i['text'], person=i.get('person'), ref=i.get('ref'),
+                    **({'ref_stop': reasons[i['ref']]['label']} if i.get('ref') in reasons else {}),
                     command=command('inbox_done', actor=pm_actor, event_id='pm-inbox-' + i['id'], id=i['id'], note='<怎样处理的>'))
                for i in sorted(pm.integrity.records(db, 'inbox').values(), key=lambda i: i['at']) if i['state'] == 'open']
     running_slots = sum(t['slots'] for t in tasks.values() if t['state'] == 'running')
@@ -496,7 +505,7 @@ def summary(pm, root, db, cfg, tasks, detail=False):
         if r['code'] in {'review', 'adopt', 'ended', 'blocked', 'stale', 'sent_back', 'executor', 'gate'}:
             who = r['who']
             if who == pm_actor:
-                actions.append(pm_action(cfg, t, r['code'], r['label']))
+                actions.append(pm_action(cfg, t, r['code'], r['label'], root, (ctx['runs'].get(tid) or [None])[-1]))
             elif who in instances and instances[who].get('active', True):
                 by_instance.setdefault((who, 'check' if r['code'] == 'review' else 'attend'), []).append(tid)
         elif r['code'] == 'derive':

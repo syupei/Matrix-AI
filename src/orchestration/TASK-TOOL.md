@@ -6,7 +6,7 @@
 
 ## 调用
 
-- 在项目根目录执行 `python3 matrix/orchestration/tools/pm_tasks.py --project . --command {命令}.json`，省略 `--command` 则读 stdin；用户内容不拼进 shell。输出 JSON，出错退出码 1。
+- 在项目根目录执行 `python3 matrix/orchestration/tools/pm_tasks.py --project . --command {命令}.json`，省略 `--command` 则读 stdin；命令文件也可以是一个命令列表，按顺序执行，各自返回结果；用户内容不拼进 shell。输出 JSON，出错退出码 1。
 - 写命令带唯一 `event_id` 与真实 `actor`，可带 `occurred_at`。重试用完全相同的命令；同 ID 不同内容被拒。修改已有任务带 `status` 中的 `expected_revision`；过期就重读合并，不盲目自增。
 - 读：`{"op":"status"}`（`ready` 表示可以开始，`completion_pending` 列出尚未完成的完成前置）；`{"op":"events","after":0,"limit":100}`（含前后变化），按最后 seq 翻页（limit≤1000）；`{"op":"tasks_for","as":"<pm_actor 或实例 ID>","include_closed":false}`：问 PM 列它派发的任务，问实例列它受领的任务，列与状态照 [PM-REPORTING](PM-REPORTING.md) §5，下一步与完成后由任务关系现算。`--render` 在 `management/views/` 生成以下视图，均只读、可随时重建：
   - `index.md`（PM 的任务列表）、`tasks/{任务ID}.md`、`events.md`；

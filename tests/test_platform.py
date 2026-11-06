@@ -191,6 +191,30 @@ class Records(Project, unittest.TestCase):
         self.assertNotIn('stops', brief)  # counted only; detail gives every stop
         self.assertEqual({'就绪': 1, '等依赖': 1}, brief['stop_counts'])
 
+    def test_decisions_come_with_what_they_need(self):
+        self.exit(self.launch('A'), 0)
+        ended = next(a for a in self.summary()['actions'] if a.get('task') == 'A')
+        self.assertEqual(('ended', 0), (ended['code'], ended['last_run']['exit_code']))  # how the last run ended
+        self.call('inbox', id='IN-1', kind='answer', text='SIM 关于 B 的答复', ref='B', person='SIM-owner', quote='SIMULATED: B 用方案一')
+        inbox = next(a for a in self.summary()['actions'] if a['kind'] == 'inbox')
+        self.assertEqual(('B', '等依赖'), (inbox['ref'], inbox['ref_stop']))
+        self.task('H', human_required=True)
+        rid = self.launch('H')
+        self.hand_over('H')
+        self.exit(rid)
+        self.call('review', task_id='H', expected_revision=self.t('H')['revision'], outcome='passed', criteria_checked=self.t('H')['criteria'], evidence=['SIM'])
+        self.call('human_review', task_id='H', expected_revision=self.t('H')['revision'], outcome='approved', presented_ref='SIM shown H',
+                  source='SIM chat', quote='SIMULATED: H 可以', scope='SIM H', person='SIM-owner')
+        adopt = next(a for a in self.summary()['actions'] if a['kind'] == 'pm' and a.get('task') == 'H')
+        self.assertEqual(('adopt', 'SIMULATED: H 可以'), (adopt['code'], adopt['human_review']['quote']))
+
+    def test_several_commands_in_one_call(self):
+        r = subprocess.run([sys.executable, '-B', str(TOOLS / 'pm_tasks.py'), '--project', str(self.root)], capture_output=True, text=True,
+                           input=json.dumps([{'op': 'task', 'id': 'A'}, {'op': 'task', 'id': 'nope'}]))
+        results = json.loads(r.stdout)['results']
+        self.assertEqual((1, 'A'), (r.returncode, results[0]['task']['id']))
+        self.assertIn('unknown task', results[1]['error'])
+
     def test_only_the_launcher_uses_a_launch_to_move_a_task(self):
         rid = self.launch('A')
         with self.assertRaisesRegex(pm.TaskError, 'belongs to its owner'):
