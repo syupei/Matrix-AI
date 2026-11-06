@@ -56,6 +56,21 @@ def human_since(db):
     return 0, None
 
 
+def failed(l):
+    """A start run that did not start, or ended without the executor handing over or reporting a block."""
+    return l['purpose'] == 'start' and (l['state'] == 'not_started' or l.get('ended_without_handover'))
+
+
+def streak(runs, executor):
+    """Failed start runs of the current executor since its last start run that did not fail; another executor starts afresh."""
+    count = 0
+    for l in reversed([r for r in runs if r['purpose'] == 'start' and r['instance'] == executor]):
+        if not failed(l):
+            break
+        count += 1
+    return count
+
+
 def after(l, seq):
     """The launch was recorded after the event seq (launch records keep the last sequence number before them)."""
     return l.get('after_seq', 0) >= seq
@@ -89,7 +104,7 @@ def launch_bound(pm, db, cfg, cmd, before):
     if not rec or rec['task_id'] != before['id'] or rec['purpose'] != 'start':
         return False
     actor, state = cmd['actor'], cmd.get('state')
-    if actor == cfg['pm_actor'] and rec['state'] == 'starting':
+    if actor in {cfg['pm_actor'], TIMER} and rec['state'] == 'starting':
         return (before['state'] in {'planned', 'waiting_review'} and state == 'running') or (before['state'] == 'running' and state == 'planned')
     return actor in {LAUNCHER, TIMER} and rec['state'] in ACTIVE and before['state'] == 'running' and state == 'blocked'
 
@@ -128,7 +143,7 @@ def execute(pm, root, db, cmd):
     pm.require(rec, 'launch record missing')
     task = tasks[rec['task_id']]
     if op in {'launch_started', 'launch_failed'}:
-        pm.require(actor == cfg['pm_actor'] and rec['state'] == 'starting', 'the PM records how its starting launch went')
+        pm.require(actor in {cfg['pm_actor'], TIMER} and rec['state'] == 'starting', 'the PM, or the timer that starts queued runs, records how a start went')
         if op == 'launch_started':
             pm.require(type(cmd.get('pid')) is int and cmd['pid'] > 0, 'process id of the started run required')
             rec.update(state='running', pid=cmd['pid'], running_at=pm.now())
@@ -188,9 +203,14 @@ def start(pm, root, db, cfg, tasks, cmd, records):
     if purpose == 'start':
         pm.require(inst['id'] == task.get('executor'), 'a start run launches the task\'s recorded executor')
         pm.require(not any(l['task_id'] == task['id'] for l in active(pm, db)), task['id'] + ' already has an active run')
-        since = budget(pm, db, cfg)['since_seq']
-        failed = [l for l in records.values() if l['task_id'] == task['id'] and l['state'] == 'not_started' and after(l, since)]
-        pm.require(len(failed) < limits(cfg)['launch_retries'], 'launch retries for ' + task['id'] + ' exhausted; report to the person')
+        mine = sorted((l for l in records.values() if l['task_id'] == task['id']), key=lambda l: (l['started_at'], l['id']))
+        if streak(mine, inst['id']) >= limits(cfg)['launch_retries']:
+            # Past the cap a person decides: try again, or change the executor or its model first.
+            e = cmd.get('escalation')
+            pm.require(isinstance(e, dict) and pm.nonempty(e.get('quote')) and pm.nonempty(e.get('note')),
+                       'launch retries for ' + task['id'] + ' exhausted (did not start or ended without handover); report to the person, '
+                       'or pass their decision as escalation {decided_by, note, quote}')
+            pm.authorized(e.get('decided_by'), [task['id']], tasks, pm.roster(root))
     for tid in ids:
         t = tasks[tid]
         if purpose == 'check':
@@ -303,8 +323,7 @@ def stop_of(pm, root, db, cfg, task, ctx):
     if t['ready']:
         if ctx['budget']['left'] <= 0:
             return 'budget', 'person'
-        failed = [l for l in runs if l['state'] == 'not_started' and after(l, ctx['budget']['since_seq'])]
-        if len(failed) >= ctx['limits']['launch_retries']:
+        if streak(runs, t['executor']) >= ctx['limits']['launch_retries']:
             return 'launch_failed', 'person'
         if any(l['instance'] == t['executor'] for l in ctx['active']):
             return 'busy', t['executor']

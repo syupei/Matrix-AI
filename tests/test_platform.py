@@ -161,6 +161,14 @@ class Records(Project, unittest.TestCase):
         self.assertEqual('launch_failed', s['stops']['A']['code'])
         self.assertEqual('needs_human', s['stop'])
 
+    def test_runs_that_end_without_handover_count_as_failed_starts(self):
+        for i in range(3):
+            self.exit(self.launch('A'), 1)
+            self.call('transition', task_id='A', expected_revision=self.t('A')['revision'], state='planned', reason='SIM 重做')
+        with self.assertRaisesRegex(pm.TaskError, 'retries for A exhausted'):
+            self.launch('A')
+        self.assertEqual('launch_failed', self.summary()['stops']['A']['code'])
+
     def test_only_the_launcher_uses_a_launch_to_move_a_task(self):
         rid = self.launch('A')
         with self.assertRaisesRegex(pm.TaskError, 'belongs to its owner'):
@@ -312,6 +320,18 @@ class Commands(Project, unittest.TestCase):
         again = self.tool('launch.py', '--task', 'A', '--event-id', 'E1')
         self.assertTrue(again['repeated'])
         self.assertEqual(1, len(self.records()))
+
+    def test_runs_queued_for_the_timer_start_on_its_next_check(self):
+        platform = json.loads((self.root / 'management/runtime/platform.json').read_text())
+        platform['spawn'] = 'timer'  # the host's sandbox keeps the PM's children off the network
+        (self.root / 'management/runtime/platform.json').write_text(json.dumps(platform))
+        out = self.tool('launch.py', '--task', 'A')
+        rid = out['record']['id']
+        self.assertTrue(out['queued'])
+        self.assertEqual(('starting', None), (self.records()[rid]['state'], self.records()[rid].get('pid')))
+        self.tool('timer.py', '--once')
+        self.wait(lambda: self.records()[rid]['state'] == 'exited')
+        self.assertEqual('waiting_review', self.t('A')['state'])
 
     def test_stopping_a_run_ends_its_process_and_records_it(self):
         self.plan({'A': 'sleep'})

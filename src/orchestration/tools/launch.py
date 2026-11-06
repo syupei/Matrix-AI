@@ -159,17 +159,25 @@ def launch(project, task_id, purpose='start', task_ids=None, event_id=None, opti
                   instance=iid, model=model, session=session, command=command, log=log)
     fields.update({k: v for k, v in (options or {}).items() if k in {'rework_reason', 'note', 'attributed_to', 'escalation'}})
     record = pm.execute(root, fields)['record']
+    if cfg_platform.get('spawn', 'launcher') == 'timer':
+        # The host runs the PM in a sandbox whose children cannot reach the network: the timer starts the run.
+        return {'record': record, 'packet': prompt_file, 'queued': True}
+    return {'record': spawn(pm, root, record, pm_actor), 'packet': prompt_file}
+
+
+def spawn(pm, root, record, actor):
+    """Start the detached run wrapper of a recorded run and record its process, or that it did not start."""
+    rid = record['id']
     try:
-        path = pm.local(root, log)
+        path = pm.local(root, record['log'])
         path.parent.mkdir(parents=True, exist_ok=True)
         out = open(path, 'ab')
         proc = subprocess.Popen([sys.executable, '-B', str(Path(__file__).resolve()), '--project', str(root), '--run', rid],
                                 cwd=root, stdin=subprocess.DEVNULL, stdout=out, stderr=out, start_new_session=True)
     except OSError as error:
-        pm.execute(root, dict(op='launch_failed', actor=pm_actor, event_id=rid + '-failed', id=rid, error=type(error).__name__ + ': ' + str(error)))
+        pm.execute(root, dict(op='launch_failed', actor=actor, event_id=rid + '-failed', id=rid, error=type(error).__name__ + ': ' + str(error)))
         raise
-    record = pm.execute(root, dict(op='launch_started', actor=pm_actor, event_id=rid + '-started', id=rid, pid=proc.pid))['record']
-    return {'record': record, 'packet': prompt_file}
+    return pm.execute(root, dict(op='launch_started', actor=actor, event_id=rid + '-started', id=rid, pid=proc.pid))['record']
 
 
 def record_exit(pm, root, rid, op, **fields):
@@ -210,8 +218,8 @@ def stop(project, rid, reason):
     if rec.get('pid'):
         try:
             os.killpg(rec['pid'], signal.SIGTERM)
-        except ProcessLookupError:
-            pass
+        except (ProcessLookupError, PermissionError):
+            pass  # a sandboxed PM may not signal it; the timer ends processes of runs no longer active
     return record_exit(pm, root, rid, 'launch_lost', evidence='stopped by the PM: ' + reason)
 
 

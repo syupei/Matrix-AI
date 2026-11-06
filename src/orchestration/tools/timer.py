@@ -71,12 +71,13 @@ def log(root, pm, text):
 
 
 def changes(pm, root, since, pm_actor):
-    """Records written after since by anyone but the PM; the PM's own records never wake it."""
+    """Records written after since by anyone but the PM, and records of a person's words whoever wrote them
+    (a PM without a front desk takes the person's reply itself); the PM's other records never wake it."""
     db = pm.connect(root, readonly=True)
     try:
         top = db.execute('SELECT COALESCE(MAX(seq),0) FROM events').fetchone()[0]
-        count = db.execute('SELECT COUNT(*) FROM events WHERE seq > ? AND actor != ?', (since, pm_actor)).fetchone()[0]
-        return top, count
+        rows = db.execute('SELECT actor, command FROM events WHERE seq > ?', (since,)).fetchall()
+        return top, sum(1 for r in rows if r['actor'] != pm_actor or json.loads(r['command']).get('op') in pm.platform.HUMAN_OPS)
     finally:
         db.close()
 
@@ -92,6 +93,26 @@ def lost_runs(pm, root, grace):
             pm.execute(root, dict(op='launch_lost', actor=pm.platform.TIMER, event_id=full['id'] + '-lost', id=full['id'], evidence=evidence))
             found.append(full['id'])
     return found
+
+
+def start_queued(pm, root, launcher):
+    """Runs the PM recorded but could not start itself (spawn: timer), and processes of runs already recorded as ended."""
+    db = pm.connect(root, readonly=True)
+    try:
+        runs = pm.integrity.records(db, 'launch')
+    finally:
+        db.close()
+    started = []
+    for rec in sorted(runs.values(), key=lambda r: r['started_at']):
+        if rec['state'] == 'starting' and not rec.get('pid'):
+            launcher.spawn(pm, root, rec, pm.platform.TIMER)
+            started.append(rec['id'])
+        elif rec['state'] == 'lost' and rec.get('pid') and alive(rec['pid'], rec['id']):
+            try:
+                os.killpg(rec['pid'], signal.SIGTERM)
+            except (ProcessLookupError, PermissionError):
+                pass
+    return started
 
 
 def load_launch(pm, root, rid):
@@ -148,13 +169,30 @@ def wake(root, pm, settings, state, summary, reason):
 
 
 def tick(project):
+    """One check; a second timer on the same project waits for the first instead of waking a second PM."""
     root = Path(project).resolve()
     pm = load('timer_pm_tasks', 'pm_tasks.py')
+    lock = open(pm.local(root, 'management/runtime/timer.lock'), 'w')
+    try:
+        import fcntl
+        fcntl.flock(lock, fcntl.LOCK_EX)
+    except ImportError:
+        pass  # no file locks on this system: run one timer per project
+    try:
+        return checked(root, pm)
+    finally:
+        lock.close()
+
+
+def checked(root, pm):
     launcher = load('timer_launch', 'launch.py')
     settings = dict(DEFAULTS, **launcher.settings(pm, root))
     path = pm.local(root, STATE)
     state = json.loads(path.read_text(encoding='utf-8')) if path.is_file() else {'processed_seq': 0}
     cfg = pm.execute(root, {'op': 'status'})['config']
+    started = start_queued(pm, root, launcher)
+    if started:
+        log(root, pm, 'started queued runs: ' + ','.join(started))
     lost = lost_runs(pm, root, settings['launch_grace_minutes'])
     if lost:
         log(root, pm, 'runs gone without an exit record: ' + ','.join(lost))
