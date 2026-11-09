@@ -9,9 +9,13 @@ def fingerprint(root):
  return hashlib.sha256(json.dumps({str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.rglob('*')) if p.is_file() and '__pycache__' not in p.parts and p.name!='MANIFEST.json'},sort_keys=True).encode()).hexdigest()
 
 def main():
- p=argparse.ArgumentParser();p.add_argument('--source',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--case');p.add_argument('--runner',choices=['codex','claude'],default='codex');p.add_argument('--model');p.add_argument('--effort');args=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('--source',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--case');p.add_argument('--runner',choices=['codex','claude'],default='codex');p.add_argument('--model');p.add_argument('--effort')
+ # Resume (Codex only): later turns continue the first turn's session instead of a new session with the earlier turns
+ # pasted in. Turns are then not isolated from each other; the record says which way a run was made.
+ p.add_argument('--resume',action='store_true');args=p.parse_args()
+ if args.resume and args.runner!='codex':raise SystemExit('--resume is implemented for the codex runner only')
  suite_path=Path(__file__).parent/'cases/suite.json';suite=json.loads(suite_path.read_text());args.output.mkdir(parents=True,exist_ok=True)
- source=args.source.resolve();meta={'source_hash':fingerprint(source),'suite_hash':hashlib.sha256(suite_path.read_bytes()).hexdigest(),'runner':{'codex':'codex exec','claude':'claude -p'}[args.runner],'cli_version':subprocess.check_output([args.runner,'--version'],text=True).strip(),'model':args.model,'effort':args.effort,'cases':[]}
+ source=args.source.resolve();meta={'source_hash':fingerprint(source),'suite_hash':hashlib.sha256(suite_path.read_bytes()).hexdigest(),'runner':{'codex':'codex exec','claude':'claude -p'}[args.runner],'cli_version':subprocess.check_output([args.runner,'--version'],text=True).strip(),'model':args.model,'effort':args.effort,'turns':'resume' if args.resume else 'fresh','cases':[]}
  for case in suite['cases']:
   if args.case and case['id']!=args.case:continue
   with tempfile.TemporaryDirectory(prefix='matrix-behavior-') as d:
@@ -29,14 +33,19 @@ def main():
     if case.get('fixture_sha256')!=digest:raise ValueError('fixture changed; update suite')
     fspec=importlib.util.spec_from_file_location('fixed_fixture',fixture);fmod=importlib.util.module_from_spec(fspec);fspec.loader.exec_module(fmod)
     fmod.populate(work.resolve(),case['id']);record['fixture_sha256']=digest
+   session=None
    for n,user in enumerate(case['turns']):
     start=f'kit/{entry}' if entry else f'kit/.agents/skills/{role}/SKILL.md'
     prompt=f"在此临时项目中使用 {start} 处理用户请求。读取所需本地规则。仅在此目录写本轮必要成果，不访问外部业务项目、不联网、不启动其他Agent。这里没有可用原生提问控件，使用技能允许的回退方式。只处理当前用户输入，等真实下一条消息，不替用户回答。\n"
-    if history:prompt+='此前真实对话：\n'+json.dumps(history,ensure_ascii=False)+'\n'
+    if history and not session:prompt+='此前真实对话：\n'+json.dumps(history,ensure_ascii=False)+'\n'
     prompt+='用户：'+user
+    if session:prompt='用户：'+user
     last=args.output/(case['id']+f'-{n}.md');events=args.output/(case['id']+f'-{n}.jsonl');err=args.output/(case['id']+f'-{n}.stderr')
-    if args.runner=='codex':
-     cmd=['codex','exec','--skip-git-repo-check','--ephemeral','--sandbox','workspace-write','--json','-C',str(work),'-o',str(last.resolve())]
+    if args.runner=='codex' and session:
+     cmd=['codex','exec','resume',session,'--skip-git-repo-check','--json','-o',str(last.resolve()),'-c','sandbox_mode="workspace-write"']
+     cmd+=(['-m',args.model] if args.model else [])+(['-c','model_reasoning_effort="'+args.effort+'"'] if args.effort else [])+['-']
+    elif args.runner=='codex':
+     cmd=['codex','exec','--skip-git-repo-check']+([] if args.resume else ['--ephemeral'])+['--sandbox','workspace-write','--json','-C',str(work),'-o',str(last.resolve())]
      cmd+=(['-m',args.model] if args.model else [])+(['-c','model_reasoning_effort="'+args.effort+'"'] if args.effort else [])+['-']
     else:
      cmd=['claude','-p','--output-format','stream-json','--verbose','--permission-mode','acceptEdits']
@@ -48,6 +57,10 @@ def main():
      final=[e for e in (json.loads(l) for l in events.read_text().splitlines() if l.strip()) if e.get('type')=='result']
      if final and not final[-1].get('is_error'):last.write_text(final[-1].get('result',''))
     if result.returncode or not last.exists():raise RuntimeError(f'Actual model run failed: {case["id"]}; see {err}')
+    if args.resume and not session:
+     started_event=next((json.loads(l) for l in events.read_text().splitlines() if l.strip().startswith('{"type":"thread.started"')),None)
+     if not started_event:raise RuntimeError(f'no session to resume: {case["id"]}')
+     session=started_event['thread_id']
     reply=last.read_text();history.extend([{'role':'user','text':user},{'role':'assistant','text':reply}])
     record['turns'].append({'user':user,'reply':last.name,'events':events.name,'seconds':round(time.time()-started,2),'sha256':hashlib.sha256(last.read_bytes()).hexdigest()})
     print(case['id'],n,'completed',flush=True)

@@ -80,7 +80,7 @@ def run(a):
             continue
         shutil.rmtree(folder, ignore_errors=True)
         argv = [sys.executable, '-B', str(EVALS / 'run.py'), '--source', str(Path(a.kit).resolve()), '--output', str(folder), '--case', case['id'],
-                '--runner', a.runner] + (['--model', a.model] if a.model else []) + (['--effort', a.effort] if a.effort else [])
+                '--runner', a.runner] + (['--model', a.model] if a.model else []) + (['--effort', a.effort] if a.effort else []) + (['--resume'] if a.resume else [])
         todo.append((case['id'], argv, out / '_logs' / (case['id'] + '.log')))
     print(a.side, len(todo), 'cases to run', flush=True)
     result = pool(todo, a.jobs, a.side)
@@ -324,6 +324,7 @@ def main():
     sub = ap.add_subparsers(dest='command', required=True)
     r = sub.add_parser('run'); r.add_argument('--side', choices=['baseline', 'candidate'], required=True); r.add_argument('--kit', required=True)
     r.add_argument('--out', required=True); r.add_argument('--jobs', type=int, default=4); r.add_argument('--model'); r.add_argument('--effort'); r.add_argument('--cases')
+    r.add_argument('--resume', action='store_true', help='later turns resume the first turn\'s session (pilot of E5)')
     s = sub.add_parser('score'); s.add_argument('--out', required=True); s.add_argument('--work', required=True)
     s.add_argument('--batch', type=int, default=7); s.add_argument('--jobs', type=int, default=3); s.add_argument('--model')
     m = sub.add_parser('assemble'); m.add_argument('--out', required=True); m.add_argument('--work', required=True)
