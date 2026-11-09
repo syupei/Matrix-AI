@@ -42,6 +42,14 @@ def source_files():
   files[rel]=sha(p)
  return files
 
+# The stage-line template is the one rule kept in two places: CORE §6, which every model reads, and USER-INTERACTION §7,
+# which explains it. Models that follow only what they are sure to read copy the CORE line, so the two must not drift.
+STAGE_LINE=re.compile(r'^\*\*(\{流程\}：[^\n]*)\*\*$',re.M)
+def stage_template_errors(core,interaction):
+ section=interaction.split('\n## 7.',1)[1] if '\n## 7.' in interaction else ''
+ m=STAGE_LINE.search(section.split('\n## ',1)[0])
+ if not m:return ['USER-INTERACTION §7 has no stage-line template']
+ return [] if '**'+m.group(1)+'**' in core else ['stage-line template in CORE differs from USER-INTERACTION §7']
 def fingerprint(files):return hashlib.sha256(json.dumps(files,sort_keys=True).encode()).hexdigest()
 def check_sources():
  files=source_files();src=layout();errors=[];links=0
@@ -61,6 +69,7 @@ def check_sources():
     dest=os.path.normpath(os.path.join(os.path.dirname(rel),path))
     if dest.startswith('..') or (dest not in files and dest not in dirs):errors.append('broken link: '+rel+' -> '+href)
     links+=1
+ errors+=stage_template_errors(src['matrix/base/CORE.md'].read_text(),src['matrix/base/USER-INTERACTION.md'].read_text())
  if errors:raise ValueError('\n'.join(errors))
  return files,links
 

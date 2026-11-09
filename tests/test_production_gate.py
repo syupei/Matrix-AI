@@ -22,6 +22,12 @@ class PublishingGateTests(unittest.TestCase):
   self.data={'baseline_ref':baseline,'baseline_hash':bh,'candidate_hash':ch,'suite_hash':p.sha(suite),'cases':cases,'reviewer':'test fixture','limitations':['simulated mechanism check, not real behavior']};self.report=self.root/'report.json'
  def check(self):self.report.write_text(json.dumps(self.data));return p.check_evidence(self.report,self.files)
  def test_complete_fixture_validates_schema(self):self.assertTrue(self.check())
+ def test_stage_line_template_is_the_same_in_core_and_interaction(self):
+  line='**{流程}：共 {N} 步｜依据：{记录文件}｜下一步：{动作}**';ui='# C01\n\n## 7. 流程位置\n\n第一行写：\n\n'+line+'\n\n## 8. 其他\n'
+  self.assertEqual(p.stage_template_errors('1. 第一行写：'+line+'。',ui),[])
+  self.assertTrue(p.stage_template_errors('1. 第一行写：**{流程}：共 {N} 步｜下一步：{动作}**。',ui))
+  self.assertTrue(p.stage_template_errors('1. '+line,'# C01\n\n## 6. 其他\n\n'+line+'\n\n## 7. 流程位置\n\n见上。\n'))
+  real=lambda rel:(p.SOURCE/rel).read_text();self.assertEqual(p.stage_template_errors(real('base/CORE.md'),real('base/USER-INTERACTION.md')),[])
  def test_new_mechanism_score_needs_a_second_scorer(self):
   case=self.data['cases']['intake'];k=next(iter(case['baseline']));case['baseline'][k]=0
   with self.assertRaisesRegex(ValueError,'re-check missing'):self.check()
