@@ -4,12 +4,18 @@
   codex_comparison.py run      --side baseline|candidate --kit KIT --out OUT [--jobs 4] [--model M] [--effort E] [--cases a,b]
   codex_comparison.py score    --out OUT --work WORK [--batch 7] [--jobs 3] [--model M]
   codex_comparison.py assemble --out OUT --work WORK --candidate-kit KIT --baseline-ref REF --reviewer TEXT
+  codex_comparison.py focus    --old DIR --new DIR --criteria FILE --work WORK [--batch 7] [--jobs 3] [--model M] [--seed N]
 
 run      one run.py process per case into OUT/<side>/<case>/; cases already complete are skipped, failures are listed.
 score    blind copies (scoring.py blind), first scorers by batch, re-check list, second scorers, combine; scorers are
          Codex sessions following evals/scoring-brief.md and write only their output file.
 assemble the comparison JSON for tools/production.py: scores, re-checks, flags, observations, evidence with hashes.
 Disagreements between scorers are listed and stop here: a person decides them (rescored), as the gate requires.
+focus    a pilot after a change, not gate evidence: chosen criteria ({case: [criteria]}) of chosen cases, earlier replies
+         (DIR/<case>/, scored as "baseline") against new ones ("candidate"), blind. The first scorer scores only those
+         criteria; the second re-scores every new 0, every flag, and every new stage-line 1 the program check does not
+         support. The program checks that each reply opens with a stage line carrying a basis, and that in a project with
+         no records the first reply's basis says inferred (or a flow started this turn). Writes WORK/focus.json.
 """
 import argparse
 import hashlib
@@ -118,13 +124,33 @@ def collect(folder, output):
     return data
 
 
-def brief(work, ids, recheck=None):
+SECOND = '## 本批要复评的判据（你是第二位评分员）'
+FIRST = '## 本批只评下列判据\n\n你是第一位评分员。只评下面列出的判据，其余不评；输出格式同"复评"一节（X、Y 只含列出的判据），flags 照常写。'
+STAGE_COUNT = re.compile(r'共\s*\d+\s*步')
+
+
+def stage_check(text):
+    """The program's part of the stage-line check, on one reply: its first line is a stage line with a basis, and the
+    basis says inferred or that the flow starts this turn."""
+    first = next((line.strip() for line in text.splitlines() if line.strip()), '')
+    m = re.search(r'依据[：:]\s*([^｜|]*)', first)
+    basis = m.group(1) if m else ''
+    return {'stage_line': bool(STAGE_COUNT.search(first) and basis.strip()), 'inferred': '推断' in basis or '本轮开始' in basis,
+            'line': first[:240]}
+
+
+def stage_supported(checks, records):
+    """Every reply opens with a stage line; without project records the first one must also be marked inferred."""
+    return bool(checks) and all(c['stage_line'] for c in checks) and (records or checks[0]['inferred'])
+
+
+def brief(work, ids, recheck=None, title=SECOND):
     text = (EVALS / 'scoring-brief.md').read_text(encoding='utf-8')
     for k, v in {'suite': SUITE, 'readme': EVALS / 'README.md', 'fixtures': EVALS / 'fixtures', 'workspace': work / 'ws',
                  'output': 'scores.json'}.items():
         text = text.replace('{' + k + '}', str(v))
     if recheck:
-        return text + '\n\n## 本批要复评的判据（你是第二位评分员）\n\n' + json.dumps(recheck, ensure_ascii=False) + '\n' + CHECK
+        return text + '\n\n' + title + '\n\n' + json.dumps(recheck, ensure_ascii=False) + '\n' + CHECK
     return text + '\n\n## 本批情境\n\n' + '、'.join(ids) + '\n' + CHECK
 
 
@@ -199,6 +225,77 @@ def assemble(a):
     print(json.dumps({'report': str(report), 'cases': len(data['cases']), 'rechecking': combined['summary']}, ensure_ascii=False))
 
 
+def scorers(work, prefix, groups, listed, title, model, jobs):
+    """Run one scorer per group of cases on the listed criteria and return their score files."""
+    todo = [scorer(work, prefix + str(n), brief(work, g, {k: listed[k] for k in g}, title), model, None) for n, g in enumerate(groups)
+            if not (work / 'scorers' / (prefix + str(n)) / 'scores.json').is_file()]
+    pool(todo, jobs, prefix.rstrip('-'))
+    files = []
+    for n in range(len(groups)):
+        folder = work / 'scorers' / (prefix + str(n))
+        collect(folder, folder / 'scores.json')
+        files.append(str(folder / 'scores.json'))
+    return files
+
+
+def focus(a):
+    work = Path(a.work).resolve()
+    work.mkdir(parents=True, exist_ok=True)
+    listed = json.loads(Path(a.criteria).read_text(encoding='utf-8'))
+    ids, suite = sorted(listed), {c['id']: c for c in cases()}
+    tool = [sys.executable, '-B', str(EVALS / 'scoring.py')]
+    if not (work / 'labels.json').is_file():
+        flat_dirs = {}
+        for name, folder in (('old', Path(a.old).resolve()), ('new', Path(a.new).resolve())):
+            target = flat_dirs[name] = work / 'flat' / name
+            shutil.rmtree(target, ignore_errors=True)
+            target.mkdir(parents=True)
+            for cid in ids:
+                for f in (folder / cid).glob(cid + '-*'):
+                    if f.is_dir():
+                        shutil.copytree(f, target / f.name)
+                    elif f.suffix == '.md':
+                        shutil.copy2(f, target / f.name)
+        subprocess.run(tool + ['blind', '--baseline', str(flat_dirs['old']), '--candidate', str(flat_dirs['new']), '--cases', ','.join(ids),
+                               '--workspace', str(work / 'ws'), '--labels', str(work / 'labels.json'), '--seed', str(a.seed)], check=True)
+    batches = [ids[i:i + a.batch] for i in range(0, len(ids), a.batch)]
+    first = scorers(work, 'first-', batches, listed, FIRST, a.model, a.jobs)
+    subprocess.run(tool + ['merge', '--labels', str(work / 'labels.json'), '--scores', *first, '--out', str(work / 'first.json'), '--partial'], check=True)
+    scores = json.loads((work / 'first.json').read_text())
+    program = {cid: [stage_check(p.read_text(encoding='utf-8')) for p in sorted((Path(a.new).resolve() / cid).glob(cid + '-[0-9]*.md'),
+                                                                                    key=lambda p: int(p.stem.rsplit('-', 1)[1]))]
+               for cid in ids if 'shows_stage' in listed[cid]}
+    supported = {cid: stage_supported(checks, bool(suite[cid].get('fixture'))) for cid, checks in program.items()}
+    again = {}
+    for cid in ids:
+        v = scores[cid]
+        keys = {k for k in listed[cid] if v['candidate'][k] == 0 or k in v.get('flags', []) or (k == 'shows_stage' and not supported[cid])}
+        if keys:
+            again[cid] = sorted(keys)
+    (work / 'recheck.json').write_text(json.dumps(again, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
+    keys = sorted(again)
+    second = scorers(work, 'second-', [keys[i:i + a.batch * 2] for i in range(0, len(keys), a.batch * 2)], again, SECOND, a.model, a.jobs)
+    if second:
+        subprocess.run(tool + ['merge', '--labels', str(work / 'labels.json'), '--scores', *second, '--out', str(work / 'second.json'), '--partial'], check=True)
+    rescored = json.loads((work / 'second.json').read_text()) if second else {}
+    rows, summary = {}, {}
+    for cid in ids:
+        for k in listed[cid]:
+            one = {s: scores[cid][s][k] for s in ('baseline', 'candidate')}
+            two = {s: rescored[cid][s][k] for s in ('baseline', 'candidate')} if k in again.get(cid, []) else None
+            new = (one['candidate'] if two is None else (one['candidate'] if one['candidate'] == two['candidate'] else None))
+            rows.setdefault(cid, {})[k] = {'old_first': one['baseline'], 'new_first': one['candidate'], 'new_second': two and two['candidate'], 'new': new}
+            s = summary.setdefault(k, {'cases': 0, 'new_pass': 0, 'old_pass_first': 0, 'to_person': 0})
+            s['cases'] += 1
+            s['new_pass'] += new == 1
+            s['old_pass_first'] += one['baseline'] == 1
+            s['to_person'] += new is None
+    out = {'summary': summary, 'program': {cid: {'supported': supported[cid], 'replies': checks} for cid, checks in program.items()},
+           'cases': rows, 'observations': {cid: scores[cid].get('observations', '') for cid in ids}}
+    (work / 'focus.json').write_text(json.dumps(out, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
+    print(json.dumps(summary, ensure_ascii=False))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest='command', required=True)
@@ -208,8 +305,11 @@ def main():
     s.add_argument('--batch', type=int, default=7); s.add_argument('--jobs', type=int, default=3); s.add_argument('--model')
     m = sub.add_parser('assemble'); m.add_argument('--out', required=True); m.add_argument('--work', required=True)
     m.add_argument('--candidate-kit', required=True); m.add_argument('--baseline-ref', required=True); m.add_argument('--reviewer', required=True)
+    f = sub.add_parser('focus'); f.add_argument('--old', required=True); f.add_argument('--new', required=True); f.add_argument('--criteria', required=True)
+    f.add_argument('--work', required=True); f.add_argument('--batch', type=int, default=7); f.add_argument('--jobs', type=int, default=3)
+    f.add_argument('--model'); f.add_argument('--seed', type=int, default=32)
     a = ap.parse_args()
-    {'run': run, 'score': score, 'assemble': assemble}[a.command](a)
+    {'run': run, 'score': score, 'assemble': assemble, 'focus': focus}[a.command](a)
 
 
 if __name__ == '__main__':

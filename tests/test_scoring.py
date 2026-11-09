@@ -85,5 +85,35 @@ class Carry(unittest.TestCase):
         self.assertIn(CASE, json.loads(run(*args))['to_score'])
 
 
+
+class StageCheckTests(unittest.TestCase):
+    """The program part of the stage-line pilot check (evals/codex_comparison.py focus)."""
+
+    def setUp(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('codex_comparison', ROOT / 'evals/codex_comparison.py')
+        self.cc = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.cc)
+
+    def test_first_line_with_an_inferred_basis_is_supported(self):
+        line = '**增量构建：共 3 步，当前进行第 2 步「增量循环」｜依据：按你的描述推断，可查 engineering/build/00-工作状态.md｜修正中｜下一步：重跑（研发）**'
+        checks = [self.cc.stage_check(line + '\n正文')]
+        self.assertTrue(checks[0]['stage_line'] and checks[0]['inferred'])
+        self.assertTrue(self.cc.stage_supported(checks, records=False))
+
+    def test_a_stage_line_after_other_text_or_without_a_basis_is_not(self):
+        self.assertFalse(self.cc.stage_check('结论先行\n**共 3 步，当前进行第 2 步｜依据：本轮开始**')['stage_line'])
+        self.assertFalse(self.cc.stage_check('**共 3 步，当前进行第 2 步「增量循环」｜修正中**')['stage_line'])
+
+    def test_a_record_basis_needs_records_in_the_project(self):
+        checks = [self.cc.stage_check('**共 3 步，当前进行第 2 步｜依据：engineering/build/00-工作状态.md｜修正中**')]
+        self.assertFalse(self.cc.stage_supported(checks, records=False))
+        self.assertTrue(self.cc.stage_supported(checks, records=True))
+
+    def test_later_turns_may_cite_records_the_first_turn_wrote(self):
+        first = self.cc.stage_check('**共 7 步，当前进行第 1 步「需求澄清」｜依据：本轮开始｜等你补充**')
+        later = self.cc.stage_check('**共 7 步，当前进行第 1 步「需求澄清」｜依据：product/00-工作状态.md｜等你补充**')
+        self.assertTrue(self.cc.stage_supported([first, later], records=False))
+
 if __name__ == '__main__':
     unittest.main()
