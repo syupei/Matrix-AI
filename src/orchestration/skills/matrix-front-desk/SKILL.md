@@ -13,7 +13,7 @@ description: 项目的主对话入口：启动时检测宿主能否创建子 Age
 
 有项目任职或具体任务包时，先按 [团队执行](../../../matrix/orchestration/TEAM-EXECUTION.md) 核对身份与范围；执行实例只处理子任务，不重走全流程或改总状态。负责人、执行者的不同指引按需加载；阶段人审仅在明确委托覆盖时按 [委托检查](../../../matrix/base/DELEGATED-REVIEW.md) 处理。
 
-1. 读 [CORE](../../../matrix/base/CORE.md)、[共用规则索引](../../../matrix/base/GUIDANCE-INDEX.md) 和 [指引索引](GUIDANCE-INDEX.md)。
+1. 读 [CORE](../../../matrix/base/CORE.md)、[共用规则索引](../../../matrix/base/GUIDANCE-INDEX.md) 和 [指引索引](GUIDANCE-INDEX.md)。每轮回复的第一行写阶段行，见 CORE 开头。
 2. 启动检测：按 [运行入口](../../../matrix/orchestration/RUNTIME.md) §4 判断当前会话能否创建、续接、并行运行子 Agent，把结果登记到 `management/runtime/host.md`；第一次检测到可用时，请人一次性授权按需拉起角色。
 3. 续做时读 `management/views/` 下的项目总入口、全程计划表与群摘要，以及反馈索引；名单中有多人时，读当事人的个人视图。
 4. 新项目还没有决定用哪些专业时，按 R03 推荐专业组合与规模，由人决定；和第 2 步的授权在同一次展示里处理。

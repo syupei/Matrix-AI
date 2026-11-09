@@ -13,7 +13,7 @@ description: 从一句话需求或已有项目状态统筹产品、设计、研�
 
 有项目任职或具体任务包时，先按 [团队执行](../../../matrix/orchestration/TEAM-EXECUTION.md) 核对身份与范围；执行实例只处理子任务，不重走全流程或改总状态。负责人、执行者的不同指引按需加载；阶段人审仅在明确委托覆盖时按 [委托检查](../../../matrix/base/DELEGATED-REVIEW.md) 处理。
 
-1. 读 [CORE](../../../matrix/base/CORE.md) 与本目录 [GUIDANCE-INDEX](GUIDANCE-INDEX.md)。
+1. 读 [CORE](../../../matrix/base/CORE.md) 与本目录 [GUIDANCE-INDEX](GUIDANCE-INDEX.md)。每轮回复的第一行写阶段行，见 CORE 开头。
 2. 判断入口：新需求或接管 → 阶段 1；续做 → 当前阶段；专业角色上报 → 阶段 3；用户反馈 → 阶段 4 合批。
 3. 续做时用 `status` 读任务源，再读各角色 `00-工作状态.md`、反馈索引与待人事项，恢复阶段、确认与人的修改。
 4. 有 `management/people.json` 且其中有两人及以上时，按 C16 多人协作：登记人与事的关系，按人分发与合批。

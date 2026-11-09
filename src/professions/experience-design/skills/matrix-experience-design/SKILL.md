@@ -12,7 +12,7 @@ description: 承接已确认的产品要求，完成空间、页面骨架、交�
 ## 启动
 
 有项目任职或具体任务包时，先按 [团队执行](../../../matrix/orchestration/TEAM-EXECUTION.md) 核对身份与范围；执行实例只处理子任务，不重走全流程或改总状态。负责人、执行者的不同指引按需加载；阶段人审仅在明确委托覆盖时按 [委托检查](../../../matrix/base/DELEGATED-REVIEW.md) 处理。
-1. 读 [CORE](../../../matrix/base/CORE.md) 和 [GUIDANCE-INDEX](GUIDANCE-INDEX.md)。
+1. 读 [CORE](../../../matrix/base/CORE.md) 和 [GUIDANCE-INDEX](GUIDANCE-INDEX.md)。每轮回复的第一行写阶段行，见 CORE 开头。
 2. 判断任务：接手产品基线 → 按 R01 从 D-1 开始；续做 → 第 3 步；其他角色的具体设计请求 → 只处理该问题，不重跑全流程，研发的实现走查按 R13；PM 委托 → 见文末。
 3. 续做时读 `design/00-工作状态.md`，按 R11 恢复阶段、有效确认和人的修改。
 

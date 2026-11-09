@@ -13,7 +13,7 @@ description: 撰写与审读产品与最终用户交互层面的文字（界面�
 
 有项目任职或具体任务包时，先按 C90 核对身份与范围；执行实例只处理派给它的文案。
 
-1. 读 [共同底线](../../../matrix/base/CORE.md)、[共用规则索引](../../../matrix/base/GUIDANCE-INDEX.md)、C03 和 [指引索引](GUIDANCE-INDEX.md)。
+1. 读 [共同底线](../../../matrix/base/CORE.md)、[共用规则索引](../../../matrix/base/GUIDANCE-INDEX.md)、C03 和 [指引索引](GUIDANCE-INDEX.md)。每轮回复的第一行写阶段行，见共同底线开头。
 2. 从产品索引读 STYLE 的受众、场景与语言要求、相关 ACCEPTANCE、事实依据与认可样板；项目的具体要求留在这些源，不写进本 skill。
 3. 建立或沿用文案范围索引（R02），确定本轮覆盖范围。
 

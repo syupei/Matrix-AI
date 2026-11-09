@@ -13,7 +13,7 @@ description: 承接研发承接（E-1）的工程基线，按问题作技术决�
 
 有项目任职或具体任务包时，先按 [团队执行](../../../matrix/orchestration/TEAM-EXECUTION.md) 核对身份与范围；执行实例只处理子任务，不重走全流程或改总状态。负责人、执行者的不同指引按需加载；阶段人审仅在明确委托覆盖时按 [委托检查](../../../matrix/base/DELEGATED-REVIEW.md) 处理。
 
-1. 读 [CORE](../../../matrix/base/CORE.md)、[研发流程](../../../matrix/professions/code-engineering/ENGINEERING-FLOW.md) 和 [指引索引](GUIDANCE-INDEX.md)。
+1. 读 [CORE](../../../matrix/base/CORE.md)、[研发流程](../../../matrix/professions/code-engineering/ENGINEERING-FLOW.md) 和 [指引索引](GUIDANCE-INDEX.md)。每轮回复的第一行写阶段行，见 CORE 开头。
 2. 判断任务：新方案从 E-2.1 开始；E-3 或其他角色对已有方案的问题，只回查相关决定；PM 委托见文末。
 3. 续做时读 `engineering/solution/00-工作状态.md`，恢复子环节、决定状态、委托边界和人的修改。
 

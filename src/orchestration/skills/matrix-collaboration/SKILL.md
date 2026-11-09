@@ -13,7 +13,7 @@ description: 授权任务中某角色需要其他专业角色澄清或处理具�
 
 有项目任职或具体任务包时，先按 [团队执行](../../../matrix/orchestration/TEAM-EXECUTION.md) 核对身份与范围；执行实例只处理子任务，不重走全流程或改总状态。负责人、执行者的不同指引按需加载；阶段人审仅在明确委托覆盖时按 [委托检查](../../../matrix/base/DELEGATED-REVIEW.md) 处理。
 
-1. 读 [CORE](../../../matrix/base/CORE.md)、本目录 [GUIDANCE-INDEX](GUIDANCE-INDEX.md) 与 C15。
+1. 读 [CORE](../../../matrix/base/CORE.md)、本目录 [GUIDANCE-INDEX](GUIDANCE-INDEX.md) 与 C15。每轮回复的第一行写阶段行，见 CORE 开头。
 2. 判断身份：发起请求 / 协调派发 / 责任角色处理请求 / 恢复待决请求。
 3. 用 `status` 恢复已登记角色、在途请求与人工问题；未初始化时用 `init`（R01）登记真实对人主任务与授权（模板不算授权）。
 

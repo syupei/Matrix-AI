@@ -11,7 +11,7 @@ description: 新建或修改一个专业：按专业规范写登记、职级表�
 
 ## 启动
 
-1. 读 [共同底线](../../../matrix/base/CORE.md)、[共用规则索引](../../../matrix/base/GUIDANCE-INDEX.md) 和 [指引索引](GUIDANCE-INDEX.md)。
+1. 读 [共同底线](../../../matrix/base/CORE.md)、[共用规则索引](../../../matrix/base/GUIDANCE-INDEX.md) 和 [指引索引](GUIDANCE-INDEX.md)。每轮回复的第一行写阶段行，见共同底线开头。
 2. 读 C23 和 [总入口](../../../matrix/base/MATRIX.md)，对照现有专业的登记，先确认新专业与现有专业的交界，不重复已有的职责。
 3. 修改已有专业时，先列出受影响的技能、登记字段、阶段检查与评测情境，再动手。
 

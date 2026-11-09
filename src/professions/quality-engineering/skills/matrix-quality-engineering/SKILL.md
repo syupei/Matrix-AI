@@ -13,7 +13,7 @@ description: 从产品验收标准、研发承接的质量要求、设计的 QA 
 
 有项目任职或具体任务包时，先按 [团队执行](../../../matrix/orchestration/TEAM-EXECUTION.md) 核对身份与范围；执行实例只处理子任务，不重走全流程或改总状态。负责人、执行者的不同指引按需加载；阶段人审仅在明确委托覆盖时按 [委托检查](../../../matrix/base/DELEGATED-REVIEW.md) 处理。
 
-1. 读 [CORE](../../../matrix/base/CORE.md)、[研发流程](../../../matrix/professions/code-engineering/ENGINEERING-FLOW.md) 和 [指引索引](GUIDANCE-INDEX.md)。
+1. 读 [CORE](../../../matrix/base/CORE.md)、[研发流程](../../../matrix/professions/code-engineering/ENGINEERING-FLOW.md) 和 [指引索引](GUIDANCE-INDEX.md)。每轮回复的第一行写阶段行，见 CORE 开头。
 2. 判断任务：研发承接已交接、还没有验收条目 → Q-1；收到增量构建的检验请求 → Q-2；范围完成前 → Q-3；收到发布验收请求 → Q-4；收到变更通知或来源摘要不符 → 只复核受影响的条目（R01）。
 3. 续做时读 `engineering/qa/00-工作状态.md` 与覆盖表，先核对来源摘要，再恢复。
 4. Q-1 来源不全时，按 R01「输入」分开可独立起草的检查与业务缺口；涉及有归属的对象时读取 C06，不把业务细节缺失当作跳过越权条目的理由。

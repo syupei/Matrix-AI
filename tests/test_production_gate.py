@@ -28,6 +28,12 @@ class PublishingGateTests(unittest.TestCase):
   self.assertTrue(p.stage_template_errors('1. 第一行写：**{流程}：共 {N} 步｜下一步：{动作}**。',ui))
   self.assertTrue(p.stage_template_errors('1. '+line,'# C01\n\n## 6. 其他\n\n'+line+'\n\n## 7. 流程位置\n\n见上。\n'))
   real=lambda rel:(p.SOURCE/rel).read_text();self.assertEqual(p.stage_template_errors(real('base/CORE.md'),real('base/USER-INTERACTION.md')),[])
+ def test_skill_entries_point_at_the_stage_line_in_startup_step_one(self):
+  entry='# X\n\n## 启动\n\n先核对身份。\n\n1. 读 CORE。每轮回复的第一行写阶段行，见 CORE 开头。\n2. 续做。\n\n## 工作流\n'
+  self.assertEqual(p.entry_stage_errors('x/SKILL.md',entry),[])
+  self.assertTrue(p.entry_stage_errors('x/SKILL.md',entry.replace('每轮回复的第一行写阶段行，见 CORE 开头。','')))
+  self.assertEqual(p.entry_stage_errors('k/SKILL.md','# 知识库\n\n## 用法\n\n1. 查。\n'),[])
+  for f in p.SOURCE.rglob('SKILL.md'):self.assertEqual(p.entry_stage_errors(str(f),f.read_text()),[])
  def test_new_mechanism_score_needs_a_second_scorer(self):
   case=self.data['cases']['intake'];k=next(iter(case['baseline']));case['baseline'][k]=0
   with self.assertRaisesRegex(ValueError,'re-check missing'):self.check()

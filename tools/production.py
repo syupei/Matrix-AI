@@ -50,6 +50,12 @@ def stage_template_errors(core,interaction):
  m=STAGE_LINE.search(section.split('\n## ',1)[0])
  if not m:return ['USER-INTERACTION §7 has no stage-line template']
  return [] if '**'+m.group(1)+'**' in core else ['stage-line template in CORE differs from USER-INTERACTION §7']
+# Every skill entry with a startup list points at that line in its first step: entries are always read whole.
+STAGE_POINTER='每轮回复的第一行写阶段行'
+def entry_stage_errors(rel,text):
+ if '## 启动' not in text:return []
+ m=re.search(r'^1\. .*$',text.split('## 启动',1)[1].split('\n## ',1)[0],re.M)
+ return [] if m and STAGE_POINTER in m.group(0) else ['startup step 1 does not point at the stage line: '+rel]
 def fingerprint(files):return hashlib.sha256(json.dumps(files,sort_keys=True).encode()).hexdigest()
 def check_sources():
  files=source_files();src=layout();errors=[];links=0
@@ -69,6 +75,7 @@ def check_sources():
     dest=os.path.normpath(os.path.join(os.path.dirname(rel),path))
     if dest.startswith('..') or (dest not in files and dest not in dirs):errors.append('broken link: '+rel+' -> '+href)
     links+=1
+ errors+=[e for rel in files if src[rel].name=='SKILL.md' for e in entry_stage_errors(rel,src[rel].read_text())]
  errors+=stage_template_errors(src['matrix/base/CORE.md'].read_text(),src['matrix/base/USER-INTERACTION.md'].read_text())
  if errors:raise ValueError('\n'.join(errors))
  return files,links

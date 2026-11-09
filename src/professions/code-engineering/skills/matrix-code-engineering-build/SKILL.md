@@ -13,7 +13,7 @@ description: 承接技术方案（E-2）已确认的约束与可运行骨架，�
 
 有项目任职或具体任务包时，先按 [团队执行](../../../matrix/orchestration/TEAM-EXECUTION.md) 核对身份与范围；执行实例只处理子任务，不重走全流程或改总状态。负责人、执行者的不同指引按需加载；阶段人审仅在明确委托覆盖时按 [委托检查](../../../matrix/base/DELEGATED-REVIEW.md) 处理。
 
-1. 读 [CORE](../../../matrix/base/CORE.md)、[研发流程](../../../matrix/professions/code-engineering/ENGINEERING-FLOW.md) 和 [指引索引](GUIDANCE-INDEX.md)。
+1. 读 [CORE](../../../matrix/base/CORE.md)、[研发流程](../../../matrix/professions/code-engineering/ENGINEERING-FLOW.md) 和 [指引索引](GUIDANCE-INDEX.md)。每轮回复的第一行写阶段行，见 CORE 开头。
 2. 判断任务：
    - 新构建：先核对技术方案的 E-2.4 核心评审已确认，再从 E-3.1 开始；
    - 试用意见、上报结果或某个增量的问题：只处理相关增量；
