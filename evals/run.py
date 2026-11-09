@@ -40,6 +40,7 @@ def main():
      cmd+=(['-m',args.model] if args.model else [])+(['-c','model_reasoning_effort="'+args.effort+'"'] if args.effort else [])+['-']
     else:
      cmd=['claude','-p','--output-format','stream-json','--verbose','--permission-mode','acceptEdits']
+     cmd+=(['--model',args.model] if args.model else [])+(['--effort',args.effort] if args.effort else [])
     started=time.time()
     with events.open('w') as stdout,err.open('w') as stderr:
      result=subprocess.run(cmd,input=prompt,text=True,stdout=stdout,stderr=stderr,timeout=480,cwd=str(work))

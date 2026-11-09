@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""A full behavior comparison run and scored on the Codex command line, case by case in parallel and resumable.
+"""A full behavior comparison run and scored on a model command line (Codex by default, or Claude with --runner
+claude), case by case in parallel and resumable. Runs and scorers of one comparison use the same runner.
 
   codex_comparison.py run      --side baseline|candidate --kit KIT --out OUT [--jobs 4] [--model M] [--effort E] [--cases a,b]
   codex_comparison.py score    --out OUT --work WORK [--batch 7] [--jobs 3] [--model M]
@@ -79,7 +80,7 @@ def run(a):
             continue
         shutil.rmtree(folder, ignore_errors=True)
         argv = [sys.executable, '-B', str(EVALS / 'run.py'), '--source', str(Path(a.kit).resolve()), '--output', str(folder), '--case', case['id'],
-                '--runner', 'codex'] + (['--model', a.model] if a.model else []) + (['--effort', a.effort] if a.effort else [])
+                '--runner', a.runner] + (['--model', a.model] if a.model else []) + (['--effort', a.effort] if a.effort else [])
         todo.append((case['id'], argv, out / '_logs' / (case['id'] + '.log')))
     print(a.side, len(todo), 'cases to run', flush=True)
     result = pool(todo, a.jobs, a.side)
@@ -102,20 +103,42 @@ def flat(out, side, work):
     return target
 
 
+RUNNER = 'codex'
+
+
 def scorer(work, name, prompt, model, output):
     folder = work / 'scorers' / name
     folder.mkdir(parents=True, exist_ok=True)
     (folder / 'prompt.md').write_text(prompt, encoding='utf-8')
+    quote = lambda x: "'" + x.replace("'", "'\\''") + "'"
+    if RUNNER == 'claude':
+        # The scorer works in its own folder and may write only there; its final message is read from the trace.
+        argv = ['claude', '-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits'] + (['--model', model] if model else [])
+        return name, ['sh', '-c', 'cd ' + quote(str(folder)) + ' && ' + ' '.join(quote(x) for x in argv) + ' < prompt.md'], folder / 'run.log'
     argv = ['codex', 'exec', '--skip-git-repo-check', '--sandbox', 'workspace-write', '--json', '-C', str(folder), '-o', str(folder / 'last.md')]
     argv += (['-m', model] if model else []) + ['-c', 'model_reasoning_effort="medium"', '-']
-    return name, ['sh', '-c', ' '.join("'" + x.replace("'", "'\\''") + "'" for x in argv) + ' < ' + str(folder / 'prompt.md')], folder / 'run.log'
+    return name, ['sh', '-c', ' '.join(quote(x) for x in argv) + ' < ' + str(folder / 'prompt.md')], folder / 'run.log'
+
+
+def last_message(folder):
+    """The scorer's final message: Codex writes last.md; a Claude trace ends with a result event."""
+    if (folder / 'last.md').is_file():
+        return (folder / 'last.md').read_text(encoding='utf-8')
+    for line in reversed((folder / 'run.log').read_text(encoding='utf-8', errors='ignore').splitlines() if (folder / 'run.log').is_file() else []):
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if event.get('type') == 'result':
+            return event.get('result') or ''
+    return ''
 
 
 def collect(folder, output):
     """The scorer's JSON: its output file, or the block it returned between the markers."""
     if output.is_file():
         return json.loads(output.read_text(encoding='utf-8'))
-    text = (folder / 'last.md').read_text(encoding='utf-8') if (folder / 'last.md').is_file() else ''
+    text = last_message(folder)
     m = re.search(r'=== JSON START ===\s*(.*?)\s*=== JSON END ===', text, re.S)
     if not m:
         raise SystemExit('no scores from ' + folder.name)
@@ -206,7 +229,7 @@ def assemble(a):
     report = out / 'comparison.json'
     data = {'candidate_hash': hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest(), 'baseline_ref': a.baseline_ref,
             'suite_hash': sha(SUITE), 'reviewer': a.reviewer, 'cases': {},
-            'limitations': ['Both versions ran and were scored on the Codex command line (one sample per case); scorers were blind Codex sessions, '
+            'limitations': ['Both versions ran and were scored on the ' + RUNNER.capitalize() + ' command line (one sample per case); scorers were blind ' + RUNNER.capitalize() + ' sessions, '
                             'a second scorer re-checked the scores that decide the gate.', 'Synthetic projects and scripted user turns; no real person or project.'],
             'rechecking': combined['summary']}
     prior = Path(__file__).resolve().parents[1] / 'release-manifests' / (a.baseline_ref + '.json')
@@ -308,7 +331,11 @@ def main():
     f = sub.add_parser('focus'); f.add_argument('--old', required=True); f.add_argument('--new', required=True); f.add_argument('--criteria', required=True)
     f.add_argument('--work', required=True); f.add_argument('--batch', type=int, default=7); f.add_argument('--jobs', type=int, default=3)
     f.add_argument('--model'); f.add_argument('--seed', type=int, default=32)
+    for p in (r, s, f):
+        p.add_argument('--runner', choices=['codex', 'claude'], default='codex')
     a = ap.parse_args()
+    global RUNNER
+    RUNNER = getattr(a, 'runner', 'codex')
     {'run': run, 'score': score, 'assemble': assemble, 'focus': focus}[a.command](a)
 
 
