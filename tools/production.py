@@ -153,7 +153,12 @@ def check_evidence(report,files):
    runners.add((run['runner'],run.get('model'),run.get('effort')))  # one runner, model and effort for both versions
    records=[r for r in run['cases'] if r['id']==cid]
    if len(records)!=1 or [t['user'] for t in records[0]['turns']]!=specs[cid]['turns']:raise ValueError('actual user turns incomplete')
-   if specs[cid].get('fixture') and records[0].get('fixture_sha256')!=specs[cid].get('fixture_sha256'):raise ValueError('run fixture mismatch: '+cid)
+   if specs[cid].get('fixture') and records[0].get('fixture_sha256')!=specs[cid].get('fixture_sha256'):
+    # A baseline run carried from the baseline's own earlier run may keep the fixture it was made with, when a check
+    # showed that both fixture versions build the same project for that kit.
+    eq=records[0].get('fixture_equivalent') or {}
+    same=side=='baseline' and records[0].get('carried_from') and eq.get('suite_fixture_sha256')==specs[cid]['fixture_sha256'] and eq.get('old_fixture_sha256')==records[0].get('fixture_sha256') and eq.get('old_digest') and eq.get('old_digest')==eq.get('new_digest')
+    if not same:raise ValueError('run fixture mismatch: '+cid)
    reuse=records[0].get('reused_from')
    if reuse:
     # Carried over from the previous release's run: allowed only while every file the case read is unchanged. A run

@@ -22,6 +22,21 @@ class PublishingGateTests(unittest.TestCase):
   self.data={'baseline_ref':baseline,'baseline_hash':bh,'candidate_hash':ch,'suite_hash':p.sha(suite),'cases':cases,'reviewer':'test fixture','limitations':['simulated mechanism check, not real behavior']};self.report=self.root/'report.json'
  def check(self):self.report.write_text(json.dumps(self.data));return p.check_evidence(self.report,self.files)
  def test_complete_fixture_validates_schema(self):self.assertTrue(self.check())
+ def rewrite_run(self,cid,side,change):
+  case=self.data['cases'][cid];run=self.root/case[side+'_run'];d=json.loads(run.read_text());change(d['cases'][0]);run.write_text(json.dumps(d))
+  for item in case[side+'_evidence']:
+   if item['path']==case[side+'_run']:item['sha256']=p.sha(run)
+ def test_carried_baseline_may_keep_an_equivalent_fixture(self):
+  spec=next(c for c in json.loads((p.ROOT/'evals/cases/suite.json').read_text())['cases'] if c.get('fixture'));cid=spec['id']
+  eq={'old_fixture_sha256':'0'*64,'suite_fixture_sha256':spec['fixture_sha256'],'old_digest':'d','new_digest':'d','verified_by':'evals/fixture_equivalence.py'}
+  self.rewrite_run(cid,'baseline',lambda r:r.update(fixture_sha256='0'*64))
+  with self.assertRaisesRegex(ValueError,'run fixture mismatch'):self.check()
+  self.rewrite_run(cid,'baseline',lambda r:r.update(carried_from='b30-base/run.json',fixture_equivalent=eq));self.assertTrue(self.check())
+  self.rewrite_run(cid,'baseline',lambda r:r['fixture_equivalent'].update(new_digest='e'))
+  with self.assertRaisesRegex(ValueError,'run fixture mismatch'):self.check()
+  self.rewrite_run(cid,'baseline',lambda r:r['fixture_equivalent'].update(new_digest='d'))
+  self.rewrite_run(cid,'candidate',lambda r:r.update(fixture_sha256='0'*64,carried_from='b30-base/run.json',fixture_equivalent=eq))
+  with self.assertRaisesRegex(ValueError,'run fixture mismatch'):self.check()
  def test_stage_line_template_is_the_same_in_core_and_interaction(self):
   line='**{流程}：共 {N} 步｜依据：{记录文件}｜下一步：{动作}**';ui='# C01\n\n## 7. 流程位置\n\n第一行写：\n\n'+line+'\n\n## 8. 其他\n'
   self.assertEqual(p.stage_template_errors('1. 第一行写：'+line+'。',ui),[])

@@ -29,6 +29,8 @@ p.add_argument('--reuse-from', type=Path, help="previous release's run directory
 p.add_argument('--reuse', default='', help='comma-separated case ids carried over verbatim from --reuse-from')
 p.add_argument('--carry-from', type=Path, help='an earlier run directory of the same source')
 p.add_argument('--carry', default='', help='comma-separated case ids copied verbatim from --carry-from')
+p.add_argument('--fixture-equivalence', type=Path, help='fixture_equivalence.py results: a carried case whose fixture file '
+               'changed since that run is accepted only when both fixture versions built the same project for this kit')
 a = p.parse_args()
 suite_path = Path(__file__).parent / 'cases/suite.json'; suite = json.loads(suite_path.read_text())
 reuse = [x for x in a.reuse.split(',') if x]
@@ -41,6 +43,7 @@ if carry and not a.carry_from:
 if set(reuse) & set(carry):
     raise SystemExit('a case is either reused or carried')
 carried = json.loads((a.carry_from / 'run.json').read_text()) if carry else None
+equivalent = {r['case']: r for r in json.loads(a.fixture_equivalence.read_text())} if a.fixture_equivalence else {}
 meta = {'source_hash': run.fingerprint(a.source.resolve()), 'suite_hash': hashlib.sha256(suite_path.read_bytes()).hexdigest(),
         'runner': a.runner, 'cli_version': a.note, 'cases': []}
 if carried and carried['source_hash'] != meta['source_hash']:
@@ -71,6 +74,13 @@ for case in suite['cases']:
             record['carried_from'] = f'{a.carry_from.name}/run.json'
             if chain:
                 record['generated_on'] = chain
+            if case.get('fixture') and record.get('fixture_sha256') != case.get('fixture_sha256'):
+                # The run keeps the fixture it was made with; the record says why it still counts for this suite.
+                e = equivalent.get(case['id'])
+                if not e or not e['equal'] or e['old_sha256'] != record.get('fixture_sha256') or e['new_sha256'] != case.get('fixture_sha256'):
+                    raise SystemExit(f"cannot carry {case['id']}: its fixture changed and no check shows the same project for this kit")
+                record['fixture_equivalent'] = {'old_fixture_sha256': e['old_sha256'], 'suite_fixture_sha256': e['new_sha256'],
+                                                'old_digest': e['old_digest'], 'new_digest': e['new_digest'], 'verified_by': 'evals/fixture_equivalence.py'}
         meta['cases'].append(record)
         continue
     record = {'id': case['id'], 'role': role, 'turns': []} | ({'entry': entry} if entry else {})
