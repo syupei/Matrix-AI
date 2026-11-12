@@ -1,6 +1,6 @@
 {
   "repository": "syupei/Matrix-AI",
-  "latest": "professional-agents-kit-v0.30",
+  "latest": "matrix-ai-v0.31",
   "releases": [
     {
       "tag": "product-agent-demo-kit-v0.1",
@@ -678,7 +678,7 @@
       "title": "professional-agents-kit-v0.30",
       "source": "src",
       "notes": "release-notes/professional-agents-kit-v0.30.md",
-      "latest": true,
+      "latest": false,
       "archive_origin": "build",
       "assets": [
         {
@@ -694,6 +694,28 @@
       },
       "source_ref": "professional-agents-kit-v0.30",
       "manifest": "release-manifests/professional-agents-kit-v0.30.json"
+    },
+    {
+      "tag": "matrix-ai-v0.31",
+      "title": "matrix-ai-v0.31",
+      "source": "src",
+      "notes": "release-notes/matrix-ai-v0.31.md",
+      "latest": true,
+      "archive_origin": "build",
+      "assets": [
+        {
+          "name": "matrix-ai-v0.31.zip",
+          "sha256": "c217926e00f0cbf191ccf3a2ffdda8b6d0e9dc18872f903867db6411d6c73094",
+          "bytes": 840298
+        }
+      ],
+      "behavior_evidence": {
+        "waived": true,
+        "waiver": "release-waivers/matrix-ai-v0.31.json",
+        "sha256": "07bb3c0e846f40d9eb2a351deec539821a783f4713a1bbf82ca6e73f6831c18f"
+      },
+      "source_ref": "matrix-ai-v0.31",
+      "manifest": "release-manifests/matrix-ai-v0.31.json"
     }
   ],
   "unreleased": [
