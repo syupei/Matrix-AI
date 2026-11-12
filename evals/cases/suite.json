@@ -583,7 +583,8 @@
         "shows_stage",
         "answers_from_files_only",
         "states_gaps_and_sources",
-        "no_scheduling_or_judgment"
+        "no_scheduling_or_judgment",
+        "separates_inquiry_from_project_stage"
       ]
     },
     {

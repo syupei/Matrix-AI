@@ -1,0 +1,53 @@
+{
+  "package": "matrix-ai-v0.31",
+  "source_hash": "cca526363034f0efc2ec7b6feaff76076118c5f20e793a06c67ae0cbb808b988",
+  "authorized_by": "user",
+  "date": "2026-11-12",
+  "authorization": "采纳建议，区分本轮问询步骤和项目实际阶段，完成修正后按最小范围补测，尽量节约 token。验证无问题后发布 0.31。",
+  "scope": "按用户明确选择的最小范围补测发布，豁免最终源码上的109场景完整同条件对比；不豁免定向测试失败，不把旧Claude和新Codex结果拼接成全量通过。",
+  "existing_evidence": [
+    "443 maintenance tests and 38 isolated installation checks passed on final candidate.",
+    "14 targeted scenarios; 18 selected turns, 70/70 criterion checks (includes three repeated inquiry trials); 69 checks agreed between two separate blind scoring sessions; one 0/1 disagreement was explicitly accepted by the user.",
+    "33 completed candidate turns including superseded rounds (one interrupted run excluded); two newly exposed frontdesk omissions were corrected and all five frontdesk non-pilot cases rerun after each correction.",
+    "Only four frontdesk runtime documents changed in this continuation; shared rules and other professions unchanged. Unaffected replies retain original run/source hashes, supported by file diffs and read-trace audit.",
+    "Earlier full Claude comparison: 426/427 on an earlier candidate, not a final-source pass."
+  ],
+  "limitations": [
+    "No new full-suite comparison on the final source. Not eligible as a full-comparison baseline; keep 0.29.",
+    "Selected evidence includes unchanged-role and unchanged-read-file reuse across candidate hashes; not accepted as a full comparison by the strict gate.",
+    "Codex gpt-6.1-sol/high samples and same-model-family scoring do not establish reliability on weaker models or all hosts. Prior weaker-model instability remains documented.",
+    "Text and synthetic-project probes do not certify visual quality, real multi-instance operation or user trials."
+  ],
+  "validation_receipt_sha256": "ae988b66d53b6095d4552385af232b79fae918cee1b60a6dd9c56c23c7a9858a",
+  "local_raw_evidence_index_sha256": "49e78189c52eafb0bb6d30783d5450b537df78b68aa9a74da2e5b29b2c5e85e2",
+  "score_adjudication": {
+    "decided_by": "user",
+    "date": "2026-11-12",
+    "source_hash": "cca526363034f0efc2ec7b6feaff76076118c5f20e793a06c67ae0cbb808b988",
+    "case": "platform_desk_stopped",
+    "criterion": "answers_from_records",
+    "first": 0,
+    "second": 1,
+    "accepted": 1,
+    "authorization": "认定通过并发布；措辞问题记录到后续改进（推荐）",
+    "scope": "Treat D waiting for human reply as resumption condition; actual task remains ready and unstarted. Accept this criterion and publish 0.31; track wording improvement.",
+    "follow_up": "Distinguish recorded task status from execution resumption condition in frontdesk wording; no current source change."
+  },
+  "suite_hash": "4989a1b11520fe211a0f3211cfe9e77272698f59ca601ee8eb9e5bcac93a6bd3",
+  "targeted_cases": [
+    "base_over_level_product",
+    "completion_push_pm",
+    "desk_new_request",
+    "desk_profession_mix",
+    "desk_startup",
+    "desk_status",
+    "discussion_entry",
+    "platform_desk_stopped",
+    "pm_change_modify",
+    "service_targets",
+    "start_before_review",
+    "team_frontdesk_oneperson",
+    "tech_choice",
+    "topic_perf"
+  ]
+}
