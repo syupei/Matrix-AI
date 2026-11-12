@@ -16,6 +16,25 @@ def run(*args):
 
 
 class ScoringTests(unittest.TestCase):
+    def test_blind_material_keeps_ordered_real_tool_facts(self):
+        import hashlib
+        trace=self.root/'cand'/(CASE+'-0.jsonl')
+        events=[{'type':'item.completed','item':{'id':'write','type':'file_change','status':'completed','changes':[{'path':'note.md','kind':'add'}]}},
+                {'type':'item.completed','item':{'id':'read','type':'command_execution','command':'save_and_render','exit_code':2,'aggregated_output':'{"revision":1,"resources":{"device":{"exclusive":true}}}'}},
+                {'type':'item.completed','item':{'id':'text','type':'agent_message','text':'unsupported claim'}}]
+        trace.write_text(''.join(json.dumps(e)+'\n' for e in events))
+        run('blind','--baseline',str(self.root/'base'),'--candidate',str(self.root/'cand'),'--cases',CASE,
+            '--workspace',str(self.root/'ws'),'--labels',str(self.root/'labels.json'),'--seed','7')
+        side=next(k for k,v in self.labels.items() if v=='candidate')
+        audit=json.loads((self.root/'ws'/CASE/side/(CASE+'-0-tools.json')).read_text())
+        self.assertEqual([r['id'] for r in audit['events']],['write','read'])
+        self.assertEqual(audit['events'][1]['exit_code'],2)
+        self.assertEqual(audit['raw_sha256'],hashlib.sha256(trace.read_bytes()).hexdigest())
+        outputs=json.loads((self.root/'ws'/CASE/side/audit['outputs_file']).read_text())
+        self.assertEqual(outputs[0]['line'],2)
+        self.assertEqual(json.loads(outputs[0]['output'])['resources']['device']['exclusive'],True)
+        self.assertEqual(len(outputs),1)
+
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)

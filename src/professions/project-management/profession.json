@@ -4,7 +4,7 @@
   "name": "项目管理",
   "class": "调度",
   "version": "1.0",
-  "kit": "matrix-ai/0.31",
+  "kit": "matrix-ai/0.32",
   "skills": [
     "matrix-project-management"
   ],
@@ -75,7 +75,8 @@
     "team_confirm",
     "team_view",
     "start_before_review",
-    "parallel_start",
+    "parallel_draft",
+    "parallel_registered",
     "batch_people",
     "discussion_entry",
     "pm_change_add",
@@ -90,6 +91,8 @@
     "completion_push_pm",
     "chain_routing",
     "single_continue",
-    "gap_pm_tax"
+    "gap_pm_tax",
+    "pm_resource_available",
+    "pm_resource_unknown"
   ]
 }

@@ -79,6 +79,9 @@ def exit_label(c, e):
 
 
 def deciders(c, t):
+    if t.get('profession') and c.cfg.get('collaboration'):
+        ids = c.pm.deciders(t['id'], c.tasks, c.pm.roster(c.root))
+        return '、'.join(c.names.get(p, p) for p in ids)
     ids = t.get('people', {}).get('decide') or [a['person'] for a in t.get('awaiting', []) if a['action'] == 'decide']
     ids = ids or [pid for pid, p in c.people.items() if 'project' in p.get('decides', [])]
     return '、'.join(c.names.get(p, p) for p in ids) or '人'
@@ -151,6 +154,10 @@ def progress(c, t):
     if code in NOT_STARTED:
         return '未开始：' + NOT_STARTED[code]
     issue = next(iter(t['readiness_issues']), '')
+    for prefix, label in [('resource queued behind: ', '独占资源排队，等待 '), ('resource pending: ', '资源待核实 '),
+                          ('resource unavailable: ', '资源不可用 '), ('exclusive resources occupied by ', '独占资源被占用 ' )]:
+        if issue.startswith(prefix):
+            return '未开始：' + label + issue[len(prefix):]
     return '未开始：前置未满足' + ('（' + GATES.get(issue, issue) + '）' if issue else '')
 
 
@@ -373,13 +380,16 @@ def reserved(c):
 
 def human_points(c):
     conf = c.records['instance_config'].get('confirmed') or {}
-    used = {e['profession'] for e in conf.get('entries', [])} | {c.instances.get(t['owner'], {}).get('profession') or t.get('role') for t in c.tasks.values()}
+    used = {e['profession'] for e in conf.get('entries', [])} | {t.get('profession') or c.instances.get(t['owner'], {}).get('profession') or t.get('role') for t in c.tasks.values()}
     project = [p['name'] for p in c.people.values() if 'project' in p.get('decides', [])]
     rows = []
     for pid in sorted(p for p in used if p in c.regs):
         reg = c.regs[pid]
         for flow in reg.get('stage_flows', []):
             who = '、'.join(dict.fromkeys([p['name'] for p in c.people.values() if flow['key'] in p.get('decides', [])] + project)) or '人'
+            if c.cfg.get('collaboration'):
+                person = c.pm.governance.route(c.pm, {'people': c.people}, c.cfg, pid)['person']
+                who = c.names.get(person, person)
             rows += [[reg['name'] + ' ' + stage + ' 审阅', '专业登记（' + flow['key'] + '）', who, '—'] for stage in flow.get('review', [])]
     for t in sorted(c.tasks.values(), key=lambda t: t['id']):
         if t['state'] in c.pm.RETIRED:
@@ -427,7 +437,7 @@ def gap_deciders(c, g):
         return '人'
     allowed = None
     for tid in g['task_ids'] or [None]:
-        ranks = set(c.pm.deciders(tid, c.tasks, {'people': c.people}))
+        ranks = set(c.pm.deciders(tid, c.tasks, {'people': c.people, 'config': c.cfg}))
         allowed = ranks if allowed is None else allowed & ranks
     return '、'.join(c.names.get(p, p) for p in sorted(allowed)) or '人'
 

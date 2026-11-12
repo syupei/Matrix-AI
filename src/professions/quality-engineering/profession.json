@@ -5,7 +5,7 @@
   "abbr": "Q",
   "class": "保障与审查",
   "version": "1.0",
-  "kit": "matrix-ai/0.31",
+  "kit": "matrix-ai/0.32",
   "skills": [
     "matrix-quality-engineering"
   ],
@@ -31,7 +31,18 @@
   "standards": [
     "研发流程（C13）、风险与缺陷分级（C22）"
   ],
-  "stage_flows": [],
+  "stage_flows": [
+    {
+      "key": "quality",
+      "stages": [
+        "Q-1",
+        "Q-2",
+        "Q-3",
+        "Q-4"
+      ],
+      "review": []
+    }
+  ],
   "decisions": {
     "own": [
       "运行中可见问题的缺陷定级",

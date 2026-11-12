@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 READ_OPS = {'continue', 'task', 'find'}
 WRITE_OPS = {'launch_start', 'launch_started', 'launch_failed', 'launch_exit', 'launch_lost', 'inbox', 'inbox_done',
-             'pause_project', 'resume_project', 'hand_over', 'report_blocked', 'pm_session'}
+             'pause_project', 'resume_project', 'hand_over', 'report_blocked', 'pm_session', 'plan_restart'}
 USAGE = {'input', 'cached', 'output'}
 LIMITS = {'unattended_launches': 30, 'run_timeout_minutes': 60, 'rework_cap': 2, 'reassign_cap': 2, 'launch_retries': 3}
 PURPOSES = {'start': '执行', 'check': '检验', 'attend': '处理'}
@@ -21,8 +21,9 @@ INBOX_KINDS = {'request': '新需求', 'answer': '答复', 'continue': '继续',
 STOPS = {'running': '执行中', 'timeout': '超时待核实', 'ended': '结束未交出', 'children': '等下游', 'review': '等检验',
          'adopt': '等派发者采用', 'human': '等人', 'stale': '依据已变，待核对', 'sent_back': '检验没过，待返工',
          'cap': '超过上限，等上一级决定', 'blocked': '受阻', 'gap': '缺专家', 'deps': '等依赖', 'derive': '待派生',
-         'executor': '未指定执行者', 'slots': '空位已满', 'gate': '前置未满足', 'paused': '已暂停', 'budget': '额度用完',
-         'launch_failed': '启动失败', 'ready': '就绪', 'busy': '实例在忙'}
+         'executor': '未指定执行者', 'slots': '空位已满', 'gate': '前置未满足', 'resource': '等资源', 'paused': '已暂停', 'budget': '额度用完',
+         'launch_failed': '启动失败', 'ready': '就绪', 'busy': '实例在忙',
+         'milestone': '阶段待启动协调', 'checker': '待安排独立检验者'}
 
 
 def limits(cfg):
@@ -128,6 +129,23 @@ def execute(pm, root, db, cmd):
         return one_task(pm, root, db, cfg, tasks, cmd.get('id'))
     if op == 'find':
         return find(pm, root, db, tasks, cmd.get('text'))
+    if op == 'plan_restart':
+        t = tasks.get(cmd.get('task_id'))
+        pm.require(t and actor == t['manager'], 'the dispatcher records the restart decision')
+        pm.require(cmd.get('expected_revision') == t['revision'], 'stale task revision')
+        pm.require(t['state'] in {'planned','waiting_review'} and t.get('sent_back'), 'restart plan needs a returned task')
+        decision = pm.rework(cmd, t, t['sent_back'])
+        if t['state'] == 'waiting_review':
+            t = pm.execute(root, dict(op='transition', actor=actor, event_id=cmd['event_id']+':plan', task_id=t['id'],
+                                     expected_revision=t['revision'], state='planned', reason=cmd['note']), _db=db)['task']
+        else:
+            t = pm.execute(root, dict(op='update', actor=actor, event_id=cmd['event_id']+':plan', task_id=t['id'],
+                                     expected_revision=t['revision'], changes={'awaiting':t['awaiting']}, reason=cmd['note']), _db=db)['task']
+        options = dict(rework_reason=decision['reason'], note=decision['note'], attributed_to=decision['attributed_to'])
+        if 'escalation' in cmd: options['escalation'] = cmd['escalation']
+        value = dict(id=t['id'], work_revision=t['work_revision'], executor=t['executor'], sent_back=t['sent_back'], options=options)
+        pm.integrity.save(pm, db, 'restart_plan', value)
+        return {'record': value}
     if op in {'hand_over', 'report_blocked'}:
         return hand_over(pm, root, db, cfg, tasks, cmd)
     if op == 'pm_session':
@@ -219,6 +237,7 @@ def start(pm, root, db, cfg, tasks, cmd, records):
     pm.require(pm.nonempty(cmd.get('model')) and pm.nonempty(cmd.get('session')) and pm.strings(cmd.get('command')) and cmd['command'], 'model, session and command of the run required')
     task = tasks[ids[0]]
     if purpose == 'start':
+        pm.require(task.get('kind') != 'stage', 'stage milestones are coordinated by the PM, not launched as workers')
         pm.require(inst['id'] == task.get('executor'), 'a start run launches the task\'s recorded executor')
         pm.require(not any(l['task_id'] == task['id'] for l in active(pm, db)), task['id'] + ' already has an active run')
         mine = sorted((l for l in records.values() if l['task_id'] == task['id']), key=lambda l: (l['started_at'], l['id']))
@@ -233,6 +252,7 @@ def start(pm, root, db, cfg, tasks, cmd, records):
         t = tasks[tid]
         if purpose == 'check':
             pm.require(t['state'] == 'waiting_review' and t['checker'] == inst['id'], tid + ': a check run launches the checker of a handed-over task')
+            pm.require(not invalid_self_check(pm, db, t, tasks), 'team delivery requires an independent checker before launch')
         if purpose == 'attend':
             pm.require(t['manager'] == inst['id'] and t['state'] not in pm.TERMINAL, tid + ': an attend run launches the task\'s dispatcher')
     value = dict(id=rid, task_id=ids[0], task_ids=ids, purpose=purpose, instance=inst['id'], manager=task['manager'],
@@ -244,6 +264,13 @@ def start(pm, root, db, cfg, tasks, cmd, records):
     pm.integrity.save(pm, db, 'launch', value)
     if purpose == 'start':
         extra = {k: cmd[k] for k in ['rework_reason', 'note', 'attributed_to', 'escalation'] if k in cmd}
+        if task.get('sent_back'):
+            planned = restart_options(task, pm.integrity.records(db, 'restart_plan'))
+            if actor == SCHEDULER:
+                pm.require(planned, 'current dispatcher restart decision required')
+                extra = planned
+            elif not extra and planned:
+                extra = planned
         pm.execute(root, dict(op='transition', actor=actor, event_id=cmd['event_id'] + ':start', task_id=task['id'],
                               expected_revision=task['revision'], state='running', launch_id=rid, reason='platform run ' + rid,
                               execution_receipt='launch ' + rid + ': run of ' + inst['id'] + ' with model ' + cmd['model'], **extra), _db=db)
@@ -296,6 +323,12 @@ def check_escalation(pm, root, cfg, cmd, task, tasks, kind, count):
     return dict(e, at=pm.now(), kind=kind, count=count)
 
 
+def invalid_self_check(pm, db, task, tasks):
+    return task['checker'] in {task['owner'], task.get('executor')} and any(
+        pm.team.within(task['id'], a['root_tasks'], tasks)
+        for a in pm.integrity.records(db, 'appointment').values())
+
+
 def stop_of(pm, root, db, cfg, task, ctx):
     """The one reason an open task is not moving, with who acts next."""
     t, tasks, runs = task, ctx['tasks'], ctx['runs'].get(task['id'], [])
@@ -318,6 +351,8 @@ def stop_of(pm, root, db, cfg, task, ctx):
         if t.get('sent_back'):
             count = (t.get('rework') or {}).get('count', 0) + 1
             return ('cap', 'above') if count > ctx['limits']['rework_cap'] else ('sent_back', t['manager'])
+        if invalid_self_check(pm, db, t, ctx['tasks']):
+            return 'checker', t['manager']
         b = pm.basis(t, tasks)
         checked = bool(t.get('review') and t['review']['basis'] == b and t['review']['outcome'] == 'passed')
         approved = bool(t.get('human_review') and t['human_review']['basis'] == b and t['human_review']['outcome'] == 'approved')
@@ -334,10 +369,16 @@ def stop_of(pm, root, db, cfg, task, ctx):
     if ctx['paused']:
         return 'paused', 'person'
     issues = ctx['issues'][t['id']]
+    if any(i.startswith(('resource ', 'exclusive resources')) for i in issues):
+        return 'resource', t['manager']
     if t.get('sent_back') and (t.get('rework') or {}).get('count', 0) + 1 > ctx['limits']['rework_cap']:
         return 'cap', 'above'
+    if t.get('sent_back') and not restart_options(t, ctx['restart_plans']):
+        return 'sent_back', t['manager']
     if any(i.startswith('dependency not complete') for i in issues):
         return 'deps', None
+    if t.get('kind') == 'stage' and not [i for i in issues if i != 'actual executor not recorded']:
+        return 'milestone', t['manager']
     if t['ready']:
         if ctx['budget']['left'] <= 0:
             return 'budget', 'person'
@@ -366,6 +407,13 @@ def room(pm, root, db, ctx, task):
     return None
 
 
+def restart_options(task, plans):
+    p = plans.get(task['id'], {})
+    if task.get('sent_back') and all(p.get(k) == task.get(k) for k in ['work_revision','executor','sent_back']):
+        return p.get('options')
+    return None
+
+
 def context(pm, root, db, cfg, tasks):
     snap = pm.snapshot(db)
     runs = {}
@@ -379,7 +427,7 @@ def context(pm, root, db, cfg, tasks):
     return dict(tasks=tasks, revision=snap['revision'], snap={t['id']: t for t in snap['tasks']}, issues={t['id']: t['readiness_issues'] for t in snap['tasks']},
                 runs=runs, active=active(pm, db), gaps=pm.integrity.records(db, 'gap'), limits=limits(cfg), budget=budget(pm, db, cfg),
                 paused=paused(pm, db), pauses=list(pm.integrity.records(db, 'pause').values()),
-                instances=pm.integrity.records(db, 'instance'), ended_at=ended_at)
+                instances=pm.integrity.records(db, 'instance'), ended_at=ended_at, restart_plans=pm.integrity.records(db, 'restart_plan'))
 
 
 def stops(pm, root, db, cfg, tasks):
@@ -466,9 +514,18 @@ def pm_action(cfg, t, code, label, root=None, last=None):
     if code == 'adopt' and t.get('human_required') and t.get('human_review'):
         extra['human_review'] = {k: t['human_review'].get(k) for k in ['outcome', 'person', 'quote', 'source', 'presented_ref']}
     base = dict(actor=pm_actor, task_id=tid, expected_revision=rev)
-    if code == 'review':
+    if code == 'milestone':
+        cmd = command('transition', event_id='pm-stage-' + tid + '-' + str(rev), state='running',
+                      reason='<实际启动的阶段协调工作>', execution_receipt='<已展开任务与实际协调记录>', **base)
+    elif code == 'checker':
+        cmd = command('update', event_id='pm-checker-' + tid + '-' + str(rev),
+                      changes={'checker':'<符合专业能力、职级及独立性要求的检验者>'}, reason='<检验安排依据>', **base)
+    elif code == 'review':
         cmd = command('review', event_id='pm-review-' + tid + '-' + str(rev), outcome='passed 或 failed', criteria_checked=t['criteria'],
                       evidence=['<检验记录的路径>'], cause='<failed 时：execution / requirement_clarification / basis_changed / other>', **base)
+    elif code == 'sent_back':
+        cmd = command('plan_restart', event_id='pm-restart-' + tid + '-' + str(rev), note='<返工内容与依据>',
+                      **({'attributed_to':'<承担本次返工归因的实例ID>'} if t['sent_back']['cause'] != 'execution' else {}), **base)
     elif code == 'adopt':
         cmd = command('transition', event_id='pm-done-' + tid + '-' + str(rev), state='done', reason='检验通过，采用', **base)
     else:
@@ -485,8 +542,9 @@ def summary(pm, root, db, cfg, tasks, detail=False):
     reasons, ctx = stops(pm, root, db, cfg, tasks)
     pm_actor, instances = cfg['pm_actor'], ctx['instances']
     busy = {l['instance'] for l in ctx['active']}
-    actions = [dict(kind='inbox', id=i['id'], what=INBOX_KINDS[i['kind']], text=i['text'], person=i.get('person'), ref=i.get('ref'),
+    actions = [dict(kind='inbox', id=i['id'], what=INBOX_KINDS[i['kind']], text=i['text'], person=i.get('person'), quote=i.get('quote'), ref=i.get('ref'),
                     **({'ref_stop': reasons[i['ref']]['label']} if i.get('ref') in reasons else {}),
+                    **({'ref_task': {k: tasks[i['ref']].get(k) for k in ['id','revision','state','awaiting','sent_back','next_action']}} if i.get('ref') in tasks else {}),
                     command=command('inbox_done', actor=pm_actor, event_id='pm-inbox-' + i['id'], id=i['id'], note='<怎样处理的>'))
                for i in sorted(pm.integrity.records(db, 'inbox').values(), key=lambda i: i['at']) if i['state'] == 'open']
     running_slots = sum(t['slots'] for t in tasks.values() if t['state'] == 'running')
@@ -497,12 +555,16 @@ def summary(pm, root, db, cfg, tasks, detail=False):
         if t['executor'] not in instances or t['executor'] in busy or left <= 0 or (t['slots'] and free < t['slots']):
             continue  # an executor that is not a registered instance starts the work itself
         hint = {'rework': dict(cause=t['sent_back']['cause'], attribution_required=t['sent_back']['cause'] != 'execution')} if t.get('sent_back') else {}
-        actions.append(dict(kind='start', by='scheduler', task=t['id'], instance=t['executor'], **hint))
+        options = restart_options(t, ctx['restart_plans'])
+        actions.append(dict(kind='start', by='scheduler', task=t['id'], instance=t['executor'], **hint, **({'options': options} if options else {})))
         busy.add(t['executor']); free -= t['slots']; left -= 1
     by_instance = {}
     for tid, r in sorted(reasons.items()):
         t = tasks[tid]
-        if r['code'] in {'review', 'adopt', 'ended', 'blocked', 'stale', 'sent_back', 'executor', 'gate'}:
+        if r['code'] == 'resource' and any(i.startswith(('resource pending:', 'resource unavailable:')) for i in ctx['issues'][tid]):
+            actions.append(dict(kind='pm', task=tid, code='resource', why='核实资源事实；未知保持待核实',
+                                command=command('project'), revision=t['revision'], state=t['state']))
+        if r['code'] in {'review', 'adopt', 'ended', 'blocked', 'stale', 'sent_back', 'executor', 'gate', 'milestone', 'checker'}:
             who = r['who']
             if who == pm_actor:
                 actions.append(pm_action(cfg, t, r['code'], r['label'], root, (ctx['runs'].get(tid) or [None])[-1]))
@@ -541,6 +603,14 @@ def summary(pm, root, db, cfg, tasks, detail=False):
     out = {'revision': ctx['revision'], 'stop': stop, 'actions': actions if detail else [a for a in actions if a.get('by') != 'scheduler'],
            'scheduler_will_start': sum(a.get('by') == 'scheduler' for a in actions), 'human_items': human, 'stop_counts': counts,
            'budget': {'left': ctx['budget']['left'], 'limit': ctx['budget']['limit']}, 'paused': bool(ctx['paused'])}
+    stage = pm.governance.stage_projection(pm, tasks, out['actions'], pm_actor)
+    if stage:
+        out.update(project_stages=stage, stage_line=stage['line'])
+    else:
+        out['stage_line'] = '项目阶段尚未登记｜依据：任务库｜阶段进度待核实｜下一步：由 PM 核对并登记实际阶段；本轮事项另列'
+    out['runtime_state'] = {'stop': stop, 'resume_required': bool(ctx['paused']) or any(r['code'] == 'budget' for r in reasons.values()),
+                            'note': '运行恢复条件不改变任务或阶段的登记状态'}
+    out['scheduler_health'] = pm.service.health(root)
     if detail:
         out.update(stops=reasons, slots={'max': cfg['max_slots'], 'used': running_slots}, limits=ctx['limits'], budget=ctx['budget'], paused=ctx['paused'],
                    active_runs=[dict(id=l['id'], instance=l['instance'], tasks=l.get('task_ids'), purpose=l['purpose'], pid=l.get('pid'),

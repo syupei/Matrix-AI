@@ -115,6 +115,44 @@ class Project:
 
 
 class Records(Project, unittest.TestCase):
+    def test_invalid_self_check_is_routed_to_manager_before_launch(self):
+        (self.root / 'authority.md').write_text('SIM product lead appointment')
+        inst = pm.execute(self.root, {'op':'status'})['integrity']['instance']['product-001']
+        self.call('appoint', id='product-001', appointment=dict(mode='lead', role=inst['role'],
+                  root_tasks=['A'], delegates=[], source='authority.md'))
+        self.call('update', 'product-001', task_id='A', expected_revision=self.t('A')['revision'],
+                  changes={'checker':'product-001'}, reason='SIM invalid self-check assignment',
+                  scope_authorization='SIM PM assignment')
+        rid = self.launch('A')
+        self.hand_over('A')
+        self.exit(rid)
+        s = self.summary()
+        self.assertEqual('checker', s['stops']['A']['code'])
+        self.assertFalse(any(a.get('kind') == 'check' for a in s['actions']))
+        with self.assertRaisesRegex(pm.TaskError, 'independent checker before launch'):
+            self.launch('A', purpose='check')
+        command = json.loads(next(a['command'] for a in s['actions'] if a.get('task') == 'A'))
+        self.assertEqual('update', command['op'])
+        command.update(changes={'checker':'product-002'}, reason='SIM independent checker assigned')
+        pm.execute(self.root, command)
+        self.assertEqual('product-002', self.t('A')['checker'])
+        self.assertIsNone(self.t('A')['review'])
+        self.launch('A', purpose='check', instance='product-002')
+
+    def test_stage_coordination_does_not_launch_a_worker(self):
+        self.task('STAGE', kind='stage', owner='PM', checker='PM', executor=None, slots=0)
+        s = self.summary()
+        action = next(a for a in s['actions'] if a.get('task') == 'STAGE')
+        self.assertEqual(('pm', 'milestone'), (action['kind'], action['code']))
+        cmd = json.loads(action['command'])
+        cmd.update(reason='SIM stage coordination begins', execution_receipt='SIM child planning begun')
+        pm.execute(self.root, cmd)
+        self.assertEqual('running', self.t('STAGE')['state'])
+        self.assertFalse(any(a.get('task') == 'STAGE' and a.get('by') == 'scheduler' for a in self.summary()['actions']))
+        self.task('STAGE2', kind='stage')
+        with self.assertRaisesRegex(pm.TaskError, 'stage milestones'):
+            self.launch('STAGE2')
+
     def test_a_start_run_moves_the_task_and_an_exit_without_handover_stops_it(self):
         rid = self.launch('A')
         self.assertEqual('running', self.t('A')['state'])
@@ -198,6 +236,9 @@ class Records(Project, unittest.TestCase):
         self.call('inbox', id='IN-1', kind='answer', text='SIM 关于 B 的答复', ref='B', person='SIM-owner', quote='SIMULATED: B 用方案一')
         inbox = next(a for a in self.summary()['actions'] if a['kind'] == 'inbox')
         self.assertEqual(('B', '等依赖'), (inbox['ref'], inbox['ref_stop']))
+        self.assertEqual(inbox['quote'], 'SIMULATED: B 用方案一')
+        self.assertEqual(inbox['ref_task']['revision'], self.t('B')['revision'])
+        self.assertEqual(inbox['ref_task']['awaiting'], self.t('B')['awaiting'])
         self.task('H', human_required=True)
         rid = self.launch('H')
         self.hand_over('H')
@@ -233,10 +274,16 @@ class Records(Project, unittest.TestCase):
             if tid == 'C':
                 self.task('C', owner='product-002', executor='product-002', parent='A', actor='product-001')
             self.exit(self.launch(tid))
-        self.task('D', owner='product-003', executor='product-003', parent='A', actor='product-001')
+        self.task('STAGE', kind='stage', dependencies=['A'], slots=0)
+        self.task('D', owner='product-003', executor='product-003', parent='A', actor='product-001', stage='STAGE')
         with self.assertRaisesRegex(pm.TaskError, 'unattended launch limit reached'):
             self.launch('D')
         self.assertEqual('budget', self.summary()['stops']['D']['code'])
+        state = self.summary()
+        self.assertTrue(state['runtime_state']['resume_required'])
+        self.assertEqual(state['project_stages']['stages'][0]['state'], 'planned')
+        self.assertIn('未开始', state['stage_line'])
+        self.assertNotIn('等人', state['stage_line'])
         self.call('inbox', id='IN-1', kind='continue', text='继续', person='SIM-owner', quote='SIMULATED: 继续')
         self.launch('D')
 
@@ -317,6 +364,27 @@ class Records(Project, unittest.TestCase):
 
 
 class Commands(Project, unittest.TestCase):
+    def test_scheduler_restarts_failed_work_with_recorded_decision(self):
+        first = self.tool('launch.py','--task','A','--event-id','SIM-first')
+        self.wait(lambda:self.records()[first['record']['id']]['state']=='exited')
+        self.call('review',task_id='A',expected_revision=self.t('A')['revision'],outcome='failed',
+                  criteria_checked=self.t('A')['criteria'],evidence=['SIM missing handoff context'],cause='requirement_clarification')
+        self.call('transition',task_id='A',expected_revision=self.t('A')['revision'],state='planned',reason='SIM legacy restart without parameters')
+        self.assertEqual(self.summary()['stops']['A']['code'],'sent_back')
+        self.assertFalse(any(a.get('kind')=='start' and a.get('task')=='A' for a in self.summary()['actions']))
+        with self.assertRaises(pm.TaskError):
+            self.call('plan_restart',task_id='A',expected_revision=self.t('A')['revision'],note='SIM clarified')
+        plan_revision=self.t('A')['revision']
+        self.call('plan_restart',task_id='A',expected_revision=plan_revision,note='SIM actual clarification received',attributed_to='PM')
+        with self.assertRaises(pm.TaskError):
+            self.call('plan_restart',task_id='A',expected_revision=plan_revision,note='SIM stale concurrent decision',attributed_to='PM')
+        action=next(a for a in self.summary()['actions'] if a.get('kind')=='start' and a.get('task')=='A')
+        self.assertEqual(action['options']['attributed_to'],'PM')
+        self.tool('scheduler.py','--once')
+        self.wait(lambda:len(self.records())==2 and all(r['state']=='exited' for r in self.records().values()))
+        self.assertEqual(self.t('A')['rework']['count'],1)
+        self.assertEqual(self.t('A')['rework']['note'],'SIM actual clarification received')
+
     def setUp(self):
         super().setUp()
         for name, source in [('stub_worker.py', WORKER), ('stub_pm.py', PMSTUB)]:

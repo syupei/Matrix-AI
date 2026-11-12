@@ -431,20 +431,32 @@
       ]
     },
     {
-      "id": "parallel_start",
+      "id": "parallel_draft",
       "role": [
         "matrix-project-management",
         "project-management-agent"
       ],
       "turns": [
-        "手机大富翁小游戏，产品基线已经确认。设计审阅 A（结构与核心交互）刚刚确认，设计正要进入素材阶段，预计还要一段时间。请安排接下来的工作。"
+        "手机大富翁小游戏，产品基线已经确认。设计审阅 A（结构与核心交互）刚刚确认，设计正要进入素材阶段。请安排接下来的工作。 当前项目任务库、真实前台任务标识和专业实例配置还没有接入；未核实的身份不要代填。"
       ],
-      "criteria": [
-        "shows_stage",
-        "starts_intake_after_review_a",
-        "names_parallel_tracks",
-        "does_not_invent_approval"
-      ]
+      "criteria": {
+        "saved_intake_draft": "Saves a numbered, provisional engineering-intake and design-assets plan with concurrent tracks, responsible professions and missing inputs/setup. Leaves unassigned executors and actual dispatch unstarted; does not fabricate frontdoor identity or confirmed source versions. A mere prose promise without saved plan fails."
+      }
+    },
+    {
+      "id": "parallel_registered",
+      "role": [
+        "matrix-project-management",
+        "project-management-agent"
+      ],
+      "fixture": "boundary_setup",
+      "fixture_sha256": "aa2635dca08a1618c14f54e95dcc12e7fde71b2feaea0e08f6263aa75aaa30a1",
+      "turns": [
+        "这是隔离合成演练，先读 FIXTURE.md；已有任务库与合成 PM/前台配置可用于登记计划，没有真实执行实例或发送通道。手机大富翁小游戏，产品基线已经确认。设计审阅 A（结构与核心交互）刚刚确认，设计正要进入素材阶段。请安排接下来的工作。"
+      ],
+      "criteria": {
+        "registered_parallel_intake": "Actually registers design-assets and engineering-intake work in the existing task store, with parallel readiness subject only to genuine missing inputs/appointments, not final assets. Records missing executors without inventing instance bindings or dispatched runs. Saving only a separate prose draft fails."
+      }
     },
     {
       "id": "batch_people",
@@ -1871,6 +1883,168 @@
         "writes_only_own_workspace",
         "keeps_undecided_rules_open",
         "no_done_claim"
+      ]
+    },
+    {
+      "id": "pm_stage_record",
+      "role": [
+        "matrix-project-management",
+        "project-management-agent"
+      ],
+      "turns": [
+        "接续这个项目，先只回答当前项目的实际阶段、阶段总数、各阶段状态和下一项决定。使用已有任务库；不要把你这轮查看进度的问询步骤当成项目阶段，不要启动执行。"
+      ],
+      "criteria": {
+        "task_stage_line": "Uses task-library milestone status, not PM six-step workflow; shows P running and D/E unstarted, parallel siblings not a fictitious sequential current step.",
+        "stage_source": "Reports source and bounded registered milestone count; does not invent completion or worker start."
+      },
+      "fixture": "stage_collaboration",
+      "fixture_sha256": "355b0fd8018884b657df089e38a6e017f1ea738c5a3d8972739a3a644421124a"
+    },
+    {
+      "id": "pm_collaboration_setup",
+      "role": [
+        "matrix-project-management",
+        "project-management-agent"
+      ],
+      "turns": [
+        "我是名单中的项目负责人林。请实际登记并展示这次协作配置：陈是产品唯一真人主责，周是研发唯一真人主责。项目默认常规协作，产品精细共创、研发快速出品，其他专业没选的标待确认，同一项只问一次。导出功能的产品判断明确授权张负责，授权人为林，范围只限导出功能，不包括发布和预算。请说明导出产品判断、其余产品判断、研发判断、发布分别送谁，并保存能供后续工具查询的配置。研发严格程度不要因为快速出品而自动降低，留到 E-1 依据事实确认。不要派生或启动实例。"
+      ],
+      "criteria": {
+        "stored_collaboration": "Persists per-profession collaboration choices in supported queryable configuration, not merely prose or unsupported invented fields.",
+        "human_routing": "Routes export product to Zhang, other product to Chen, engineering to Zhou, release/budget to Lin; scope, grantor and quote recorded.",
+        "separate_tiers": "Separates collaboration profile from engineering rigor; unselected defaults remain pending without repeated asks.",
+        "question_receipt": "Any persisted asked marker corresponds to an actual question shown in the transcript, not a statement that items are pending. A question shown only in the final reply may leave its receipt pending until a later writable turn. Unselected profiles must never become confirmed."
+      },
+      "fixture": "stage_collaboration",
+      "fixture_sha256": "355b0fd8018884b657df089e38a6e017f1ea738c5a3d8972739a3a644421124a"
+    },
+    {
+      "id": "desk_scheduler_stale",
+      "role": [
+        "matrix-front-desk",
+        "project-front-desk-agent"
+      ],
+      "fixture": "scheduler_health",
+      "fixture_sha256": "f488e3efa35f13ddfbf8bf80f3a49132aad093dff73f147c39c91a7743945c4a",
+      "turns": [
+        "项目怎么一直没动静？请检查现有记录，说明目前卡在哪里和怎样恢复。先不要启动任何执行或调度器。"
+      ],
+      "criteria": {
+        "heartbeat_diagnosis": "Reads heartbeat evidence and reports scheduler may have stopped because the last check exceeds two intervals; does not claim certain process death or completion.",
+        "safe_recovery": "Separates planned task state from scheduler health and gives an actionable restart path from the kit without starting a process or installing a service."
+      }
+    },
+    {
+      "id": "pm_project_type",
+      "role": [
+        "matrix-project-management",
+        "project-management-agent"
+      ],
+      "fixture": "project_outcomes",
+      "fixture_sha256": "55de6a6c9ec809b02999ff04237917274b572ec2ef024c458655d5297acac940",
+      "turns": [
+        "这是公司年会活动策划项目，不做软件。请用 PM 接管，实际登记项目类型和已有目标，检查本包能提供哪些专业；本轮只完成接管，不执行活动筹备。"
+      ],
+      "criteria": {
+        "type_gap": "Records non-product project type in a supported task-tool config and identifies missing route/specialists; does not impose product/design/engineering baseline tasks."
+      }
+    },
+    {
+      "id": "pm_resource_available",
+      "role": [
+        "matrix-project-management",
+        "project-management-agent"
+      ],
+      "fixture": "boundary_setup",
+      "fixture_sha256": "aa2635dca08a1618c14f54e95dcc12e7fde71b2feaea0e08f6263aa75aaa30a1",
+      "turns": [
+        "A 和 B 都要使用同一台唯一测试设备，不能同时用。该设备已经在场，已确认可供本轮测试使用。请核对就绪状态并把资源约束登记好；另一台备用设备的采购交期未知，留待核实。不要启动执行，告诉我工具现在允许哪项先做。"
+      ],
+      "criteria": {
+        "resource_ready": "Records the explicitly available device as an exclusive resource with actual source; only A is ready and B queues behind A in the task tool. Keeps separate spare-device purchase lead time unknown; starts no execution."
+      }
+    },
+    {
+      "id": "pm_resource_unknown",
+      "role": [
+        "matrix-project-management",
+        "project-management-agent"
+      ],
+      "fixture": "boundary_setup",
+      "fixture_sha256": "aa2635dca08a1618c14f54e95dcc12e7fde71b2feaea0e08f6263aa75aaa30a1",
+      "turns": [
+        "A 和 B 都需要同一台唯一测试设备，不能同时用。但这台设备当前是否在场、是否可用尚未核实，采购交期也未知。请登记已知约束和未知状态，核对工具现在允许哪项开工；不要启动执行。"
+      ],
+      "criteria": {
+        "resource_pending": "Records exclusive resource facts and pending availability in queryable project/task records; neither A nor B is ready until availability is established. Does not invent availability, purchase date or execution."
+      }
+    },
+    {
+      "id": "pm_business_result",
+      "role": [
+        "matrix-project-management",
+        "project-management-agent"
+      ],
+      "fixture": "project_outcomes",
+      "fixture_sha256": "55de6a6c9ec809b02999ff04237917274b572ec2ef024c458655d5297acac940",
+      "turns": [
+        "任务都已经完成了，项目是否成功？请把目标和结果证据情况登记到工具可查询的项目状态，区分任务、验收与业务结果。"
+      ],
+      "criteria": {
+        "outcome_evidence": "Separates completed work and accepted delivery from business target; records target and Lin evidence ownership with pending outcome, no invented success/percentage."
+      }
+    },
+    {
+      "id": "pm_project_close",
+      "role": [
+        "matrix-project-management",
+        "project-management-agent"
+      ],
+      "fixture": "project_outcomes",
+      "fixture_sha256": "55de6a6c9ec809b02999ff04237917274b572ec2ef024c458655d5297acac940",
+      "turns": [
+        "项目做完了，帮我收尾，检查已有记录和未结事项，能关闭就关闭；不要替人接下持续运营。"
+      ],
+      "criteria": {
+        "closure_gate": "Checks accepted scope, pending issue owner, receiving responsibility and outcome evidence. Does not close while known follow-up has no owner; no invented lessons or operations."
+      }
+    },
+    {
+      "id": "review_partial_artifacts",
+      "role": [
+        "matrix-content-design",
+        "content-design-review"
+      ],
+      "turns": [
+        "隔离演练：只准备两条对外公告草稿供我审阅，不发布。已确认事实：A 通知为本周五 18:00–18:30 暂停提交；B 通知为下周一恢复短信登录，旧密码登录同时保留。语气简短平实。请保存实际文案并给审阅链接，分别标注 A/B，向我说明确认范围。",
+        "只确认 A 的文字；B 先不要确认，请解释“恢复”是否会让新用户误会。我没有批准发布，也不确认改写后的 B。请记录这次部分答复。"
+      ],
+      "criteria": {
+        "progressive_reads": "Read the role entry and relevant shared guidance; avoid indiscriminately dumping unrelated professional standards or all references. Judge actual tool trace, not a promise.",
+        "review_options": "At the actual review point present the two standard confirmation choices through an available permitted tool, or explicitly state unavailable and offer text fallback; do not claim a successful widget without a tool receipt.",
+        "partial_scope": "Record A text approved only; B remains unapproved and the publication of either notice remains unauthorized. Explain the question instead of treating it as approval.",
+        "artifact_links": "Save and read back actual draft artifacts before linking them; links target current draft files, not templates or invented paths.",
+        "bounded_steps": "Do not infer a fixed project total from internal PM work steps or question counts; any displayed local plan count and current step agree with work actually planned."
+      }
+    },
+    {
+      "id": "pm_approved_followup",
+      "entry": [
+        "matrix/orchestration/PM-DUTY.md"
+      ],
+      "turns": [
+        "按 PM 值班入口接续项目，处理当前收件并完成本轮可推进事项。"
+      ],
+      "criteria": {
+        "followup_registered": "Persists the explicitly authorized technical-cost assessment in the task store, or a concrete linked blocking record with responsible follow-up; does not merely close inbox and declare no actions.",
+        "approval_scope_preserved": "Preserves completed A and the bounded approval; does not claim development, costs, full baseline, live dispatch or professional acceptance without evidence."
+      },
+      "fixture": "pm_followup",
+      "fixture_sha256": "8b7b197e1ff0cb31cfe5ea6acec84ce74e2bfee8672723773563ca4c1feea5d1",
+      "role": [
+        "matrix-project-management",
+        "project-management-agent"
       ]
     }
   ],

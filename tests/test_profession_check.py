@@ -91,7 +91,7 @@ class ProfessionCheckTests(unittest.TestCase):
         problems = mod.check(root)
         self.assertTrue(any('must look like P-1' in p for p in problems))
         self.assertTrue(any('abbr P already used' in p for p in problems))
-        self.assertFalse(any('quality-engineering/profession.json: abbr' in p for p in problems))  # no stages, so no abbreviation needed
+        self.assertTrue(any('quality-engineering/profession.json: abbr' in p for p in problems))  # registered stages need their abbreviation
 
     def test_unknown_eval_case_is_reported_with_suite(self):
         root, mod = self.copy()

@@ -6,6 +6,8 @@
 
 ## 调用
 
+先定位本文件同级的 [`tools/pm_tasks.py`](tools/pm_tasks.py)，用该脚本的实际路径调用。下列示例以技能包安装在项目根目录为例；包位于其他目录时，只替换脚本路径，`--project` 仍指向当前业务项目。已有 shell 和 Python 时，这个本地脚本就是工具入口，无需额外的宿主专用按钮；入口疑似缺失时先检查链接目标并实际运行只读 `status`，以返回结果判断缺脚本、缺任务库或其他错误。
+
 - 在项目根目录执行 `python3 matrix/orchestration/tools/pm_tasks.py --project . --command {命令}.json`，省略 `--command` 则读 stdin；命令文件也可以是一个命令列表，按顺序执行，各自返回结果；用户内容不拼进 shell。输出 JSON，出错退出码 1。
 - 写命令带唯一 `event_id` 与真实 `actor`，可带 `occurred_at`。重试用完全相同的命令；同 ID 不同内容被拒。修改已有任务带 `status` 中的 `expected_revision`；过期就重读合并，不盲目自增。
 - 读：`{"op":"status"}`（`ready` 表示可以开始，`completion_pending` 列出尚未完成的完成前置）；`{"op":"events","after":0,"limit":100}`（含前后变化），按最后 seq 翻页（limit≤1000）；`{"op":"tasks_for","as":"<pm_actor 或实例 ID>","include_closed":false}`：问 PM 列它派发的任务，问实例列它受领的任务，列与状态照 [PM-REPORTING](PM-REPORTING.md) §5，下一步与完成后由任务关系现算。`--render` 在 `management/views/` 生成以下视图，均只读、可随时重建：
@@ -21,7 +23,7 @@
 - 平台运行（见 [TEAM-RUNTIME](TEAM-RUNTIME.md)）：`{"op":"continue"}` 只读，给出要 PM 做的事（附 revision 与命令）、停止原因的计数与额度，`"detail": true` 给出全部；`{"op":"task","id":…}` 只读一项任务；`{"op":"find","text":…}` 按词找任务与共享知识条目；执行者用 `hand_over`（run、evidence、summary）交出、`report_blocked`（run、reason）报受阻；`inbox`（PM 或前台，kind=request/answer/continue/note、text，有人的话带 person 与 quote）与 `inbox_done`（PM，带 note）；`pause_project` / `resume_project`（person、quote、reason）。`launch_start` 等运行记录由启动命令与调度器写，不手写。返工、改派超过上限时带 `escalation={decided_by,note}`，PM 派发的任务另带人的 quote。
 - `create`：`task` 字段——`id`、`parent`（顶层 null）；必填 `title`、`goal`、`next_action`、`owner`（工作维护）、`checker`（专业检验）；`inputs`/`outputs`/`criteria` 为非空字符串数组（输入及版本、成果、判据，可引用专业源）；`dependencies` 为开始前须已完成的任务或里程碑 ID；`completion_requires` 为完成前置，即可以先开始、但标为完成前须已完成的任务 ID（何时用见 workflow），不与 dependencies 重复；两者都不得成环（含父子等待）；`executor` 为真实实例，未知 null；`slots` 默认 1，纯协调容器可为 0；`resources` 为独占资源名；`human_required`；`expanded`（本任务子计划已完整展开）；`source`（专业有效源）。
 - 规划与协作字段（均可选）：
-  - `kind`：`work` 或 `stage`，阶段里程碑写 `stage`；
+  - `kind`：`work` 或 `stage`，阶段里程碑写 `stage`、slots 设 0，由 PM 登记协调启动与实际回执，不派发独立执行进程；完成前置用 completion_requires 连接阶段内工作，关闭仍需成果与检验；
   - `stage`：所属阶段里程碑的 ID；
   - `direction`：子方向；
   - `people`：关系到人员 id 列表，关系为 decide、clarify、designate、execute、inform；
@@ -34,7 +36,7 @@
 
 ## 更新与流转
 
-- `update`（owner）：`task_id,expected_revision,changes,reason`，不能改 id、parent、owner、kind。非 manager 改 goal、inputs、outputs、criteria、dependencies、completion_requires、human_required、checker、people、derived_from 时，需用 `scope_authorization` 引用实际决定或委托；撤销 human_required 一律需要。除 next_action、executor、source 与规划协作字段（stage、direction、people、derived_from、awaiting、gap）外，其他修改都会递增 work_revision，已有检验与人工决定随之失效；外部成果变了就显式更新 evidence 或 inputs。difficulty、risk、risk_reason 也需 manager 授权；把 F0、F1 调低另带 `person`、`quote`（有名单时须是有权的人）。
+- `update`（owner；manager 也可改 checker 及协调字段）：`task_id,expected_revision,changes,reason`，不能改 id、parent、owner、kind。非 manager 改 goal、inputs、outputs、criteria、dependencies、completion_requires、human_required、checker、people、derived_from 时，需用 `scope_authorization` 引用实际决定或委托；撤销 human_required 一律需要。除 next_action、executor、source 与规划协作字段（stage、direction、people、derived_from、awaiting、gap）外，其他修改都会递增 work_revision，已有检验与人工决定随之失效；外部成果变了就显式更新 evidence 或 inputs。difficulty、risk、risk_reason 也需 manager 授权；把 F0、F1 调低另带 `person`、`quote`（有名单时须是有权的人）。
 - `transition`（owner 或 manager）：`task_id,expected_revision,state,reason`，state 为 planned/running/waiting_review/blocked/done/cancelled/deprecated。需求变更导致的弃用与关联编号，按[任务完整性](PM-INTEGRITY.md)办理。
   - 进 running：真实 executor、依赖已完成（完成前置不要求）、槽位与资源可用、`execution_receipt`；准备派发不算运行。
   - 离开 running：`stop_evidence`（成果已返回可用该返回），防止执行者仍在写时释放槽位。交出（转 waiting_review）带 `evidence`（成果与证据路径，任务已有时可省）；转 blocked 可带 `blocked_by:{task_id}`。
@@ -43,6 +45,8 @@
   - transition 与 report 可带 `usage:{cost,currency,tokens,seconds}`，记入台账。
 
 ## 检验、人工决定、上报、转交
+
+- 平台返工用 `plan_restart`（本层 manager）：`task_id,expected_revision,note`，非执行原因另带 `attributed_to`；沿用检验者记录的 cause。工具登记本次工作版本及执行者对应的重启参数，调度器照此执行；缺参数时交派发者补齐，不反复尝试无效启动。实际启动时才累计返工次数，已有额度与升级条件仍有效。
 
 - `review`（checker）：`outcome` passed/failed、`criteria_checked`（完整判据数组）、`evidence`（数组）；需已有成果 evidence，绑定当前工作、子项、依赖与完成前置的版本：完成前置原样通过时检验仍有效，前置返工后须重新检验。failed 带 `cause`（返工原因类别）。工具按 C24 §6 记 `independence`：检验者是制作者为 same_instance，其余两条不满足为 not_independent，否则 independent。它是记录，不会自动检验。
 - `human_review`（pm_actor，或已登记的项目前台）：`outcome` approved/changes_requested/deferred，`presented_ref,source,quote,scope` 对应已展示版本与真实答复。名单中有两人及以上时必须带 `person`，且此人是该任务或其派生上游的决定人，或拥有项目级决定权；同一工作基线上，上游已作出的不同决定不能被下游改写。批量确认按各任务范围分别录入。已有免审委托可由 update 引用后把 human_required 改为 false，不补造人工通过。
@@ -73,3 +77,36 @@
 需要接管交付清单、登记需求变更、按实例/岗位查询或暂停恢复时，读取 [任务完整性](PM-INTEGRITY.md) 的字段说明。所有关系仍在同一任务库的 pm_records 中，沿用事件幂等和修订校验；未显式接管的任务保持兼容，不推断已确认或已完成。新增项目层标记 project_level、岗位 role 与成果摘要 artifact_digests 只在实际需要时登记。
 
 实例配置的确认与派生、任职、工作流 PM 的局部项目任务、专业介入义务及任务投递接续见 [团队接口](TEAM-RUNTIME.md)。有人员名单时人工答复必须标明有权的人，名单人数不赋予权限。现有目录部署仅提供协作约束；强制工具隔离需要受信宿主。
+# 阶段状态与协作配置查询
+
+## 项目类型、资源、结果与收尾
+
+`{"op":"project"}` 查询项目事实及revision，`{"op":"closure_check"}` 查询收尾缺口。PM用 `project_config` 保存，带 actor、唯一event_id、expected_revision、source（实际来源）和changes；只提交改变的顶层字段，goals/resources/closure 各字段整体替换，先读后改以保留其他记录。
+
+```json
+{"op":"project_config","actor":"PM","event_id":"project-facts-1","expected_revision":0,"source":"用户原话及需求记录","changes":{"project_type":"product_development","goals":[{"id":"adoption","target":"约定的业务目标","owner":"证据提供者","state":"pending","evidence":[]}],"resources":{"device-1":{"kind":"device","exclusive":true,"status":"available","evidence":["已核实的设备记录"]}}}}
+```
+
+- 项目类型使用 product_development 或实际其他类型；其他类型返回路线缺口，不表示本包已具备对应专业能力。
+- 任务 `resources` 引用资源ID。目录 kind 为 person/device/supplier/budget/procurement，status 为 available/pending/unavailable，exclusive 为布尔值；可记owner和note。可用必须有事实依据；未知容量、成本和采购交期留pending。目录一经启用，缺登记的资源也阻断就绪。相同独占资源按任务order、登记时间、ID排先后，非就绪任务不占预约，运行中的占用优先；共享资源必须明确exclusive:false，不编容量。
+- 业务目标必填id/target/owner/state/evidence；state为pending/met/not_met，后两者还需measurement（观测结果）及非空evidence。目标证据是独立记录，任务done和通过检验不替代它。
+- 收尾是 `kind:"stage",closure:true` 的任务。changes.closure 含 accepted（当前已验收顶层工作ID），handoffs（已验收项的交接），pending（所有未结顶层工作）；handoffs/pending 每项含 task_id、receiver、next_action、非空evidence。已知未结事项先建原任务库任务，不另建无法核对的流水。收尾门槛允许目标显式待证据且责任已明确，不把它改记达标。
+- closure.lessons 可选，每项 observation、conditions、evidence，只有实际观察才写。`closure_check` 仅检验记录齐备与当前任务证据，专业质量、接收人的真实答复仍需核实；关闭还须原有任务检验与适用人审，关闭后改变项目事实先显式重开收尾里程碑。
+
+接续仍用 `{"op":"continue"}`。有阶段里程碑时，输出 `stage_line` 和 `project_stages`；PM 的项目阶段行直接引用 `stage_line`。`runtime_state` 表示暂停或额度恢复条件，不改变 `planned` 等任务状态。专业流程总步数用 `{"op":"stage_flow","profession":"product","flow":"product"}` 从专业登记取得；未知流程不猜数。
+
+协作约定见 [TEAM](TEAM.md)；先用 `{"op":"collaboration"}` 读当前配置与 revision。配置保存在任务库，勿另建不被工具读取的配置文件。人员及各专业唯一真人主责仍由负责人维护 `management/people.json`，每人用 `masters:["product"]` 登记主责，项目负责人为唯一 `decides:["project"]` 的人。
+
+以下是命令结构示例；person、quote 必须替换为实际决定人及原话：
+
+```json
+{"op":"collaboration_config","actor":"PM","event_id":"unique-id","expected_revision":0,"person":"leader-id","quote":"实际原话","changes":{"default":"regular","profiles":{"product":"deep","code-engineering":"quick"}}}
+```
+
+- 模式：quick 快速出品、regular 常规协作、deep 精细共创。未选择的专业沿默认，`confirmed:false`；先向人实际提出问题与选择，再记 `collaboration_asked`，带 `professions:["product"]`、`question`（实际问题原文）、`presented_ref`（已展示问题的消息或记录）、actor、event_id 和 expected_revision。仅列出“待确认”、计划提问或工具调用不算问过；没问就保持 `ask_once` 待问。`ask_once` 排除已问未答项，不把问过当确认。
+- 运行中改档仍用 `collaboration_config`，由项目负责人或该专业真人主责决定；只变更明确指定的专业，事件保留前后选择及原话。
+- 若问题在上一轮末尾才展示，本轮先依据真实对话回填已问记录，再读 `ask_once`；用户尚未选档仍保持待确认，不把同一问题重问一次。
+- `changes.delegations` 是增改列表，每项含 `id, profession, scope, person, grantor, quote, decisions`，可带 `task_ids` 和 `active:false` 撤权。decisions 显式列 professional、release、budget 或 project。grantor 必须是本次 person；发布、预算及项目级授权只能由项目负责人给出。scope 精确匹配已登记范围，不用相似词扩大授权；交叠范围先解决再路由。
+- `{"op":"decision_route","profession":"product","scope":"导出功能","kind":"professional"}` 返回 person 与依据；也可传 task_id，从任务的 `profession,decision_scope,decision_kind` 读取。任务创建/修改要登记这三个字段，实际 human_review 和个人视图使用同一路由；没有范围授权则专业真人主责兜底，再到项目负责人。F0 路由额外返回需立即告知的项目负责人。
+- `changes.engineering` 独立保存 `{"tier":"medium","basis":"规模、风险与不确定性的事实","stage":"E-1"}`，由研发真人主责确认；tier 为 small/medium/large。协作模式不会改变此字段。
+- `--render` 派生 `management/views/collaboration.md`，显示每专业的模式、主责、审阅粒度、必需材料与待确认项。配置写入是协作记录，不认证人的身份；不自动派生实例、免除审阅或启动任务。

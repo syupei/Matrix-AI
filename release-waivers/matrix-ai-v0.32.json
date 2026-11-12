@@ -1,0 +1,104 @@
+{
+  "package": "matrix-ai-v0.32",
+  "source_hash": "032150c089e20e2a6329f6c7ef731c84e229feb16fd70760f00613a2ed9e0685",
+  "authorized_by": "user",
+  "date": "2026-11-12",
+  "authorization": "采用20场景限定验证，授权记录省略范围；验证完成后再审阅发布说明（推荐）",
+  "authorization_question": "0.32 最终验证采用哪条路径？详见 output/v032-final-validation-options.md。限定方案会省略最终源码另外 98 场景重跑（其中有首轮评分分歧），因此需明确授权使用限定验证发布记录；仍须关键场景无未解决退步、剩余评分分歧经你裁定，并在提交前审阅 changelog。",
+  "scope": "Authorized limited verification:20 selected cases expanded to22 after two user-approved premise splits;98 omitted. Mixed actual source epochs preserved. Publication requires fresh changelog approval.",
+  "existing_evidence": [
+    "514 maintenance checks;252 runtime files460 links; package matches source.",
+    "22 selected scenarios63 criteria pass after actual user adjudications; no unresolved scored regression in selected set.",
+    "Luna medium same-condition comparison with complete0.29 baseline; Sol6.1 medium targeted execution checks across7 repaired scenarios.",
+    "Resource availability known/unknown verified by actual task databases and replies in both models.",
+    "667 referenced evidence files verified; historical failures and original scores preserved.",
+    "Real bounded team trial and platform8 conditions verified across documented repair epochs; interventions retained."
+  ],
+  "limitations": [
+    "98 scenarios omitted, including earlier score disagreements; not a complete-comparison baseline.",
+    "Actual candidate epochs:13 cases5ba8f70d,2 e9175397,2 3e3d923f,3 9e0b4fd0,2 final032150c0; not all22 rerun on final source.",
+    "Asset anchors criterion accepted as missing-input sequencing plan only; no generated anchor or visual quality validated.",
+    "Single samples do not certify cross-model stability, model grade, other hosts, external-tool isolation or production deployment."
+  ],
+  "targeted_cases": [
+    "review_a",
+    "design_gate",
+    "asset_stage",
+    "single_conversation_task",
+    "topic_perf",
+    "desk_new_request",
+    "packet_outsource",
+    "visual_fidelity_walkthrough",
+    "platform_desk_stopped",
+    "pm_change_ledger",
+    "pm_stage_record",
+    "pm_collaboration_setup",
+    "desk_scheduler_stale",
+    "pm_project_type",
+    "pm_business_result",
+    "pm_project_close",
+    "review_partial_artifacts",
+    "pm_approved_followup",
+    "parallel_draft",
+    "parallel_registered",
+    "pm_resource_available",
+    "pm_resource_unknown"
+  ],
+  "validation_receipt_sha256": "1dbef8c3ef190b1ae61dd47e200a1cb29e6fce0b2585fc8ce88613793804135b",
+  "local_raw_evidence_index_sha256": "aa2eddcb783809a344af2d6606f86385bfa582dcd8e59d5870a47725592aaf39",
+  "score_adjudications": [
+    {
+      "case": "pm_business_result",
+      "criterion": "outcome_evidence",
+      "baseline": 1,
+      "candidate": 1,
+      "answer": "裁定基线1、候选1（推荐）"
+    },
+    {
+      "case": "pm_project_close",
+      "criterion": "closure_gate",
+      "baseline": 0,
+      "candidate": 1,
+      "answer": "裁定基线0、候选1（推荐）"
+    },
+    {
+      "case": "topic_perf",
+      "criterion": "conclusion_lands_in_spec",
+      "baseline": 1,
+      "candidate": 1,
+      "answer": "裁定基线1、候选1（推荐）"
+    },
+    {
+      "case": "review_partial_artifacts",
+      "criterion": "progressive_reads",
+      "baseline": 1,
+      "candidate": 1,
+      "answer": "裁定基线1、候选1（推荐）"
+    },
+    {
+      "case": "review_partial_artifacts",
+      "criterion": "bounded_steps",
+      "baseline": 1,
+      "candidate": 1,
+      "answer": "裁定基线1、候选1（推荐）"
+    },
+    {
+      "case": "asset_stage",
+      "criterion": "anchors_before_full_visual",
+      "baseline": 0,
+      "candidate": 1,
+      "answer": "认可计划边界，裁定0/1（推荐）",
+      "scope": "仅顺序与缺输入处理；不表示已制作或验证视觉稿"
+    }
+  ],
+  "review_status": "User reviewed revised changelog and approved commit/publication; no other project upgrades.",
+  "premise_split_authorizations": [
+    "按建议拆成两场景，分别验证排队与未知状态（推荐）",
+    "同意分开验证草案接续与正式登记（推荐）"
+  ],
+  "publication_authorization": {
+    "call_id": "call_526b58dba59e40bbbd3839eb8ca8f251",
+    "answer": "批准提交并发布0.32",
+    "scope": "Publish reviewed032150c0 candidate with limited22-case63-criterion evidence and98 omissions; no other project upgrades."
+  }
+}

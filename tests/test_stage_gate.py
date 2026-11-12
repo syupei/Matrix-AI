@@ -6,8 +6,8 @@ s=importlib.util.spec_from_file_location('gate',P);g=importlib.util.module_from_
 class GateTests(unittest.TestCase):
  def test_flows_from_registries_match_previous_gate(self):
   # Same flows, review points and upstream links as the earlier hard-coded gate; only the codes are now <abbr>-<n>.
-  self.assertEqual(g.STAGES,{'product':['P-1','P-2','P-3','P-4','P-5','P-6','P-7','complete'],'design':['D-1','D-2','D-3','D-4','D-5','D-6','D-7','complete'],'engineering':['E-1.1','E-1.2','E-1.3','E-1.4','complete'],'solution':['E-2.1','E-2.2','E-2.3','E-2.4','complete'],'build':['E-3.1','E-3.2','E-3.3','complete'],'release':['E-4.1','E-4.2','E-4.3','complete']})
-  self.assertEqual(g.REVIEW,{'product':{'P-1','P-2','P-3','P-4','P-5','P-6','P-7'},'design':{'D-1','D-2','D-4','D-6'},'engineering':{'E-1.4'},'solution':{'E-2.4'},'build':{'E-3.3'},'release':{'E-4.2'}})
+  self.assertEqual(g.STAGES,{'product':['P-1','P-2','P-3','P-4','P-5','P-6','P-7','complete'],'design':['D-1','D-2','D-3','D-4','D-5','D-6','D-7','complete'],'engineering':['E-1.1','E-1.2','E-1.3','E-1.4','complete'],'solution':['E-2.1','E-2.2','E-2.3','E-2.4','complete'],'build':['E-3.1','E-3.2','E-3.3','complete'],'release':['E-4.1','E-4.2','E-4.3','complete'],'copy':['CD-1','CD-2','CD-3','CD-4','complete'],'quality':['Q-1','Q-2','Q-3','Q-4','complete']})
+  self.assertEqual(g.REVIEW,{'product':{'P-1','P-2','P-3','P-4','P-5','P-6','P-7'},'design':{'D-1','D-2','D-4','D-6'},'engineering':{'E-1.4'},'solution':{'E-2.4'},'build':{'E-3.3'},'release':{'E-4.2'},'copy':set(),'quality':set()})
   self.assertEqual(g.CHAIN,['project','product','design','engineering','solution','build'])
   self.assertEqual(g.AUTHORITY,{'release':{'project','release'}})
   self.assertEqual(g.UPSTREAM,{('build','E-3.1'):('solution','E-2.4'),('release','E-4.1'):('build','E-3.3')})

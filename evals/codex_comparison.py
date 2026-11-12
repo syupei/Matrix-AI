@@ -98,7 +98,7 @@ def flat(out, side, work):
         for f in folder.glob(case['id'] + '-*'):
             if f.is_dir():
                 shutil.copytree(f, target / f.name)
-            elif f.suffix == '.md':
+            elif f.suffix in {'.md', '.jsonl'}:
                 shutil.copy2(f, target / f.name)
     return target
 
@@ -277,7 +277,7 @@ def focus(a):
                 for f in (folder / cid).glob(cid + '-*'):
                     if f.is_dir():
                         shutil.copytree(f, target / f.name)
-                    elif f.suffix == '.md':
+                    elif f.suffix in {'.md', '.jsonl'}:
                         shutil.copy2(f, target / f.name)
         subprocess.run(tool + ['blind', '--baseline', str(flat_dirs['old']), '--candidate', str(flat_dirs['new']), '--cases', ','.join(ids),
                                '--workspace', str(work / 'ws'), '--labels', str(work / 'labels.json'), '--seed', str(a.seed)], check=True)

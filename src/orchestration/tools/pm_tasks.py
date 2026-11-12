@@ -26,6 +26,15 @@ _views_spec.loader.exec_module(views)
 _platform_spec = importlib.util.spec_from_file_location('pm_platform', Path(__file__).with_name('pm_platform.py'))
 platform = importlib.util.module_from_spec(_platform_spec)
 _platform_spec.loader.exec_module(platform)
+_governance_spec = importlib.util.spec_from_file_location('pm_governance', Path(__file__).with_name('pm_governance.py'))
+governance = importlib.util.module_from_spec(_governance_spec)
+_governance_spec.loader.exec_module(governance)
+_service_spec = importlib.util.spec_from_file_location('scheduler_service', Path(__file__).with_name('scheduler_service.py'))
+service = importlib.util.module_from_spec(_service_spec)
+_service_spec.loader.exec_module(service)
+_project_spec = importlib.util.spec_from_file_location('pm_project', Path(__file__).with_name('pm_project.py'))
+projects = importlib.util.module_from_spec(_project_spec)
+_project_spec.loader.exec_module(projects)
 
 
 def api():
@@ -100,7 +109,19 @@ def roster(root):
         for key in ['groups', 'decides']:
             require(strings(p.get(key, [])), 'people.json: ' + key + ' must be a string list')
         require(all(re.fullmatch(SAFE_ID, g) for g in p.get('groups', [])), 'people.json: group ids must be simple identifiers')
-    return {'people': {p['id']: p for p in people}, 'groups': {g['id']: g.get('name') or g['id'] for g in groups}}
+    result = {'people': {p['id']: p for p in people}, 'groups': {g['id']: g.get('name') or g['id'] for g in groups}}
+    governance.masters(api(), result)
+    # The roster is external/read-only; collaboration choices live in the event-backed task DB.
+    path = local(root, 'management/runtime/tasks.sqlite3')
+    if path.is_file():
+        db = connect(root, readonly=True)
+        try:
+            row = db.execute("SELECT value FROM meta WHERE key='config'").fetchone()
+            if row:
+                result['config'] = json.loads(row['value'])
+        finally:
+            db.close()
+    return result
 
 
 def team_mode(people):
@@ -109,6 +130,11 @@ def team_mode(people):
 
 def deciders(tid, tasks, people):
     """Who may decide for a task and how far upstream they sit (higher wins conflicts)."""
+    t = tasks.get(tid, {})
+    if t.get('profession') and (people or {}).get('config', {}).get('collaboration'):
+        recipient = governance.route(api(), people, people['config'], t['profession'], t.get('decision_scope'),
+                                     t.get('decision_kind', 'professional'), tid, t.get('risk'))['person']
+        return {recipient: 0}
     ranks, frontier, seen = {}, [(tid, 0)], set()
     while frontier:
         k, depth = frontier.pop(0)
@@ -161,7 +187,7 @@ def check_people(t, people):
 def connect(root, readonly=False):
     path = local(root, 'management/runtime/tasks.sqlite3')
     if readonly:
-        require(path.is_file(), 'task database missing; initialize explicitly')
+        require(path.is_file(), 'task database missing; initialize explicitly with known project configuration only. For an authorized planning request, save a provisional plan and setup gaps in management/progress.md now; leave executor unassigned and execution unstarted. Missing database does not prohibit saving that draft.')
         db = sqlite3.connect(path.as_uri()+'?mode=ro', uri=True, timeout=20, isolation_level=None)
         db.row_factory = sqlite3.Row
         return db
@@ -255,6 +281,9 @@ def validation(t, tasks):
     require(t.get('difficulty') is None or team.level(t['difficulty']) is not None, 'difficulty must be T1–T9')
     require(t.get('risk') is None or team.risk(t['risk']) is not None, 'risk must be F0–F5')
     require(t.get('risk_reason') is None or nonempty(t['risk_reason']), 'risk_reason must be text')
+    require(not (set(t) & governance.FIELDS) or nonempty(t.get('profession')), 'decision routing needs a profession')
+    require(t.get('decision_kind', 'professional') in governance.KINDS, 'invalid decision kind')
+    require('decision_scope' not in t or nonempty(t['decision_scope']), 'decision_scope must be text')
     origin = t.get('origin')
     require(origin is None or (isinstance(origin, dict) and set(origin) == {'kind', 'id', 'from'} and origin['kind'] == 'request'
             and nonempty(origin['id']) and nonempty(origin['from'])), 'origin needs kind "request", id and from')
@@ -269,6 +298,7 @@ def validation(t, tasks):
     for dep in finish:
         require(dep in tasks and dep != t['id'], 'unknown or self completion prerequisite: ' + dep)
     require(t.get('kind', 'work') in KINDS, 'kind must be work or stage')
+    require(type(t.get('closure', False)) is bool and (not t.get('closure') or t.get('kind') == 'stage'), 'closure must be a stage milestone')
     stage = t.get('stage')
     if stage is not None:
         require(t.get('kind', 'work') == 'work', 'a stage milestone cannot belong to another stage')
@@ -330,17 +360,17 @@ def basis(t, tasks):
 
 
 def reasons(t, tasks, cfg):
-    result = []
+    result = projects.resource_issues(t, cfg)
     for dep in t['dependencies']:
         if not effective_done(tasks[dep], tasks):
             result.append('dependency not complete: ' + dep)
-    if not t.get('executor'):
+    if not t.get('executor') and t.get('kind') != 'stage':
         result.append('actual executor not recorded')
     running = [x for x in tasks.values() if x['state'] == 'running' and x['id'] != t['id']]
     if sum(x['slots'] for x in running) + t['slots'] > cfg['max_slots']:
         result.append('concurrency capacity exhausted')
     for x in running:
-        overlap = set(x['resources']) & set(t['resources'])
+        overlap = projects.exclusive(x, cfg) & projects.exclusive(t, cfg)
         if overlap:
             result.append('exclusive resources occupied by ' + x['id'] + ': ' + ','.join(sorted(overlap)))
     return result
@@ -358,15 +388,20 @@ def brief(row):
     return out
 
 
+def current_gates(root, db, tasks):
+    for tid, t in tasks.items():
+        t['_current_gate'] = bool(integrity.blockers(api(), root, db, tasks, tid, closing=True) + team.blockers(api(), root, db, tasks, tid, closing=True))
+
+
 def snapshot(db):
     cfg, tasks = config(db), task_map(db)
     seq = db.execute('SELECT COALESCE(MAX(seq),0) FROM events').fetchone()[0]
     root = Path(db.execute('PRAGMA database_list').fetchone()[2]).parent.parent.parent
     gates = {tid: integrity.blockers(api(), root, db, tasks, tid) + team.blockers(api(), root, db, tasks, tid) for tid in tasks}
-    for tid, t in tasks.items():
-        t['_current_gate'] = bool(integrity.blockers(api(), root, db, tasks, tid, closing=True) + team.blockers(api(), root, db, tasks, tid, closing=True))
+    current_gates(root, db, tasks)
     gaps = integrity.records(db, 'gap')
     held = {tid: [x for x in [gap_issue(t, gaps, 'running')] if x] for tid, t in tasks.items()}  # an expertise gap that stops the start
+    queued = projects.reservations(api(), tasks, cfg, gates, held)
     return {'schema': SCHEMA, 'config': cfg, 'revision': seq, 'observed_at': now(),
             'integrity': {k: integrity.records(db,k) for k in ['instance','scope','change','pause','appointment','participation_rule','participation_obligation','instance_config','conflict','notice',
                                                                'launch','inbox','project_pause','pm_session']},
@@ -374,9 +409,9 @@ def snapshot(db):
             'top_level': counts(children(tasks, None), tasks),
             'tasks': [dict(t, state_label=STATE_NAMES[t['state']], dispatcher=t['manager'], child_counts=counts(children(tasks, t['id']), tasks),
                            needs_recheck=t['state'] == 'done' and not effective_done(t,tasks),
-                           ready=t['state'] == 'planned' and not reasons(t, tasks, cfg) and not gates[t['id']] and not held[t['id']],
+                           ready=t['state'] == 'planned' and not reasons(t, tasks, cfg) and not gates[t['id']] and not held[t['id']] and not queued.get(t['id']),
                            integrity_issues=gates[t['id']],
-                           readiness_issues=reasons(t, tasks, cfg)+[x['code'] for x in gates[t['id']]]+held[t['id']],
+                           readiness_issues=reasons(t, tasks, cfg)+[x['code'] for x in gates[t['id']]]+held[t['id']]+queued.get(t['id'],[]),
                            completion_pending=[d for d in t.get('completion_requires', []) if not effective_done(tasks[d], tasks)],
                            review_current=bool(t.get('review') and t['review']['basis'] == basis(t, tasks)))
                       for t in tasks.values()]}
@@ -597,14 +632,18 @@ def execute(project, cmd, _db=None, _applying=None):
     root = Path(project).resolve()
     require(root.is_dir(), 'project directory missing')
     owns_db = _db is None
-    reads = {'status', 'events'} | integrity.READ_OPS | team.READ_OPS | views.READ_OPS | platform.READ_OPS
+    reads = {'status', 'events'} | integrity.READ_OPS | team.READ_OPS | views.READ_OPS | platform.READ_OPS | governance.READ_OPS | projects.READ_OPS
     db = connect(root, readonly=cmd.get('op') in reads) if owns_db else _db
     try:
         op = cmd.get('op')
         if op in reads:
             if owns_db:
                 db.execute('BEGIN')
-            if op in views.READ_OPS:
+            if op in projects.READ_OPS:
+                result = projects.execute(api(), root, db, cmd)
+            elif op in governance.READ_OPS:
+                result = governance.execute(api(), root, db, cmd)
+            elif op in views.READ_OPS:
                 result = views.execute(api(), root, db, cmd)
             elif op in platform.READ_OPS:
                 result = platform.execute(api(), root, db, cmd)
@@ -630,7 +669,7 @@ def execute(project, cmd, _db=None, _applying=None):
             if owns_db:
                 db.commit()
             return result
-        require(op in {'init', 'configure', 'create', 'update', 'transition', 'review', 'human_review', 'report', 'handoff', 'reassign', 'conflict', 'notice'} | GAP_OPS | integrity.WRITE_OPS | team.WRITE_OPS | platform.WRITE_OPS, 'unknown operation')
+        require(op in {'init', 'configure', 'create', 'update', 'transition', 'review', 'human_review', 'report', 'handoff', 'reassign', 'conflict', 'notice'} | GAP_OPS | integrity.WRITE_OPS | team.WRITE_OPS | platform.WRITE_OPS | governance.WRITE_OPS | projects.WRITE_OPS, 'unknown operation')
         require(nonempty(cmd.get('event_id')) and nonempty(cmd.get('actor')), 'event_id and actor required')
         if owns_db:
             db.execute('BEGIN IMMEDIATE')
@@ -650,6 +689,10 @@ def execute(project, cmd, _db=None, _applying=None):
             require(cmd['actor'] == cfg['pm_actor'], 'init actor must be PM')
             db.execute('INSERT INTO meta VALUES (?,?)', ('config', canon(cfg)))
             result = {'initialized': True, 'schema': SCHEMA}
+        elif op in projects.WRITE_OPS:
+            result = projects.execute(api(), root, db, cmd)
+        elif op in governance.WRITE_OPS:
+            result = governance.execute(api(), root, db, cmd)
         elif op in team.WRITE_OPS:
             result = team.execute(api(), root, db, cmd)
         elif op in integrity.WRITE_OPS:
@@ -703,7 +746,7 @@ def execute(project, cmd, _db=None, _applying=None):
                 require(actor == manager, 'only responsible manager may create this level')
                 allowed = {'id','parent','title','owner','checker','goal','inputs','outputs','criteria','dependencies','completion_requires','resources','slots','executor','human_required','expanded','next_action','source',
                            'kind','stage','direction','people','derived_from','awaiting','project_level','role','artifact_digests',
-                           'difficulty','risk','risk_reason','origin','gap','order','timeout_minutes'}
+                           'difficulty','risk','risk_reason','origin','gap','order','timeout_minutes','closure'} | governance.FIELDS
                 require(set(data) <= allowed, 'unknown create fields')
                 after = dict(data, parent=parent, manager=manager, state='planned', revision=1,
                              work_revision=1, evidence=[], review=None, human_review=None,
@@ -716,6 +759,8 @@ def execute(project, cmd, _db=None, _applying=None):
                 if instance:
                     require(not after.get('role') or after['role'] == instance['role'], 'instance role mismatch')
                     after['role'] = instance['role']
+                    if instance.get('profession'):
+                        after.setdefault('profession', instance['profession'])
                 integrity.observe(api(), root, after)
                 tasks[tid] = after
                 gap_link(db, None, after, cmd, tasks, people)
@@ -731,18 +776,18 @@ def execute(project, cmd, _db=None, _applying=None):
                 after = json.loads(canon(before))
                 if op in {'update', 'transition', 'report'}:
                     # The dispatcher may also record coordination facts, such as which person the task now waits for.
-                    coordinating = op == 'update' and actor == after['manager'] and set(cmd.get('changes') or {}) <= COORDINATION | {'next_action'}
+                    coordinating = op == 'update' and actor == after['manager'] and set(cmd.get('changes') or {}) <= COORDINATION | governance.FIELDS | {'next_action', 'checker'}
                     require(actor == after['owner'] or coordinating or (op == 'transition' and (actor == after['manager'] or platform.launch_bound(api(), db, cfg, cmd, before))),
                             'task state belongs to its owner')
                 if op == 'update':
                     require(after['state'] not in TERMINAL, 'reopen before editing terminal task')
                     changes = cmd['changes']
                     allowed = {'next_action','evidence','executor','expanded','source','reason','title','goal','inputs','outputs','criteria','dependencies','completion_requires','resources','slots','human_required','checker','artifact_digests',
-                               'difficulty','risk','risk_reason'} | COORDINATION
+                               'difficulty','risk','risk_reason'} | COORDINATION | governance.FIELDS
                     require(set(changes) <= allowed, 'immutable/unknown field')
                     require(nonempty(cmd.get('reason')), 'change reason required')
                     # Difficulty and risk are labels of the dispatcher; lowering one needs this reason, F0/F1 also a person.
-                    if set(changes) & {'goal','inputs','outputs','criteria','dependencies','completion_requires','human_required','checker','people','derived_from','difficulty','risk','risk_reason'}:
+                    if set(changes) & ({'goal','inputs','outputs','criteria','dependencies','completion_requires','human_required','checker','people','derived_from','difficulty','risk','risk_reason'} | governance.FIELDS):
                         require(actor == after['manager'] or nonempty(cmd.get('scope_authorization')), 'scope/interface change needs manager authorization reference')
                     old_risk, new_risk = team.risk(before.get('risk')), team.risk(changes.get('risk', before.get('risk')))
                     if old_risk is not None and old_risk <= 1 and (new_risk is None or new_risk > old_risk):
@@ -775,6 +820,8 @@ def execute(project, cmd, _db=None, _applying=None):
                     require(retirement or nonempty(cmd.get('reason')), 'transition reason required')
                     if state == 'running':
                         require(not reasons(after, tasks, cfg), '; '.join(reasons(after, tasks, cfg)))
+                        reservations = next(t for t in snapshot(db)['tasks'] if t['id'] == tid)['readiness_issues']
+                        require(not any(r.startswith('resource queued') for r in reservations), '; '.join(reservations))
                         require(nonempty(cmd.get('execution_receipt')), 'actual execution/start receipt required')
                     if before['state'] == 'running' and state != 'running':
                         require(nonempty(cmd.get('stop_evidence')), 'actual stop/yield evidence required before releasing resources')
@@ -865,6 +912,7 @@ def execute(project, cmd, _db=None, _applying=None):
                     require(cmd.get('outcome') in {'approved','changes_requested','deferred'}, 'invalid human decision')
                     require(all(nonempty(cmd.get(k)) for k in ['presented_ref','source','quote','scope']), 'actual presentation, reply source, exact quote and scope required')
                     person = cmd.get('person')
+                    require(not cfg.get('collaboration') or after.get('profession'), 'record task profession before routing human review')
                     if people:
                         require(nonempty(person) and person in people['people'], 'team project: record which listed person decided')
                         ranks = deciders(tid, tasks, people)
@@ -930,6 +978,10 @@ def execute(project, cmd, _db=None, _applying=None):
                 check_people(after, people)
                 if after['state'] == 'running':
                     require(not reasons(after,tasks,cfg), '; '.join(reasons(after,tasks,cfg)))
+            if op == 'transition' and after['state'] == 'done' and after.get('closure'):
+                current_gates(root, db, tasks)
+                closing = projects.closure_check(api(), cfg, tasks)
+                require(closing['ready'], 'project closure gate: ' + '; '.join(closing['issues']))
             if op == 'transition' and after['state'] in {'running', 'done'}:
                 problems = integrity.blockers(api(), root, db, tasks, tid, closing=after['state']=='done', applying=_applying)
                 problems += team.blockers(api(), root, db, tasks, tid, closing=after['state']=='done')
@@ -991,10 +1043,18 @@ def read_db(root, fn):
 def render(project):
     root = Path(project).resolve()
     data = execute(root,{'op':'status'})
+    continuation = execute(root, {'op': 'continue'})
     pages = read_db(root, lambda db: views.pages(api(), root, db))
     tasks = {t['id']:t for t in data['tasks']}
     people = roster(root)
     names = {pid: p['name'] for pid, p in (people or {}).get('people', {}).items()}
+    if data['config'].get('collaboration'):
+        for t in tasks.values():
+            if t.get('profession'):
+                routed = governance.route(api(), people, data['config'], t['profession'], t.get('decision_scope'),
+                                          t.get('decision_kind', 'professional'), t['id'], t.get('risk'))
+                t['people'] = dict(t.get('people', {}), decide=[routed['person']])
+                t['awaiting'] = [dict(a, person=routed['person']) if a['action'] == 'decide' else a for a in t.get('awaiting', [])]
     def esc(s):
         return html.escape(str(s)).replace('|','\\|').replace('\n',' ')
     def link(ref):
@@ -1008,6 +1068,12 @@ def render(project):
         return esc(ref)
     def save(rel, text):
         # Links in a view are relative to the view file, so the project can move and the views can be shared.
+        if rel in {'management/views/project.md', 'management/views/index.md', 'management/views/plan.md'}:
+            text = '调度检查：' + esc(continuation['scheduler_health']['message']) + '\n\n' + text
+            if continuation.get('stage_line'):
+                text = continuation['stage_line'] + '\n\n' + text
+        if rel in {'management/views/project.md', 'management/views/index.md'} and data['config'].get('project_meta'):
+            text += projects.markdown(api(), data['config'], tasks)
         atomic(local(root, rel), text.replace(ROOT_MARK, os.path.relpath(root, (root / rel).parent) + '/'))
     def who(pid):
         return esc(names.get(pid, pid))
@@ -1243,6 +1309,9 @@ def render(project):
             label = esc(people['groups'].get(gid, gid))
             save(f'management/views/groups/{gid}.md', scoped_view(label + '的视图', members, '只读派生视图。成员：' + '、'.join(who(m) for m in members) + '。列出与本组成员有关的事项与跨组依赖。'))
             written.append(f'groups/{gid}.md')
+    if data['config'].get('collaboration'):
+        save('management/views/collaboration.md', governance.markdown(api(), root, data['config'], people))
+        written.append('collaboration.md')
     for rel, text in pages.items():  # instance lists, ledger, human review points, delivery sets
         save('management/views/' + rel, text)
         written.append(rel)

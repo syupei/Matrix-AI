@@ -8,10 +8,12 @@ scheduler, PM-agent and launch command running on an actual host command line.
 Tasks (the PM is the checker of all): A -> B (B needs A adopted); C in parallel with A, needs a person's review;
 E needs C; G belongs to an instance whose configured model does not exist, so its runs fail.
 Disturbances: two schedulers run at once; A's first run is killed mid-way; both stop and one restarts.
-The person's approval of C is SYNTHETIC and recorded as such. Nothing here is an external project or a real person.
+The project is synthetic. Stub approvals are synthetic; Codex waits for an external real-review receipt.
+Pass --approval-file PATH; when approval-request.json appears, show its actual evidence to the person first.
+The receipt must carry request_hash, outcome=approved, person, exact quote, source, and presented_ref.
 
 Checks: S1 A done -> B starts without anyone saying continue; S2 A and C overlap; S3a the review of C holds only E,
-S3b E starts once C is approved (needs a real person's approval: the PM may rightly refuse the synthetic one);
+S3b E starts once C is approved (Codex requires a real person's approval);
 S4 never two runs of one task or one instance at once, with two timers; S5 several PM sessions, each ending and the
 next started by changes; S6 the killed run is recorded and redone, and work resumes after the timer restarts;
 S7 G stops after three failed starts and the person is told.
@@ -71,7 +73,7 @@ def host_settings(host, model, root):
     (root / 'stub_host.py').write_text(STUB, encoding='utf-8')
     py = sys.executable
     return {'spawn': 'scheduler', 'launch': [py, '-B', str(root / 'stub_host.py'), 'worker', '{model}'],
-            'pm': {'launch': [py, '-B', str(root / 'stub_host.py'), 'pm', 'pm-{session}']}, 'notify': note, 'check_seconds': 3, 'settle_seconds': 0}
+            'pm': {'launch': [py, '-B', str(root / 'stub_host.py'), 'pm', 'pm-{session}']}, 'notify': note, 'check_seconds': 5, 'settle_seconds': 0}
 
 
 def tool(root, data):
@@ -178,19 +180,31 @@ def main():
     ap.add_argument('--source', type=Path, required=True); ap.add_argument('--output', type=Path, required=True)
     ap.add_argument('--host', choices=['codex', 'stub'], required=True); ap.add_argument('--model', default='gpt-6-luna')
     ap.add_argument('--minutes', type=float, default=75)
+    ap.add_argument('--approval-file', type=Path, help='External reply receipt, written only after a real person reviews approval-request.json')
+    ap.add_argument('--resume', action='store_true', help='Continue the preserved project after a bounded run; retains its actual decisions and earlier report')
     a = ap.parse_args()
+    if a.host == 'codex' and not a.approval_file:
+        ap.error('Codex acceptance requires --approval-file; synthetic approval is restricted to stub path checks')
     source, output = a.source.resolve(), a.output.resolve()
-    output.mkdir(parents=True, exist_ok=False)
+    output.mkdir(parents=True, exist_ok=a.resume)
     root = output / 'project'
-    root.mkdir()
-    setup(source, root, a.host, a.model)
-    marks = {}
+    if a.resume:
+        previous = output / 'report.json'
+        prior = json.loads(previous.read_text(encoding='utf-8'))
+        shutil.copy2(previous, output / ('report-before-resume-' + str(time.time_ns()) + '.json'))
+        marks = prior['detail']['marks']
+    else:
+        root.mkdir()
+        setup(source, root, a.host, a.model)
+        marks = {}
     def now():
         return datetime.now(timezone.utc).isoformat(timespec='seconds')
-    t1, t2 = start_timer(root, output, 'timer1'), start_timer(root, output, 'timer2')
-    marks['two_timers'] = True
-    begin, approved_ts = time.time(), None
-    end, restarted = begin + a.minutes * 60, False
+    t1 = start_timer(root, output, 'timer-resume' if a.resume else 'timer1')
+    t2 = None if a.resume else start_timer(root, output, 'timer2')
+    if not a.resume: marks['two_timers'] = True
+    begin = time.time()
+    approved_ts = begin if 'approval_at' in marks else None
+    end, restarted = begin + a.minutes * 60, bool(marks.get('restarted_at'))
     try:
         while time.time() < end:
             time.sleep(1 if a.host == 'stub' else 10)
@@ -216,11 +230,25 @@ def main():
                 # The person answers once B has moved on while C waited (or after half the time).
                 if states['B'] == 'done' or time.time() > begin + a.minutes * 30:
                     c = next(t for t in tool(root, {'op': 'status'})['tasks'] if t['id'] == 'C')
+                    request = dict(task_id='C', revision=c['revision'], evidence=c['evidence'],
+                                   files={p: hashlib.sha256((root / p).read_bytes()).hexdigest() for p in c['evidence'] if (root / p).is_file()})
+                    request['request_hash'] = hashlib.sha256(json.dumps(request, sort_keys=True).encode()).hexdigest()
+                    (output / 'approval-request.json').write_text(json.dumps(request, ensure_ascii=False, indent=2), encoding='utf-8')
+                    reply = dict(person='SYNTHETIC-owner', quote='SYNTHETIC: 文字可以', source='SYNTHETIC person, not a real reply', presented_ref='BRIEF.md')
+                    if a.host == 'codex':
+                        if not a.approval_file.is_file():
+                            continue
+                        reply = json.loads(a.approval_file.read_text(encoding='utf-8'))
+                        if reply.get('request_hash') != request['request_hash'] or reply.get('outcome') != 'approved':
+                            continue
+                        if not all(isinstance(reply.get(k), str) and reply[k].strip() for k in ['person','quote','source','presented_ref']):
+                            raise ValueError('Real approval receipt needs person, exact quote, source and presented_ref')
                     tool(root, dict(op='human_review', actor='DESK', event_id='ACC-approval', task_id='C', expected_revision=c['revision'], outcome='approved',
-                                    presented_ref='BRIEF.md', source='SYNTHETIC person, not a real reply', quote='SYNTHETIC: 文字可以', scope='C 的提示文字',
-                                    person='SYNTHETIC-owner'))
+                                    presented_ref=reply['presented_ref'], source=reply['source'], quote=reply['quote'], scope='C 的提示文字',
+                                    person=reply['person']))
                     tool(root, dict(op='inbox', actor='DESK', event_id='ACC-inbox', id='IN-1', kind='answer', text='C 的文字已审定',
-                                    person='SYNTHETIC-owner', quote='SYNTHETIC: 文字可以'))
+                                    person=reply['person'], quote=reply['quote']))
+                    marks['approval_receipt'] = reply
                     marks['approval_at'], approved_ts = now(), time.time()
             # After the approval the PM gets a few minutes; if C is still not adopted then, the approval was refused.
             refused = 'approval_at' in marks and time.time() - approved_ts > (300 if a.host == 'codex' else 30) and states['C'] != 'done'
@@ -237,7 +265,7 @@ def main():
     checks, detail = evaluate(root, marks)
     shutil.rmtree(root / 'management/install-backups', ignore_errors=True)
     report = dict(host=a.host, model=a.model if a.host == 'codex' else 'stub', checks=checks, passed=sum(checks.values()), detail=detail,
-                  limitations=['Synthetic project; the approval of C is SYNTHETIC, not a person.',
+                  limitations=['Synthetic project; approval is synthetic for stub, externally supplied for Codex; receipt provenance needs human audit.',
                                'Codex sandbox lets a run write the whole project folder; write ranges are held by instruction.',
                                'The PM is the checker of every task, so professional acceptance between instances is not shown.',
                                'One machine; one host; one sample run.'])

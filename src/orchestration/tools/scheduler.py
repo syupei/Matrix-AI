@@ -136,7 +136,7 @@ def carry_out(pm, root, launcher, summary):
             continue
         try:
             if a['kind'] == 'start':
-                out = launcher.launch(root, a['task'], 'start', None, 'sched-' + uuid.uuid4().hex[:10], None, pm.platform.SCHEDULER)
+                out = launcher.launch(root, a['task'], 'start', None, 'sched-' + uuid.uuid4().hex[:10], a.get('options'), pm.platform.SCHEDULER)
             else:
                 out = launcher.launch(root, a['tasks'][0], a['kind'], a['tasks'], 'sched-' + uuid.uuid4().hex[:10], None, pm.platform.SCHEDULER)
             started.append(a['kind'] + ':' + (a.get('task') or ','.join(a['tasks'])) + '=' + out['record']['id'])
@@ -203,7 +203,7 @@ def wake(root, pm, settings, state, summary, reason):
     log(root, pm, ('resumed' if can_resume else 'started') + ' PM session ' + session + ' (' + reason + ')')
 
 
-def tick(project):
+def tick(project, interval=None):
     """One check; a second scheduler on the same project waits for the first instead of waking a second PM."""
     root = Path(project).resolve()
     pm = load('scheduler_pm_tasks', 'pm_tasks.py')
@@ -214,14 +214,37 @@ def tick(project):
     except ImportError:
         pass  # no file locks on this system: run one scheduler per project
     try:
-        return checked(root, pm)
+        return checked(root, pm, interval)
     finally:
         lock.close()
 
 
-def checked(root, pm):
+def checked(root, pm, interval=None):
     launcher = load('scheduler_launch', 'launch.py')
-    settings = dict(DEFAULTS, **launcher.settings(pm, root))
+    service = load('scheduler_service', 'scheduler_service.py')
+    try:
+        settings = dict(DEFAULTS, **launcher.settings(pm, root))
+    except (ValueError, OSError, KeyError):
+        pm.atomic(pm.local(root, service.HEARTBEAT), json.dumps(dict(checked_at=stamp(), check_seconds=interval or 60, result='error')))
+        raise
+    seconds = interval if interval is not None else settings['check_seconds']
+    if type(seconds) is not int or seconds < 5:
+        raise ValueError('check interval must be an integer >= 5')
+    heartbeat = dict(checked_at=stamp(), check_seconds=seconds, result='checking')
+    pm.atomic(pm.local(root, service.HEARTBEAT), json.dumps(heartbeat))
+    try:
+        result = advance(root, pm, launcher, settings)
+    except Exception:
+        heartbeat['result'] = 'error'
+        pm.atomic(pm.local(root, service.HEARTBEAT), json.dumps(heartbeat))
+        raise
+    heartbeat.update(result=result, checked_at=stamp())
+    pm.atomic(pm.local(root, service.HEARTBEAT), json.dumps(heartbeat))
+    pm.render(root)
+    return result
+
+
+def advance(root, pm, launcher, settings):
     path = pm.local(root, STATE)
     state = json.loads(path.read_text(encoding='utf-8')) if path.is_file() else {'processed_seq': 0}
     cfg = pm.execute(root, {'op': 'status'})['config']
@@ -255,7 +278,6 @@ def checked(root, pm):
     seen = changes(pm, root, state.get('processed_seq', 0), cfg['pm_actor'])
     state['top'] = seen['top']
     if seen['top'] > state.get('rendered_seq', -1):
-        pm.render(root)  # the views follow the records; no model needed
         state['rendered_seq'] = seen['top']
     if pm_working:
         path.write_text(json.dumps(state, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
@@ -288,10 +310,17 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--project', type=Path, required=True)
     ap.add_argument('--once', action='store_true')
+    ap.add_argument('--service', choices=['launchd', 'systemd', 'cron'], help='print service definition and commands only')
+    ap.add_argument('--interval', type=int, help='expected check interval, seconds (>=5); also sets heartbeat expiry')
     a = ap.parse_args()
+    if a.interval is not None and a.interval < 5:
+        ap.error('--interval must be >=5')
+    if a.service:
+        print(json.dumps(load('scheduler_service', 'scheduler_service.py').plan(a.project, a.service, a.interval or 60), ensure_ascii=False, indent=2))
+        return 0
     while True:
         try:
-            result = tick(a.project)
+            result = tick(a.project, a.interval)
         except (ValueError, OSError, KeyError) as error:
             print(json.dumps({'error': str(error)}, ensure_ascii=False), flush=True)
             if a.once:
@@ -301,7 +330,7 @@ def main():
             print(json.dumps({'result': result}), flush=True)
             return 0
         pm = load('scheduler_settings_pm', 'pm_tasks.py')
-        seconds = dict(DEFAULTS, **json.loads(pm.local(Path(a.project).resolve(), 'management/runtime/platform.json').read_text(encoding='utf-8')))['check_seconds']
+        seconds = a.interval or dict(DEFAULTS, **json.loads(pm.local(Path(a.project).resolve(), 'management/runtime/platform.json').read_text(encoding='utf-8')))['check_seconds']
         time.sleep(max(5, int(seconds)))
 
 

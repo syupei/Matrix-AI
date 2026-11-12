@@ -4,7 +4,7 @@
   "name": "内容设计与审读",
   "class": "制作",
   "version": "1.0",
-  "kit": "matrix-ai/0.31",
+  "kit": "matrix-ai/0.32",
   "skills": [
     "matrix-content-design"
   ],
@@ -31,7 +31,18 @@
   "standards": [
     "面向读者的文字（C03）"
   ],
-  "stage_flows": [],
+  "stage_flows": [
+    {
+      "key": "copy",
+      "stages": [
+        "CD-1",
+        "CD-2",
+        "CD-3",
+        "CD-4"
+      ],
+      "review": []
+    }
+  ],
   "decisions": {
     "own": [
       "已确认语气与术语范围内的措辞"
@@ -92,5 +103,6 @@
     "content_copy_only",
     "single_next_step",
     "gap_self_with_risk"
-  ]
+  ],
+  "abbr": "CD"
 }
