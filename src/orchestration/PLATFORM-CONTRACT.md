@@ -1,6 +1,6 @@
 # 平台协议 matrix-platform/1
 
-入口：[platform_api.py](tools/platform_api.py)。操作字段唯一表：[platform_contract.py](tools/platform_contract.py)；机器信封：[schema](schemas/platform-request.json)。用户接入顺序见 [guide](PLATFORM-GUIDE.md)。CLI 为首个传输层，其它传输复用 handle，不另建任务状态机。
+入口：[platform_api.py](tools/platform_api.py)。操作字段唯一表：[platform_contract.py](tools/platform_contract.py)；机器信封：[schema](schemas/platform-request.json)。接入见 [guide](PLATFORM-GUIDE.md)。
 
 ## 信封与身份
 
@@ -30,11 +30,11 @@
 | scripts.inspect | 无；脚本精确 argv、权限及副作用配置 |
 | scripts.request | id，可选空 args；只请求已登记脚本，拒绝增加任意实参 |
 
-能力至少查询 launch、cancel、scripts、timers、write_isolation、session_resume、usage、model_selection。supported 必须有证据；未填为 unknown。自动领取要求 launch/write_isolation/model_selection 均 supported。能力表是可信平台的声明，实际准入仍需运行验证。
+能力至少查询 launch、cancel、scripts、timers、write_isolation、session_resume、usage、model_selection。supported 必须有证据；未填为 unknown。自动领取要求 launch/write_isolation/model_selection 均 supported。能力声明仍须实跑验证。
 
 ## 状态、错误与恢复
 
-运行沿用任务工具的 starting/running/not_started/exited/lost；signal 记录 accepted/heartbeat/unknown 等外层事实。unknown 不释放活动占用。cancel_requested 不等于退出。回报模型必须匹配领取模型；实例修订或平台配置变化使在途成果待核实，仍允许回报停止事实。结束事件不自动做专业检验或人的批准。
+运行沿用任务工具的 starting/running/not_started/exited/lost；signal 记录 accepted/heartbeat/unknown 等外层事实。unknown 不释放活动占用。cancel_requested 不等于退出。started.model 匹配领取标识；started/退出回执可另报 reported_model，见[适配](MODEL-FIT.md)；实例修订或平台配置变化使在途成果待核实，仍允许回报停止事实。结束事件不自动做专业检验或人的批准。
 
 稳定错误码包括 INVALID_REQUEST、INVALID_JSON、UNSUPPORTED_PROTOCOL、PROJECT_MISMATCH、UNAUTHORIZED、INVALID_CONFIG、OWNER_MISMATCH、STALE_REVISION、NOT_READY、UNSUPPORTED、RUNS_ACTIVE、RUN_CLOSED、RUN_STOPPING、AUTHORIZATION_CHANGED、MODEL_MISMATCH、IDEMPOTENCY_CONFLICT、STORAGE_BUSY、STORAGE_ERROR、SOURCE_UNAVAILABLE；原业务规则拒绝统一为 REJECTED 并保留具体 message。仅明确可重新查询后重试的修订冲突标 retryable。
 

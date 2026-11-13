@@ -177,7 +177,7 @@ def event(root, db, request, p):
         return {'record':rec,'results':results}
     cmd = dict(id=rec['id'], event_id=request['event_id'])
     if kind == 'started':
-        need(p.get('model') == rec['model'], 'MODEL_MISMATCH', 'actual model differs from claimed model')
+        need(p.get('model') == rec['model'], 'MODEL_MISMATCH', 'selected model differs from claimed model')
         need(pm.nonempty(p.get('receipt')), 'INVALID_REQUEST', 'launch receipt required')
         cmd.update(op='launch_started', actor=pm.platform.SCHEDULER, pid=p.get('pid'))
     elif kind in {'handover','blocked'}:
@@ -191,6 +191,9 @@ def event(root, db, request, p):
         cmd.update(op='launch_exit', actor=pm.platform.LAUNCHER, exit_code=p['exit_code'])
         if 'usage' in p:
             cmd['usage'] = p['usage']
+    if 'reported_model' in p:
+        need(kind in {'started','finished','stopped','failed'}, 'INVALID_REQUEST', 'model report requires start or exit receipt')
+        cmd['reported_model'] = p['reported_model']
     result = pm.execute(root, cmd, _db=db)
     latest = pm.integrity.records(db,'launch')[rec['id']]
     latest.update(signal=kind, receipt=p.get('receipt'), last_event_at=pm.now())

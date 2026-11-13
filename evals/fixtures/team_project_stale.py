@@ -7,7 +7,7 @@ from pathlib import Path
 import hashlib
 
 HERE = Path(__file__).resolve().parent
-BASE_SHA256 = '141df320809afcee2103443a9390cf0f46c77cc120ae5e2a6982bd3ad0f62969'
+BASE_SHA256 = '4af9fe9eb89b1c189e62c769b7a5a2a5480d607e7877d3025aebf921d24d0891'
 
 
 def load(name):

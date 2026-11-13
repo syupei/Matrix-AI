@@ -257,6 +257,22 @@ def outcome(path):
     return message, (usage if seen else None)
 
 
+def host_model(path):
+    """Explicit host metadata only; never infer a version from the command or model prose."""
+    reported = None
+    for line in open(path, errors='ignore'):
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        metadata = (event.get('type') == 'system' and event.get('subtype') == 'init') or event.get('type') == 'result'
+        if metadata and isinstance(event.get('model'), str) and event['model'].strip():
+            reported = event['model']
+    return reported
+
+
 def pack(path):
     """Compress a finished log; the compressed file is kept for audits and is not read by searches."""
     with open(path, 'rb') as src, gzip.open(str(path) + '.gz', 'wb') as dst:
@@ -294,7 +310,9 @@ def run(project, rid):
     message, usage = outcome(log) if log.is_file() else (None, None)
     result = 'management/instances/' + rec['instance'] + '/runs/' + rid + '-result.md'
     pm.atomic(pm.local(root, result), '# 运行 ' + rid + ' 的结果\n\n- 退出代码：' + str(code) + '\n- 用量（宿主报告）：' + json.dumps(usage) + '\n\n' + (message or '（宿主没有输出结束消息）') + '\n')
-    record_exit(pm, root, rid, 'launch_exit', exit_code=code, **({'usage': usage} if usage else {}))
+    reported = host_model(log) if log.is_file() else None
+    record_exit(pm, root, rid, 'launch_exit', exit_code=code, **({'usage': usage} if usage else {}),
+                **({'reported_model': reported} if reported else {}))
     if log.is_file():
         pack(log)
 

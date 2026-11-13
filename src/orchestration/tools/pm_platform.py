@@ -181,6 +181,10 @@ def execute(pm, root, db, cmd):
             pm.require(type(cmd.get('pid')) is int and cmd['pid'] > 0, 'process id of the started run required')
             pm.require(cmd.get('model') is None or pm.nonempty(cmd['model']), 'actual model must be a nonempty version identifier')
             rec.update(state='running', pid=cmd['pid'], running_at=pm.now(), model=cmd.get('model', rec['model']))
+            reported = cmd.get('reported_model', cmd.get('model'))
+            pm.require(reported is None or pm.nonempty(reported), 'reported model must be a nonempty identifier')
+            if reported is not None:
+                rec['reported_model'] = reported
         else:
             pm.require(pm.nonempty(cmd.get('error')), 'why the run did not start')
             if rec['purpose'] == 'start' and task['state'] == 'running':
@@ -198,6 +202,10 @@ def execute(pm, root, db, cmd):
         pm.require(cmd.get('usage') is None or check_usage(pm, cmd['usage']), 'usage fields: input, cached, output')
         if cmd.get('usage'):
             rec['usage'] = cmd['usage']
+        reported = cmd.get('reported_model')
+        pm.require(reported is None or pm.nonempty(reported), 'reported model must be a nonempty identifier')
+        if reported is not None:
+            rec['reported_model'] = reported
         if rec['purpose'] == 'start' and task['state'] == 'running':
             open_kids = [x for x in pm.children(tasks, task['id']) if x['state'] not in pm.TERMINAL]
             if open_kids:
@@ -402,13 +410,13 @@ def stop_of(pm, root, db, cfg, task, ctx):
 
 def room(pm, root, db, ctx, task):
     """The confirmed configuration still allows another instance of the task's profession."""
-    conf = pm.team.confirmed(pm, root, db)
+    conf = pm.team.configuration(pm, root, db)
     profession = (ctx['instances'].get(task['owner']) or {}).get('profession') or task.get('role')
     if not conf or not profession:
         return None
     for e in conf['entries']:
         alive = [i for i in ctx['instances'].values() if i.get('config_entry') == e['id'] and i.get('active')]
-        if e['profession'] == profession and len(alive) < e['count']:
+        if e['profession'] == profession and len(alive) < e['count'] and pm.team.confirmed(pm, root, db, e['id']):
             return e['id']
     return None
 

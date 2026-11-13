@@ -56,7 +56,7 @@ def performance(pm, db, since=None):
             inst = instances.get(iid, fallback.get(iid, {}))
             run = run or runs.get((tid, iid), {})
             model = inst.get('model', 'unknown')
-            version = run.get('model', model)
+            version = run.get('reported_model') or run.get('model', model)
             key = (model, version, inst.get('profession') or inst.get('role', 'unknown'), task.get('difficulty') or 'unknown')
             unique = (metric, record.get('id')) if metric == 'ended_without_handover' else (metric, event['seq'])
             if unique in seen:
@@ -66,7 +66,7 @@ def performance(pm, db, since=None):
                                             **dict.fromkeys(METRICS, 0), signals=[]))
             row[metric] += 1
             row['signals'].append(dict(metric=metric, task=tid, instance=iid, event_seq=event['seq'],
-                                       version_source='launch' if run else 'configuration',
+                                       version_source='host_report' if run.get('reported_model') else ('launch_selection' if run else 'configuration'),
                                        cause=(after.get('review') or {}).get('cause') if metric == 'review_failed' else rw.get('reason')))
     return {'rows': sorted(rows.values(), key=lambda r: (r['model'], r['model_version'], r['profession'], r['level'])),
             'since': since, 'limitation': 'Recorded signals, not causal proof or automatic demotion; missing runs use configuration and are labelled.'}
@@ -98,11 +98,11 @@ def reasons(pm, db, assessment):
     for run in pm.integrity.records(db, 'launch').values():
         inst = instances.get(run.get('instance'), {})
         at = when(run.get('running_at'))
-        if inst.get('model') != assessment.get('model') or at is None or (evaluated and at < evaluated):
+        if not run.get('reported_model') or inst.get('model') != assessment.get('model') or at is None or (evaluated and at < evaluated):
             continue
         iid = inst['id']
         if iid not in latest or at >= latest[iid][0]:
-            latest[iid] = (at, run.get('model'))
+            latest[iid] = (at, run['reported_model'])
     versions = sorted({v for _, v in latest.values() if v != assessment.get('model_version')}, key=str)
     if versions:
         out.append('model_version_changed:' + ','.join(map(str, versions)))

@@ -32,7 +32,7 @@ class DynamicFit(Fixture, unittest.TestCase):
         self.staff()
         with pm.connect(self.root) as db:
             pm.integrity.save(pm.api(), db, 'launch', dict(id='SIM-run', instance='code-engineering-001',
-                model='SIM-big-v2', state='exited', purpose='start', running_at=pm.now(), started_at=pm.now()))
+                model='SIM-big', reported_model='SIM-big-v2', state='exited', purpose='start', running_at=pm.now(), started_at=pm.now()))
         self.assertEqual('unregistered', self.entries()['E-T9']['fit'])
         self.assertFalse(self.team()['instance_config']['current'])
 
@@ -44,7 +44,57 @@ class DynamicFit(Fixture, unittest.TestCase):
         self.assertEqual('T9', self.instance('code-engineering-001')['level'])
         self.assertFalse(self.team()['instance_config']['current'])
         with self.assertRaisesRegex(pm.TaskError, 'confirmed'):
+            self.derive('E-T9')
+
+    def test_one_expired_model_does_not_block_other_entries(self):
+        self.staff()
+        self.models['models'][1]['review_after'] = '2026-01-02T00:00:00+00:00'
+        self.write('model-fit.json', self.models)
+        self.create('HEALTHY', difficulty='T4')
+        self.create('EXPIRED', parent='HEALTHY', owner='code-engineering-002', executor='code-engineering-002', difficulty='T4')
+        self.assertTrue(self.t('HEALTHY')['ready'])
+        self.assertFalse(self.t('EXPIRED')['ready'])
+        self.mutate('transition', 'HEALTHY', state='running', reason='SIM', execution_receipt='SIM')
+        with self.assertRaisesRegex(pm.TaskError, 'model fit'):
+            self.mutate('transition', 'EXPIRED', state='running', reason='SIM', execution_receipt='SIM')
+
+    def test_unrelated_expiry_preserves_derivation_planning(self):
+        config = copy.deepcopy(TEAM)
+        config['entries'][0].update(count=2, master=False)
+        self.write('instance-config.json', config)
+        self.confirm()
+        iid = self.derive('E-T9')
+        self.models['models'][1]['review_after'] = '2026-01-02T00:00:00+00:00'
+        self.write('model-fit.json', self.models)
+        with pm.connect(self.root) as db:
+            ctx = {'instances': pm.integrity.records(db, 'instance')}
+            entry = pm.platform.room(pm.api(), self.root, db, ctx, {'owner':iid})
+        self.assertEqual('E-T9', entry)
+        self.assertEqual('code-engineering-002', self.derive(entry))
+
+    def test_assessment_edits_invalidate_only_selected_model_entries(self):
+        self.staff()
+        self.models['models'][1]['evidence'].append('SIM additional evidence')
+        self.write('model-fit.json', self.models)
+        entries = self.entries()
+        self.assertTrue(entries['E-T9']['current'])
+        self.assertTrue(entries['P-T7']['current'])
+        self.assertFalse(entries['E-T4']['current'])
+        with self.assertRaisesRegex(pm.TaskError, 'configured count reached'):
+            self.derive('E-T9')  # confirmation is still valid
+        with self.assertRaisesRegex(pm.TaskError, 'confirmed'):
             self.derive('E-T4')
+
+    def test_no_host_report_does_not_claim_actual_version(self):
+        self.staff()
+        self.create('A', difficulty='T7')
+        self.call('launch_start', id='R', purpose='start', task_id='A', instance='code-engineering-001',
+                  model='SIM-selection-alias', session='SIM-session', command=['SIM-cli'])
+        self.call('launch_started', id='R', pid=4242)
+        self.call('launch_exit', 'launcher', id='R', exit_code=1)
+        self.assertEqual('fit', self.entries()['E-T9']['fit'])
+        rows = pm.execute(self.root, {'op':'model_performance'})['rows']
+        self.assertEqual('launch_selection', rows[0]['signals'][0]['version_source'])
 
     def test_query_is_read_only_and_groups_task_level(self):
         self.staff()
@@ -70,7 +120,7 @@ class DynamicFit(Fixture, unittest.TestCase):
         self.staff()
         with pm.connect(self.root) as db:
             for rid, version, state in [('same','SIM-big','exited'),('failed','SIM-big-v2','not_started')]:
-                row=dict(id=rid, instance='code-engineering-001', model=version, state=state, started_at=pm.now())
+                row=dict(id=rid, instance='code-engineering-001', model='SIM-big', reported_model=version, state=state, started_at=pm.now())
                 if state == 'exited': row['running_at']=pm.now()
                 pm.integrity.save(pm.api(), db, 'launch', row)
         self.assertEqual('fit', self.entries()['E-T9']['fit'])
@@ -122,7 +172,7 @@ class DynamicFit(Fixture, unittest.TestCase):
         row=next(r for r in rows if r['model_version']=='SIM-big')
         self.assertEqual([1,1,1,1], [row[k] for k in pm.team.model_fit.METRICS])
         self.assertEqual('T7', row['level'])
-        self.assertTrue(all(s['version_source']=='launch' for s in row['signals']))
+        self.assertTrue(all(s['version_source']=='host_report' for s in row['signals']))
         self.assertEqual([], pm.execute(self.root, {'op':'model_performance','since':'2099-01-01T00:00:00Z'})['rows'])
         with self.assertRaisesRegex(pm.TaskError,'timestamp'):
             pm.execute(self.root, {'op':'model_performance','since':'invalid'})
@@ -145,6 +195,17 @@ from test_expert_packages import PlatformFixture
 
 
 class ModelFitPlatformQuery(PlatformFixture, unittest.TestCase):
+    def test_host_version_is_separate_from_claimed_selection(self):
+        rec = self.claim()
+        result = self.invoke('runs.event', run_id=rec['id'], expected_revision=rec['revision'],
+                             kind='started', pid=4242, model=rec['model'], reported_model='SIM-host-version-2',
+                             receipt='SIM host init metadata')['record']
+        self.assertEqual(rec['model'], result['model'])
+        self.assertEqual('SIM-host-version-2', result['reported_model'])
+        entries = self.team()['instance_config']['entries']
+        affected = next(e for e in entries if e['id']=='E-T9')
+        self.assertTrue(any(r.startswith('model_version_changed:') for r in affected['review_reasons']))
+
     def test_query_through_authenticated_platform(self):
         response = self.run_api(self.req('tasks.query', op='model_performance', since='2020-01-01T00:00:00Z'))
         self.assertTrue(response['ok'], response)

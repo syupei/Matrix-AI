@@ -87,7 +87,9 @@ def execute(project,principal,action_id=None,timeout=180):
                         raise ValueError('evidence must be this instance public candidate')
                 event('handover',summary=data.get('summary'),evidence=data['evidence'])
                 handed=True
-        event('stopped' if result['timed_out'] or r.get('cancel_requested') else 'finished',exit_code=result['exit_code'],receipt='local process group stopped; logs '+str(log.relative_to(root)))
+        reported = load('launch').host_model(Path(str(log) + '.stdout'))
+        event('stopped' if result['timed_out'] or r.get('cancel_requested') else 'finished',exit_code=result['exit_code'],receipt='local process group stopped; logs '+str(log.relative_to(root)),
+              **({'reported_model': reported} if reported else {}))
         return dict(started=True,run_id=rid,handed=handed,exit_code=result['exit_code'],timed_out=result['timed_out'])
     except Exception as error:
         r=current()

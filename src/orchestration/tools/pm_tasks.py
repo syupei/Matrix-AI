@@ -565,7 +565,7 @@ def gap_op(root, db, cmd):
             require(profession is not None, 'not_set_up names a profession of this kit by registry id or name')
             live = sorted(i['id'] for i in integrity.records(db, 'instance').values() if i.get('profession') == profession and i.get('active'))
             require(not live, profession + ' is set up (' + ','.join(live) + '); dispatch the work to it instead of opening a gap')
-            conf = team.confirmed(api(), root, db)
+            conf = team.configuration(api(), root, db)
             configured = [e['id'] for e in (conf or {}).get('entries', []) if e['profession'] == profession and e['count'] > 0]
             require(not configured, profession + ' is in the confirmed instance configuration (' + ','.join(configured) + '); derive an instance when its work is ready instead of opening a gap')
             domain = regs[profession]['name']

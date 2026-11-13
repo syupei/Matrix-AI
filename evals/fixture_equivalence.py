@@ -56,13 +56,13 @@ def build(kit, fixture_file, case_id):
 
 
 def old_fixtures(repo, name, sha, into):
-    """The repository's evals/ and src/ at the newest commit whose fixture <name> has this SHA-256, extracted under
+    """The repository's fixtures and producer inputs at the newest commit whose fixture <name> has this SHA-256, extracted under
     into (an earlier fixture may load modules or tools by paths relative to itself); returns the fixture file."""
     commits = subprocess.run(['git', '-C', str(repo), 'rev-list', 'HEAD', '--', 'evals/fixtures/' + name], capture_output=True, text=True, check=True).stdout.split()
     for c in commits + [c + '^' for c in commits]:
         blob = subprocess.run(['git', '-C', str(repo), 'show', f'{c}:evals/fixtures/{name}'], capture_output=True)
         if blob.returncode == 0 and hashlib.sha256(blob.stdout).hexdigest() == sha:
-            archive = subprocess.run(['git', '-C', str(repo), 'archive', c, 'evals', 'src'], capture_output=True, check=True).stdout
+            archive = subprocess.run(['git', '-C', str(repo), 'archive', c, 'evals', 'src', 'tools', 'docs', 'package.json'], capture_output=True, check=True).stdout
             subprocess.run(['tar', '-x', '-C', str(into)], input=archive, check=True)
             return into / 'evals/fixtures' / name
     raise SystemExit(f'no commit has {name} with SHA-256 {sha}')

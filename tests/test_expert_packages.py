@@ -235,6 +235,7 @@ class ReferenceWorker(PlatformFixture, unittest.TestCase):
         script='''import sys,re,json
 from pathlib import Path
 text=sys.stdin.read()
+print(json.dumps({'type':'system','subtype':'init','model':'SIM-concrete-version'}),flush=True)
 out=re.search(r'management/instances/[^ ]+/workspace/public/run-[a-z0-9]+-handoff.json',text).group(0).rstrip('。')
 p=Path(out);p.parent.mkdir(parents=True,exist_ok=True)
 file=p.parent/'candidate.txt';file.write_text('SIM worker real file')
@@ -247,6 +248,7 @@ p.write_text(json.dumps({'summary':'SIM actual local worker handover','evidence'
         self.assertEqual('waiting_review',self.t('A')['state'])
         runs=self.invoke('runs.query')['runs'];self.assertEqual('exited',runs[0]['state'])
         self.assertEqual('SIM-actual',runs[0]['model'])
+        self.assertEqual('SIM-concrete-version',runs[0]['reported_model'])
 
 
     def test_parallel_workers_complete_start_callbacks_and_handover(self):

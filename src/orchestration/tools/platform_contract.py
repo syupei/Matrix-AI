@@ -7,7 +7,7 @@ FIELDS = {
  'actions.claim': ({'action_id','expected_revision'}, {'action_id','expected_revision'}),
  'runs.query': (set(), {'run_id'}),
  'runs.cancel': ({'run_id','expected_revision','reason'}, {'run_id','expected_revision','reason'}),
- 'runs.event': ({'run_id','expected_revision','kind'}, {'run_id','expected_revision','kind','receipt','pid','model','exit_code','usage','evidence','summary','reason','commands'}),
+ 'runs.event': ({'run_id','expected_revision','kind'}, {'run_id','expected_revision','kind','receipt','pid','model','reported_model','exit_code','usage','evidence','summary','reason','commands'}),
  'runtime.configure': ({'mode','expected_generation'}, {'mode','expected_generation'}),
  'scripts.inspect': (set(), set()), 'scripts.request': ({'id'}, {'id','args'}),
  'expert.prepare': ({'id','version','profession','url','commit'}, {'id','version','profession','url','commit','subdir'}),

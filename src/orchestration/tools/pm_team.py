@@ -126,19 +126,32 @@ def fit_entries(pm, root, regs, db=None):
     return out, sha
 
 
-def fit_signature(pm, root, db):
-    entries = fit_entries(pm, root, registries(pm, root), db)[0]
-    digest = pm.integrity.file_hash(pm, root, FIT) if pm.local(root, FIT).is_file() else None
-    return hashlib.sha256(json.dumps([digest, entries], sort_keys=True).encode()).hexdigest()
+def fit_signatures(pm, root, db, entries=None):
+    """Each approval depends only on its entry and its model's assessment/state."""
+    entries = entries if entries is not None else fit_entries(pm, root, registries(pm, root), db)[0]
+    data = read(pm, root, FIT)[0] if pm.local(root, FIT).is_file() else {}
+    models = {m['model']: m for m in data.get('models', [])}
+    return {e['id']: hashlib.sha256(json.dumps([models.get(e['model']), e], sort_keys=True).encode()).hexdigest()
+            for e in entries}
 
 
-def confirmed(pm, root, db):
-    """The last confirmation while the file still has the confirmed content, else None."""
+def configuration(pm, root, db):
+    """Configuration-file authorization is separate from per-entry model freshness."""
     rec = pm.integrity.records(db, 'instance_config').get('confirmed')
     try:
-        if not rec or pm.integrity.file_hash(pm, root, CONFIG) != rec['sha256']:
-            return None
-        return rec if rec.get('fit_signature') == fit_signature(pm, root, db) else None
+        return rec if rec and pm.integrity.file_hash(pm, root, CONFIG) == rec['sha256'] else None
+    except (ValueError, OSError):
+        return None
+
+
+def confirmed(pm, root, db, entry_id=None):
+    rec = configuration(pm, root, db)
+    if not rec:
+        return None
+    try:
+        signatures = fit_signatures(pm, root, db)
+        selected = [entry_id] if entry_id is not None else list(signatures)
+        return rec if all(k in signatures and rec.get('fit_signatures', {}).get(k) == signatures[k] for k in selected) else None
     except (ValueError, OSError):
         return None
 
@@ -146,7 +159,7 @@ def confirmed(pm, root, db):
 def instance_fit_issue(pm, root, db, inst):
     if not inst or not inst.get('config_entry'):
         return None
-    conf = confirmed(pm, root, db)
+    conf = confirmed(pm, root, db, inst['config_entry'])
     if not conf:
         return 'model fit or configuration changed; review and confirm before launching'
     entry = next((e for e in conf['entries'] if e['id'] == inst['config_entry']), None)
@@ -159,7 +172,10 @@ def config_state(pm, root, db):
     state = {'confirmed': pm.integrity.records(db, 'instance_config').get('confirmed'), 'current': bool(confirmed(pm, root, db))}
     if pm.local(root, CONFIG).is_file():
         try:
-            state['entries'] = fit_entries(pm, root, registries(pm, root), db)[0]
+            entries = fit_entries(pm, root, registries(pm, root), db)[0]
+            signatures = fit_signatures(pm, root, db, entries)
+            rec = configuration(pm, root, db)
+            state['entries'] = [dict(e, current=bool(rec and rec.get('fit_signatures', {}).get(e['id']) == signatures[e['id']])) for e in entries]
         except (ValueError, OSError) as error:
             state['problem'] = str(error)
     return state
@@ -315,10 +331,11 @@ def confirm(pm, root, db, cfg, tasks, cmd):
     pm.require(not problems, 'configuration not confirmed: ' + '; '.join(problems))
     before = pm.integrity.records(db, 'instance_config').get('confirmed')
     pm.require(cmd.get('expected_revision') == before['revision'] if before else cmd.get('expected_revision') in {None, 0}, 'stale confirmation; reload the team view')
+    signatures = fit_signatures(pm, root, db, items)
     items = [dict(e, expert_binding=experts.binding(pm, root, e['profession'], e.get('expert'))) for e in items]
     value = dict(id='confirmed', config=CONFIG, sha256=sha, entries=[dict(e, insisted=e['fit'] == 'unfit') for e in items],
                  person=cmd['person'], quote=cmd['quote'], presented_ref=cmd['presented_ref'], at=pm.now(),
-                 fit_signature=fit_signature(pm, root, db),
+                 fit_signatures=signatures,
                  revision=(before or {}).get('revision', 0) + 1, updated_at=pm.now())
     pm.integrity.save(pm, db, 'instance_config', value)
     return {'record': value}
@@ -342,9 +359,14 @@ def instance_op(pm, root, db, cfg, tasks, cmd):
         if inst.get('config_entry') and old_conf:
             profile(pm, root, value, old_conf)
         return {'record': value}
-    conf = confirmed(pm, root, db)
-    pm.require(conf, 'no current confirmed instance configuration; ask the person to confirm the file first')
     instances = pm.integrity.records(db, 'instance')
+    entry_id = cmd.get('entry') if op == 'derive' else instances.get(cmd.get('id'), {}).get('config_entry')
+    conf = configuration(pm, root, db)
+    pm.require(conf, 'no current confirmed instance configuration; ask the person to confirm the file first')
+    if op == 'derive':
+        pm.require(any(e['id'] == entry_id for e in conf['entries']), 'entry not in the confirmed configuration; do not derive outside it')
+    if op != 'retire_instance':
+        pm.require(confirmed(pm, root, db, entry_id), 'no current confirmed instance configuration; ask the person to confirm the entry first')
     if op == 'derive':
         entry = next((e for e in conf['entries'] if e['id'] == cmd.get('entry')), None)
         pm.require(entry, 'entry not in the confirmed configuration; do not derive outside it')

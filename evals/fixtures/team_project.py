@@ -1,8 +1,8 @@
 """Synthetic multi-instance project for the instance, task-chain and task-list cases.
 
-No real person, vendor, model, endpoint or approval is represented. The same state is used whichever kit is
-under evaluation: it is built with the tools of the candidate package built from this repository's source, never
-with root/'kit', and then placed where the kit under test reads it (layout.py).
+No real person, vendor, model, endpoint or approval is represented. Kits with model-fit tooling receive dated assessments and current producer state. Older kits use the pinned
+pre-model-fit producer and original fields; fixture_equivalence must prove unchanged project state before reuse.
+State is placed where the kit under test reads it (layout.py).
 """
 import hashlib
 import importlib.util
@@ -16,7 +16,8 @@ if hashlib.sha256(LAYOUT.read_bytes()).hexdigest() != LAYOUT_SHA256:
 _layout_spec = importlib.util.spec_from_file_location('team_fixture_layout', LAYOUT)
 layout = importlib.util.module_from_spec(_layout_spec)
 _layout_spec.loader.exec_module(layout)
-SOURCE = layout.candidate()  # package layout: matrix/... and .agents/skills/...
+SOURCE = None  # chosen from the tested kit's capabilities in populate()
+COMPAT_SHA256 = '0c98932f485018c621717ebc04ad1031b7c6e4c5afda5be12d169246b431f31a'
 PM = 'project-management-001'
 ENTRIES = [  # id, profession, level, model, count, master
     ('P-T7', 'product', 'T7', 'strong-model', 1, True), ('P-T5', 'product', 'T5', 'fast-model', 1, False),
@@ -42,9 +43,9 @@ def config(extra=()):
                         for i, p, lv, m, c, master in ENTRIES + list(extra)]}
 
 
-def model_fit():
+def model_fit(dynamic=True):
     regs = [json.loads(p.read_text(encoding='utf-8')) for p in sorted((SOURCE / 'matrix/professions').glob('*/profession.json'))]
-    caps = sorted({c for r in regs for c in r.get('model_capabilities', [])} | {'long_horizon', 'complex_dispatch', 'deep_reasoning'})
+    caps = sorted({c for r in regs for c in r.get('model_capabilities', [])} | ({'long_horizon', 'complex_dispatch', 'deep_reasoning'} if dynamic else set()))
     code = next(r for r in regs if r['id'] == 'code-engineering')
     data = {'models': [
         {'model': 'strong-model', 'levels': {r['id']: r['levels']['range'][1] for r in regs}, 'capabilities': caps, 'filled_by': 'SYNTHETIC user'},
@@ -52,7 +53,7 @@ def model_fit():
          'capabilities': caps, 'filled_by': 'SYNTHETIC user'},
         {'model': 'tiny-model', 'levels': {'code-engineering': 'T3'}, 'capabilities': code.get('model_capabilities', []), 'filled_by': 'SYNTHETIC user'}]}
 
-    for row in data['models']:
+    for row in data['models'] if dynamic else []:
         row.update(basis='human', evidence=['SYNTHETIC assessment for fixture setup only'],
                    evaluated_at='2020-01-01T00:00:00Z', model_version=row['model'],
                    review_after='2099-01-01T00:00:00Z', review_conditions={})
@@ -61,7 +62,19 @@ def model_fit():
 
 def populate(root, case_id, final=True):
     """final=False leaves the state in the Matrix-AI layout for a fixture that adds to it and then calls layout.adapt."""
+    global SOURCE
     root = Path(root)
+    dynamic = (root / 'kit/matrix/orchestration/tools/pm_model_fit.py').is_file()
+    if dynamic:
+        SOURCE = layout.candidate()
+    else:
+        path = Path(__file__).with_name('team_compat.py')
+        if hashlib.sha256(path.read_bytes()).hexdigest() != COMPAT_SHA256:
+            raise ValueError('team_compat.py changed; update fixture hashes and recheck equivalence')
+        compat_spec = importlib.util.spec_from_file_location('team_fixture_compat', path)
+        compat = importlib.util.module_from_spec(compat_spec)
+        compat_spec.loader.exec_module(compat)
+        SOURCE = compat.package()
     spec = importlib.util.spec_from_file_location('team_fixture_tools', SOURCE / 'matrix/orchestration/tools/pm_tasks.py')
     pm = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(pm)
@@ -119,7 +132,7 @@ def populate(root, case_id, final=True):
 
     call('init', config=dict(project='SYNTHETIC 合成电商 App', pm_actor=PM, authorization='SYNTHETIC local evaluation only; no real delegation',
                              frontdoor_id='SYNTHETIC-frontdoor', max_slots=12))
-    write('management/model-fit.json', json.dumps(model_fit(), ensure_ascii=False, indent=2) + '\n')
+    write('management/model-fit.json', json.dumps(model_fit(dynamic), ensure_ascii=False, indent=2) + '\n')
     write('management/instance-config.json', json.dumps(config(), ensure_ascii=False, indent=2) + '\n')
     call('confirm_config', person='user', quote='SYNTHETIC: 按这份配置来（模拟原话）', presented_ref='SYNTHETIC presentation of the instance configuration',
          choices={'D-T5': 'acknowledge_unregistered', 'E-T4-TINY': 'insist'})
@@ -177,7 +190,7 @@ def populate(root, case_id, final=True):
         task('T-FIT-W', 'code-engineering-002', 'SYNTHETIC prior worker run', parent='T-FIT-P', checker='code-engineering-001', difficulty='T4', risk='F3', risk_reason='SYNTHETIC low-risk')
         call('launch_start', id='SYNTHETIC-FIT-RUN', purpose='start', task_id='T-FIT-W', instance='code-engineering-002',
              model='fast-model-v2', session='SYNTHETIC', command=['SYNTHETIC-no-process'])
-        call('launch_started', id='SYNTHETIC-FIT-RUN', pid=4242)
+        call('launch_started', id='SYNTHETIC-FIT-RUN', pid=4242, model='fast-model-v2')
         hand_over('T-FIT-W', ['SYNTHETIC previous result; no real worker'])
         call('launch_exit', actor='launcher', id='SYNTHETIC-FIT-RUN', exit_code=0)
         write('management/instance-config.json', json.dumps(config([('E-T9-FAST', 'code-engineering', 'T9', 'fast-model', 1, False)]), ensure_ascii=False, indent=2) + '\n')

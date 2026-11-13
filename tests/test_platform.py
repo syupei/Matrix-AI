@@ -27,6 +27,8 @@ rid = re.search(r'# 任务包 (\S+?)（', text).group(1)
 iid = re.search(r'actor 写 (\S+?)。', text).group(1)
 purpose = re.search(r'平台运行：(\S+?)）', text).group(1)
 plan = json.loads((root / 'stub-plan.json').read_text())
+if plan.get('reported_model'):
+    print(json.dumps({'type':'system', 'subtype':'init', 'model':plan['reported_model']}), flush=True)
 def call(cmd):
     r = subprocess.run([sys.executable, '-B', TOOLS + '/pm_tasks.py', '--project', '.'], input=json.dumps(cmd), capture_output=True, text=True, cwd=root)
     return json.loads(r.stdout)
@@ -438,6 +440,17 @@ class Commands(Project, unittest.TestCase):
         again = self.tool('launch.py', '--task', 'A', '--event-id', 'E1')
         self.assertTrue(again['repeated'])
         self.assertEqual(1, len(self.records()))
+
+    def test_launch_saves_explicit_host_version_from_init_log(self):
+        plan = self.root / 'stub-plan.json'
+        data = json.loads(plan.read_text())
+        data['reported_model'] = 'SIM-concrete-version'
+        plan.write_text(json.dumps(data))
+        rid = self.tool('launch.py', '--task', 'A')['record']['id']
+        self.wait(lambda: self.records()[rid]['state'] == 'exited')
+        rec = self.records()[rid]
+        self.assertEqual('sim-big-host-name', rec['model'])
+        self.assertEqual('SIM-concrete-version', rec['reported_model'])
 
     def test_runs_queued_for_the_scheduler_start_on_its_next_check(self):
         platform = json.loads((self.root / 'management/runtime/platform.json').read_text())
