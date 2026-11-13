@@ -4,7 +4,7 @@
 
 ## 阶段与协作配置
 
-接续仍用 `{"op":"continue"}`。有阶段里程碑时，输出 `stage_line` 和 `project_stages`；PM 的项目阶段行直接引用 `stage_line`。`runtime_state` 表示暂停或额度恢复条件，不改变 `planned` 等任务状态。专业流程总步数用 `{"op":"stage_flow","profession":"product","flow":"product"}` 从专业登记取得；未知流程不猜数。
+`{"op":"continue"}` 返回：`stage_line` 是阶段摘要行，`project_stages` 是已登记里程碑的范围与状态（未登记时无此字段），`runtime_state` 是暂停或额度恢复条件，不改变 `planned` 等任务状态。`{"op":"stage_flow","profession":"product","flow":"product"}` 查询专业登记的阶段与总数。阶段行的选择与显示统一见 [USER-INTERACTION §7](../base/USER-INTERACTION.md#7-流程位置)。
 
 协作约定见 [TEAM](TEAM.md)；先用 `{"op":"collaboration"}` 读当前配置与 revision。配置保存在任务库，勿另建不被工具读取的配置文件。人员及各专业唯一真人主责仍由负责人维护 `management/people.json`，每人用 `masters:["product"]` 登记主责，项目负责人为唯一 `decides:["project"]` 的人。
 
