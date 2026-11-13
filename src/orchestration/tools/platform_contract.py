@@ -13,7 +13,7 @@ FIELDS = {
  'expert.prepare': ({'id','version','profession','url','commit'}, {'id','version','profession','url','commit','subdir'}),
  'expert.adapt': ({'id','version','methods','review'}, {'id','version','methods','review','unresolved'}),
  'expert.validate': ({'id','version','evidence'}, {'id','version','evidence'}),
- 'expert.enable': ({'id','version'}, {'id','version'}),
+ 'expert.enable': ({'id','version','person','quote'}, {'id','version','person','quote'}),
  'expert.disable': ({'id','version','reason'}, {'id','version','reason'}),
 }
 

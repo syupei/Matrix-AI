@@ -18,8 +18,8 @@
 | tasks.command | 原 PM 工具命令体，省略 actor/event_id；业务修改仍须原命令要求的修订和授权 |
 | expert.prepare | id/version/profession/url/commit，可选 subdir；固定来源进入 awaiting_adaptation |
 | expert.adapt | id/version/methods/review，可选 unresolved；保存改写与审查，未决冲突进入 blocked |
-| expert.validate | id/version/evidence；真实运行报告与方法摘要匹配后 validated |
-| expert.enable | id/version；已验证包变为 enabled，不自动派生或启动实例 |
+| expert.validate | id/version/evidence；核对报告 run_id、包版本、模型与正常结束，记录操作者 |
+| expert.enable | id/version/person/quote；记录授权与操作者，仅启用包 |
 | expert.disable | id/version/reason；停用包，阻止新启动及在途成果自动交回，实际进程仍由平台停止 |
 | actions.plan | 无；只读动作列表 action_id、revision、owner 及待 PM 判断事项 |
 | actions.claim | action_id/expected_revision；原子复核动作与运行权，登记 starting，返回运行与任务包 |
@@ -38,4 +38,4 @@
 
 稳定错误码包括 INVALID_REQUEST、INVALID_JSON、UNSUPPORTED_PROTOCOL、PROJECT_MISMATCH、UNAUTHORIZED、INVALID_CONFIG、OWNER_MISMATCH、STALE_REVISION、NOT_READY、UNSUPPORTED、RUNS_ACTIVE、RUN_CLOSED、RUN_STOPPING、AUTHORIZATION_CHANGED、MODEL_MISMATCH、IDEMPOTENCY_CONFLICT、STORAGE_BUSY、STORAGE_ERROR、SOURCE_UNAVAILABLE；原业务规则拒绝统一为 REJECTED 并保留具体 message。仅明确可重新查询后重试的修订冲突标 retryable。
 
-平台定时触发 plan 后再 claim。领取成功、启动失败、失联和确实结束分别回报；事件事务持久化与模型进程不是同一事务，启动不确定时保留 unknown 并核实，不靠租约到期重复启动。项目为单机 SQLite 控制面；跨机器必须由一个可信服务串行访问它，不能把数据库直接放在共享对象存储中并发写。
+领取成功、启动失败、失联和确实结束分别回报；事件事务持久化与模型进程不是同一事务，启动不确定时保留 unknown 并核实，不靠租约到期重复启动。项目为单机 SQLite 控制面；跨机器必须由一个可信服务串行访问它，不能把数据库直接放在共享对象存储中并发写。

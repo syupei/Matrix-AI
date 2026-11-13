@@ -273,6 +273,10 @@ def start(pm, root, db, cfg, tasks, cmd, records):
                  binding=binding(pm, root, db, task, tasks), work_revision=task['work_revision'], model=cmd['model'],
                  session=cmd['session'], command=cmd['command'], log=cmd.get('log'), state='starting', started_at=pm.now(), revision=1,
                  after_seq=db.execute('SELECT COALESCE(MAX(seq),0) FROM events').fetchone()[0])
+    if cmd.get('admission_expert') is not None:
+        pm.require(pm.nonempty(cmd.get('admission_runner')), 'admission runner identifier required')
+        value['admission_expert'] = pm.team.experts.admission_binding(pm, root, cmd['admission_expert'])
+        value['admission_runner'] = cmd['admission_runner']
     if cmd.get('log') is not None:
         pm.local(root, cmd['log'])
     pm.integrity.save(pm, db, 'launch', value)

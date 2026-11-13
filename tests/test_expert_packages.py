@@ -24,9 +24,11 @@ class Experts(Fixture, unittest.TestCase):
         self.e.adapt(pm.api(),self.root,dict(self.ident,methods='Use SIM professional method. Save under workspace/private/ or workspace/public/.',review=dict(reviewer='SIM',source_entry='SKILL.md',license='SIM permission',preserved_methods='SIM method',directory_changes='SIM destinations mapped',dependencies='none')))
         base,m=self.e.read(pm.api(),self.root,self.ident)
         sha=self.e.digest((base/'METHODS.md').read_bytes())
-        self.write('sim-validation.json',dict(passed=True, methods_sha256=sha,runner='SIM-worker',checks={k:dict(passed=True,evidence='SIMULATED only') for k in ('method_preservation','write_isolation','handoff_contract')}))
-        self.e.validate(pm.api(),self.root,dict(self.ident,evidence=dict(runner='SIM-worker',report='management/sim-validation.json',source_sha256=sha)))
-        self.e.enable(pm.api(),self.root,self.ident)
+        self.write('sim-validation.json',dict(passed=True, methods_sha256=sha,runner='SIM-worker',run_id='SIM-admission',model='SIM-model',checks={k:dict(passed=True,evidence='SIMULATED only') for k in ('method_preservation','write_isolation','handoff_contract')}))
+        with pm.connect(self.root) as db:
+            pm.integrity.save(pm.api(),db,'launch',dict(id='SIM-admission',task_id='SIM-admission-task',task_ids=['SIM-admission-task'],instance='SIM-admission-instance',purpose='start',started_at=pm.now(),after_seq=0,state='exited',exit_code=0,handed=True,running_at=pm.now(),finished_at=pm.now(),model='SIM-model',admission_runner='SIM-worker',admission_expert=self.e.admission_binding(pm.api(),self.root,self.ident)))
+        self.e.validate(pm.api(),self.root,dict(self.ident,evidence=dict(runner='SIM-worker',report='management/sim-validation.json',source_sha256=sha)),operator='SIM-controller')
+        self.e.enable(pm.api(),self.root,dict(self.ident,person='SIM-person',quote='SIMULATED enable authorization'),operator='SIM-controller')
 
     def config(self):
         return {'entries':[dict(id='internal',profession='code-engineering',level='T7',model='SIM-big',count=1,master=True,aliases=['小 M.ai']),
@@ -213,7 +215,8 @@ class Platform(PlatformFixture, unittest.TestCase):
 
     def test_failed_git_retrieval_is_machine_readable(self):
         import subprocess
-        with patch.object(api.pm.team.experts,'prepare',side_effect=subprocess.CalledProcessError(128,['git'])):
+        self.write('expert-professions.json', dict(schema='matrix-expert-professions/1', professions=['product'], configured_by='SIM-person', authorization='SIM-human preset'))
+        with patch.object(api.pm.team.experts,'fetch',side_effect=subprocess.CalledProcessError(128,['git'])):
             result=self.run_api(self.req('expert.prepare',id='x',version='1',profession='product',url='https://example.org/x',commit='a'*40))
         self.assertEqual('SOURCE_UNAVAILABLE',result['error']['code'])
         self.assertTrue(result['error']['retryable'])

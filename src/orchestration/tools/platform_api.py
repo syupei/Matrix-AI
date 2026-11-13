@@ -203,7 +203,7 @@ def event(root, db, request, p):
     return dict(result, record=latest)
 
 
-def dispatch(root, db, cfg, who, request):
+def dispatch(root, db, cfg, who, request, prepared=None):
     op, p = request['op'], request['params']
     if op == 'capabilities':
         return capabilities(cfg)
@@ -240,6 +240,10 @@ def dispatch(root, db, cfg, who, request):
         value = dict(id='project', mode=p['mode'], principal=request['_principal'], generation=before['generation']+1)
         pm.integrity.save(pm.api(), db, 'runtime_owner', value)
         return value
+    if op == 'expert.prepare':
+        return pm.team.experts.prepare(pm.api(), root, p, prepared=prepared)
+    if op in {'expert.validate', 'expert.enable'}:
+        return getattr(pm.team.experts, op.split('.')[1])(pm.api(), root, p, db=db, operator=who['actor'])
     if op.startswith('expert.'):
         return getattr(pm.team.experts, op.split('.')[1])(pm.api(), root, p)
     if op == 'scripts.inspect':
@@ -256,11 +260,25 @@ def dispatch(root, db, cfg, who, request):
 
 
 def handle(project, request, principal):
+    prepared = None
+    if isinstance(request, dict) and request.get('op') == 'expert.prepare':
+        with TRANSACTIONS:
+            result = handle_transaction(project, request, principal, preflight=True)
+        if '_prepare_plan' not in result:
+            return result
+        plan = result['_prepare_plan']
+        try:
+            source = {} if 'existing' in plan else pm.team.experts.fetch(**plan['provenance'])
+            prepared = {'source': source, 'preset': plan['preset']}
+        except subprocess.SubprocessError:
+            return dict(protocol=SPEC, request_id=request.get('request_id'), ok=False, error=dict(code='SOURCE_UNAVAILABLE', message='Git source retrieval failed or timed out; no source scripts were executed', retryable=True))
+        except (ValueError, OSError, KeyError, TypeError) as error:
+            return dict(protocol=SPEC, request_id=request.get('request_id'), ok=False, error=dict(code='REJECTED', message=str(error), retryable=False))
     with TRANSACTIONS:
-        return handle_transaction(project, request, principal)
+        return handle_transaction(project, request, principal, prepared=prepared)
 
 
-def handle_transaction(project, request, principal):
+def handle_transaction(project, request, principal, prepared=None, preflight=False):
     root, db = Path(project).resolve(), None
     rid = request.get('request_id') if isinstance(request,dict) else None
     try:
@@ -282,9 +300,9 @@ def handle_transaction(project, request, principal):
         # every concurrent request before acquiring its transaction lock.
         database = pm.local(root, 'management/runtime/tasks.sqlite3')
         need(database.is_file(), 'INVALID_CONFIG', 'initialize the task database before platform access')
-        db = sqlite3.connect(database.as_uri() + ('?mode=rw' if write else '?mode=ro'), uri=True, timeout=20, isolation_level=None)
+        db = sqlite3.connect(database.as_uri() + ('?mode=rw' if write and not preflight else '?mode=ro'), uri=True, timeout=20, isolation_level=None)
         db.row_factory = sqlite3.Row
-        db.execute('BEGIN IMMEDIATE' if write else 'BEGIN')
+        db.execute('BEGIN IMMEDIATE' if write and not preflight else 'BEGIN')
         payload = dict(request, params=request.get('params',{}), _principal=principal)
         token = hashlib.sha256(pm.canon(payload).encode()).hexdigest()
         if write:
@@ -300,7 +318,12 @@ def handle_transaction(project, request, principal):
                 need(old['sha256'] == hashlib.sha256(pm.canon(semantic).encode()).hexdigest(), 'IDEMPOTENCY_CONFLICT','event id reused with different contents')
                 db.commit()
                 return dict(old['response'], request_id=rid)
-        result = dispatch(root,db,cfg,who,payload)
+        if preflight:
+            need(op == 'expert.prepare', 'INVALID_REQUEST', 'preflight is only for expert prepare')
+            plan = pm.team.experts.prepare_plan(pm.api(), root, payload['params'])
+            db.commit()
+            return {'_prepare_plan': plan}
+        result = dispatch(root,db,cfg,who,payload,prepared=prepared)
         response = dict(protocol=SPEC, request_id=rid, ok=True, result=result, revision=revision(db))
         if write:
             semantic = dict(payload); semantic.pop('request_id')

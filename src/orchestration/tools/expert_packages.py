@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import unicodedata
 from urllib.parse import urlsplit
 
 PRESETS = 'management/expert-professions.json'
@@ -96,13 +97,13 @@ def fetch(url, commit, subdir=''):
     require(not Path(subdir).is_absolute() and '..' not in Path(subdir).parts, 'relative source subdirectory required')
     with tempfile.TemporaryDirectory(prefix='matrix-expert-fetch-') as tmp:
         def git(*args):
-            return subprocess.run(['git', '-c', 'core.hooksPath=/dev/null', '-c', 'protocol.ext.allow=never', '-c', 'protocol.file.allow=never',
+            return subprocess.run(['git', '-c', 'core.hooksPath=/dev/null', '-c', 'protocol.allow=never', '-c', 'protocol.https.allow=always', '-c', 'http.followRedirects=false',
                                    '-c', 'credential.helper=', *args], cwd=tmp, check=True, capture_output=True, timeout=120).stdout
         git('init', '--bare', '--template=', '.')
         git('fetch', '--depth=1', '--no-tags', url, commit)
         require(git('rev-parse', 'FETCH_HEAD').decode().strip() == commit, 'source commit mismatch')
         rows = git('ls-tree', '-r', '-z', commit).split(b'\0')
-        out, size = {}, 0
+        out, size, spellings = {}, 0, {}
         prefix = subdir.strip('/') + '/' if subdir.strip('/') else ''
         for row in rows:
             if not row:
@@ -115,6 +116,11 @@ def fetch(url, commit, subdir=''):
             name = name[len(prefix):]
             require(mode in {'100644', '100755'} and kind == 'blob', 'symlink/submodule source requires manual adaptation')
             require(name and not Path(name).is_absolute() and '..' not in Path(name).parts and not any(ord(c) < 32 for c in name), 'unsafe source path')
+            for count in range(1, len(Path(name).parts) + 1):
+                spelling = '/'.join(Path(name).parts[:count])
+                canonical = unicodedata.normalize('NFC', spelling).casefold()
+                require(canonical not in spellings or spellings[canonical] == spelling, 'case or Unicode source path collision')
+                spellings[canonical] = spelling
             n = int(git('cat-file', '-s', oid))
             size += n
             require(size <= MAX_BYTES and len(out) < 200, 'source exceeds import limit; select a smaller subdirectory')
@@ -129,7 +135,7 @@ def save(pm, base, manifest):
     return manifest
 
 
-def prepare(pm, root, params):
+def prepare_plan(pm, root, params):
     identity = {k: params[k] for k in ('id', 'version')}
     preset = allowed(pm, root, params['profession'])
     base = folder(pm, root, identity)
@@ -137,8 +143,20 @@ def prepare(pm, root, params):
     if base.exists():
         _, old = read(pm, root, identity)
         require(old['source'] == provenance and old['profession'] == params['profession'], 'package version already exists with different source')
-        return old
-    source = fetch(**provenance)
+        return {'existing': old, 'preset': preset, 'provenance': provenance}
+    return {'preset': preset, 'provenance': provenance}
+
+
+def prepare(pm, root, params, prepared=None):
+    plan = prepare_plan(pm, root, params)
+    if prepared is not None:
+        require(prepared['preset'] == plan['preset'], 'profession preset changed during fetch; retry with current authorization')
+    if 'existing' in plan:
+        return plan['existing']
+    identity = {k: params[k] for k in ('id', 'version')}
+    preset, provenance = plan['preset'], plan['provenance']
+    base = folder(pm, root, identity)
+    source = prepared['source'] if prepared is not None else fetch(**provenance)
     manifest = dict(schema='matrix-expert/1', **identity, profession=params['profession'], source=provenance,
                     preset_sha256=preset, state='awaiting_adaptation', source_files={k:digest(v) for k,v in source.items()},
                     limitations=['Source is untrusted reference data; source scripts and hooks are not executed.'])
@@ -175,7 +193,25 @@ def adapt(pm, root, params):
     return save(pm, base, m)
 
 
-def validate(pm, root, params):
+def admission_binding(pm, root, identity):
+    base, manifest = read(pm, root, identity)
+    require(manifest['state'] in {'awaiting_validation', 'validated', 'enabled'}, 'adaptation must be complete before admission run')
+    require(manifest['preset_sha256'] == allowed(pm, root, manifest['profession']), 'profession preset changed')
+    return dict(identity, methods_sha256=digest((base/'METHODS.md').read_bytes()),
+                package_sha256=digest(json.dumps(manifest['files'], sort_keys=True).encode()))
+
+
+def validation_run(pm, root, run_id, db=None):
+    if db is not None:
+        return pm.integrity.records(db, 'launch').get(run_id)
+    connection = pm.connect(root, readonly=True)
+    try:
+        return pm.integrity.records(connection, 'launch').get(run_id)
+    finally:
+        connection.close()
+
+
+def validate(pm, root, params, db=None, operator=None):
     base, m = read(pm, root, {k:params[k] for k in ('id','version')})
     require(m['state'] in {'awaiting_validation', 'validated', 'enabled'}, 'adaptation incomplete or conflicts unresolved')
     require(m['preset_sha256'] == allowed(pm, root, m['profession']), 'profession preset changed')
@@ -192,17 +228,34 @@ def validate(pm, root, params):
     checks = data.get('checks', {})
     require(isinstance(checks, dict) and all(isinstance(checks.get(k), dict) and checks[k].get('passed') is True and pm.nonempty(checks[k].get('evidence')) for k in ('method_preservation', 'write_isolation', 'handoff_contract')), 'method, isolation and handoff evidence required; transport success alone is insufficient')
     require(data.get('passed') is True and data.get('methods_sha256') == evidence['source_sha256'] and data.get('runner') == evidence['runner'], 'runner validation failed or mismatched')
+    require(pm.nonempty(operator), 'authenticated validation operator required')
+    require(pm.nonempty(data.get('run_id')) and pm.nonempty(data.get('model')), 'validation report requires run_id and model')
+    run = validation_run(pm, root, data['run_id'], db)
+    require(run and run.get('state') == 'exited' and run.get('exit_code') == 0 and run.get('running_at') and run.get('finished_at') and run.get('handed') is True and not run.get('ended_without_handover') and not run.get('cancel_requested'), 'admission run must exist and have ended successfully')
+    require(run.get('admission_expert') == admission_binding(pm, root, {k:m[k] for k in ('id','version')}), 'admission run is bound to another expert version or content')
+    require(run.get('model') == data['model'] and run.get('admission_runner') == data['runner'], 'admission runner or model mismatch')
     if m['state'] == 'enabled':
         return m
-    m.update(state='validated', validation=dict(evidence, report_sha256=digest(report.read_bytes())))
+    m.update(state='validated', validation=dict(evidence, run_id=data['run_id'], model=data['model'], operator=operator, at=pm.now(), report_sha256=digest(report.read_bytes())))
     return save(pm, base, m)
 
 
-def enable(pm, root, params):
+def enable(pm, root, params, db=None, operator=None):
     base, m = read(pm, root, {k:params[k] for k in ('id','version')})
     require(m['state'] in {'validated','enabled'}, 'validated expert required')
     require(m['preset_sha256'] == allowed(pm, root, m['profession']), 'profession preset changed')
-    m['state'] = 'enabled'
+    require(pm.nonempty(params.get('person')) and pm.nonempty(params.get('quote')) and pm.nonempty(operator), 'enable requires person, exact authorization quote and authenticated operator')
+    if db is None:
+        connection = pm.connect(root, readonly=True)
+        try:
+            pm.authorized(params['person'], [None], pm.task_map(connection), pm.roster(root))
+        finally:
+            connection.close()
+    else:
+        pm.authorized(params['person'], [None], pm.task_map(db), pm.roster(root))
+    if m['state'] == 'enabled':
+        return m
+    m.update(state='enabled', enable_authorization=dict(person=params['person'], quote=params['quote'], operator=operator, at=pm.now()))
     return save(pm, base, m)
 
 

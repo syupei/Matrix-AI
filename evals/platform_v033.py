@@ -25,7 +25,7 @@ def load(name,path):
 
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('--kit',type=Path,required=True);ap.add_argument('--out',type=Path,required=True)
-    ap.add_argument('--host',choices=['codex','claude'],required=True)
+    ap.add_argument('--host',choices=['codex','claude'],required=True);ap.add_argument('--model',help='explicit model for the bounded acceptance run')
     ap.add_argument('--phase',choices=['prepare','continue-reviewed'],default='prepare');a=ap.parse_args()
     kit,out=a.kit.resolve(),a.out.resolve()
     project=out/'project'
@@ -51,7 +51,7 @@ def main():
         call('init',config=dict(project='SIM-V033',pm_actor='PM',authorization='User-authorized synthetic acceptance only',frontdoor_id='SIM',max_slots=3))
         professions=['product','code-engineering']
         write('management/expert-professions.json',dict(schema='matrix-expert-professions/1',professions=professions,configured_by='SIM-fixture',authorization='SIMULATED test preset, not a human production decision'))
-        models=['gpt-6.1-sol','gpt-6-luna'] if a.host=='codex' else ['claude-sonnet-4-6','claude-sonnet-4-6']
+        models=[a.model,a.model] if a.model else (['gpt-6.1-sol','gpt-6-luna'] if a.host=='codex' else ['claude-sonnet-4-6','claude-sonnet-4-6'])
         caps={k:dict(state='supported',evidence='local write-boundary probe and CLI probe; raw evidence retained by acceptance operator') for k in ['launch','write_isolation','model_selection','cancel']}
         runner=dict(version='acceptance',models={m:m for m in models},capabilities=caps)
         name='codex-0.167.0.json' if a.host=='codex' else 'claude-2.1.72.json'
@@ -78,17 +78,17 @@ def main():
         sha=hashlib.sha256((base/'METHODS.md').read_bytes()).hexdigest()
         adm_iid='ADMISSION'
         prompt='这是合成准入测试。请读取 '+str(base/'ENTRY.md')+' 和 '+str(base/'METHODS.md')+'。按该专业方法为已明确要求的留言板写一段候选说明：匿名留言、费用未定。保留费用未定，不开发。只写 '+str(project/'management/instances/ADMISSION/workspace/public/admission.md')+'，完成即退出。'
-        argv=[p.replace('{model}',models[0]) for p in runner.get('argv',[])]
-        result=boundary.run(project,adm_iid,argv,prompt,180,adapter=runner.get('adapter','kernel'),model=models[0],effort='medium',template=runner)
+        admission=load('admission_lifecycle',Path(__file__).with_name('admission_run.py'))
+        result=admission.run(pm,boundary,project,identity,a.host,runner,models[0],'medium',prompt)
         (out/'admission.json').write_text(json.dumps(result,ensure_ascii=False,indent=2))
         artifact=project/'management/instances/ADMISSION/workspace/public/admission.md'
-        write('management/admission-pending.json',dict(runner=a.host,methods_sha256=sha,artifact=str(artifact.relative_to(project)),exit_code=result['exit_code'],review='pending actual artifact and trace review; keyword checks are not admission'))
+        write('management/admission-pending.json',dict(runner=a.host,run_id=result['run_id'],model=result['model'],methods_sha256=sha,artifact=str(artifact.relative_to(project)),exit_code=result['exit_code'],review='pending actual artifact and trace review; keyword checks are not admission'))
         print(json.dumps({'phase':'awaiting_review','out':str(out),'next':'Read actual artifact/trace; record method_preservation, write_isolation and handoff_contract evidence, validate and enable through trusted facade, then continue-reviewed. No automatic self-certification.'}))
         return
     # The operator must have reviewed actual artifacts and enabled the package.
     identity={'id':'imported-product','version':'1'}
     pm.team.experts.binding(pm.api(),project,'product',identity)
-    models=['gpt-6.1-sol','gpt-6-luna'] if a.host=='codex' else ['claude-sonnet-4-6','claude-sonnet-4-6']
+    models=[a.model,a.model] if a.model else (['gpt-6.1-sol','gpt-6-luna'] if a.host=='codex' else ['claude-sonnet-4-6','claude-sonnet-4-6'])
     entries=[dict(id='P',profession='product',level='T7',model=models[0],effort='medium',count=1,master=True,expert=identity,aliases=['小王.ai']),dict(id='E',profession='code-engineering',level='T7',model=models[1],effort='medium',count=1,master=True,aliases=['小 M.ai'])]
     write('management/instance-config.json',{'entries':entries})
     call('confirm_config',person='SIM-person',quote='SIMULATED approval of acceptance fixture only',presented_ref='SIM fixture',choices={e['id']:'acknowledge_unregistered' for e in entries})

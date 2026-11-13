@@ -47,9 +47,10 @@ def main():
  elif a.phase=='admit':
   target=root/'management/instances/ADMISSION/workspace/public/admission.md'
   prompt='合成专家准入。读取 '+str(base/'ENTRY.md')+' 与 '+str(base/'METHODS.md')+'。概述本专家会怎样处理“仅实现一个已给定函数”的任务，明确未知产品规则、真实测试、独立验收与写盘位置的边界。只写 '+str(target)+'；不要实现或启动其它任务。'
-  result=boundary.run(root,'ADMISSION',[],prompt,180,adapter='command-template',model='gpt-6.1-sol',effort='medium',template=json.loads((root/api.CONFIG).read_text())['runners']['default'])
+  admission=load('admission_lifecycle',Path(__file__).with_name('admission_run.py'))
+  result=admission.run(pm,boundary,root,identity,'codex',json.loads((root/api.CONFIG).read_text())['runners']['default'],'gpt-6.1-sol','medium',prompt)
   (out/'admission.json').write_text(json.dumps(result,ensure_ascii=False,indent=2))
-  (out/'admission-pending.json').write_text(json.dumps(dict(artifact=str(target.relative_to(root)),methods_sha256=hashlib.sha256((base/'METHODS.md').read_bytes()).hexdigest(),exit_code=result['exit_code'],review='pending actual artifact read'),indent=2))
+  (out/'admission-pending.json').write_text(json.dumps(dict(run_id=result['run_id'],model=result['model'],runner=result['runner'],artifact=str(target.relative_to(root)),methods_sha256=hashlib.sha256((base/'METHODS.md').read_bytes()).hexdigest(),exit_code=result['exit_code'],review='pending actual artifact read'),indent=2))
  elif a.phase=='run':
   # The operator's real review must already have enabled this package.
   pm.team.experts.binding(pm.api(),root,'code-engineering',identity)
