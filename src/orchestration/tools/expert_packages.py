@@ -4,7 +4,9 @@ A package is data; source hooks/installers are not executed. Static validation i
 not a sandbox or a professional-quality review. The platform supplies those facts.
 """
 import hashlib
+import ipaddress
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -87,19 +89,57 @@ def entry(pm, root, inst):
     return (base / 'ENTRY.md').relative_to(root).as_posix()
 
 
+SSH_USER = r'[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}'
+SSH_HOST = r'[A-Za-z0-9][A-Za-z0-9.-]{0,252}'
+SSH_PATH = r'[A-Za-z0-9_~][A-Za-z0-9_.~/-]{0,255}'
+SCP_LIKE = re.compile(rf'(?:({SSH_USER})@)?({SSH_HOST}):(/?{SSH_PATH})')
+URL_ERROR = 'credential-free HTTPS or SSH Git URL required; credentials belong to the platform'
+
+
+def source_url(url):
+    """Accept https://host/path, ssh://[user@]host[:port]/path or [user@]host:path. No password, token, query or option-like parts."""
+    require(isinstance(url, str) and url and not any(ord(c) < 33 for c in url), URL_ERROR)
+    if SCP_LIKE.fullmatch(url) and '://' not in url:
+        path = SCP_LIKE.fullmatch(url).group(3)
+        require('..' not in path.split('/'), URL_ERROR)
+        return url
+    parsed = urlsplit(url)
+    require(parsed.scheme in {'https', 'ssh'} and parsed.hostname and not parsed.password and not parsed.query and not parsed.fragment, URL_ERROR)
+    if parsed.netloc.rsplit('@', 1)[-1].startswith('['):
+        ipaddress.IPv6Address(parsed.hostname)
+    elif parsed.scheme == 'ssh':
+        require(re.fullmatch(SSH_HOST, parsed.hostname) is not None, URL_ERROR)
+    if parsed.scheme == 'https':
+        require(not parsed.username, URL_ERROR)
+    else:
+        require(parsed.username is None or re.fullmatch(SSH_USER, parsed.username), URL_ERROR)
+        require(parsed.port is None or 0 < parsed.port < 65536, URL_ERROR)
+        require(re.fullmatch('/' + SSH_PATH, parsed.path) and '..' not in parsed.path.split('/'), URL_ERROR)
+    return url
+
+
+def git_env():
+    """Keep platform SSH settings and restrict transports to its HTTPS/SSH intersection."""
+    env = dict(os.environ, GIT_TERMINAL_PROMPT='0', SSH_ASKPASS_REQUIRE='never')
+    protocols = {'https', 'ssh'}
+    if 'GIT_ALLOW_PROTOCOL' in env:
+        protocols.intersection_update(env['GIT_ALLOW_PROTOCOL'].split(':'))
+    env['GIT_ALLOW_PROTOCOL'] = ':'.join(sorted(protocols))
+    return env
+
+
 def fetch(url, commit, subdir=''):
     """Read Git objects in an empty bare repository; no worktree discovery or hooks."""
-    parsed = urlsplit(url)
-    require(parsed.scheme == 'https' and parsed.hostname and not parsed.username and not parsed.password and not parsed.query and not parsed.fragment,
-            'credential-free HTTPS Git URL required; credentials belong to the platform')
+    url = source_url(url)
     require(re.fullmatch(r'[0-9a-f]{40}', commit or ''), 'fixed full Git commit required')
     require(not Path(subdir).is_absolute() and '..' not in Path(subdir).parts, 'relative source subdirectory required')
+    env = git_env()
     with tempfile.TemporaryDirectory(prefix='matrix-expert-fetch-') as tmp:
         def git(*args):
-            return subprocess.run(['git', '-c', 'core.hooksPath=/dev/null', '-c', 'protocol.ext.allow=never', '-c', 'protocol.file.allow=never',
-                                   '-c', 'credential.helper=', *args], cwd=tmp, check=True, capture_output=True, timeout=120).stdout
+            return subprocess.run(['git', '-c', 'core.hooksPath=/dev/null', '-c', 'credential.helper=', *args], cwd=tmp, check=True,
+                                  capture_output=True, timeout=120, stdin=subprocess.DEVNULL, env=env, start_new_session=True).stdout
         git('init', '--bare', '--template=', '.')
-        git('fetch', '--depth=1', '--no-tags', url, commit)
+        git('fetch', '--depth=1', '--no-tags', '--', url, commit)
         require(git('rev-parse', 'FETCH_HEAD').decode().strip() == commit, 'source commit mismatch')
         rows = git('ls-tree', '-r', '-z', commit).split(b'\0')
         out, size = {}, 0

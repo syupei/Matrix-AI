@@ -1,7 +1,11 @@
 """Mechanism tests: source packages, models, people and runner reports are SIMULATED."""
 import importlib.util
 import json
+import os
 from pathlib import Path
+import shlex
+import subprocess
+import sys
 import unittest
 from unittest.mock import patch
 from test_pm_instances import Fixture, pm
@@ -111,9 +115,86 @@ class Experts(Fixture, unittest.TestCase):
             self.e.binding(pm.api(),self.root,'code-engineering',self.ident)
 
     def test_git_fetch_rejects_credentials_and_nonfixed_refs_without_network(self):
-        for url,commit in [('https://token@example.org/a.git','a'*40),('file:///tmp/a','a'*40),('https://example.org/a.git','main')]:
-            with self.assertRaises(ValueError):
+        for url,commit in [('https://token@example.org/a.git','a'*40),('file:///tmp/a','a'*40),('https://example.org/a.git','main'),
+                           ('ssh://git:secret@example.org/a.git','a'*40),('ssh://-oProxyCommand=x/a.git','a'*40),('ssh://git@-oProxyCommand=x/a.git','a'*40),
+                           ('-oProxyCommand=x:a.git','a'*40),('git@example.org:-u/a.git','a'*40),('git@example.org:a/../b.git','a'*40),
+                           ('ssh://git@example.org/a.git?x=1','a'*40),('git@example.org:a b.git','a'*40),('ext::sh -c x','a'*40),('http://example.org/a.git','a'*40),
+                           ('git@example.org:/srv/../a.git','a'*40),('git@example.org:/-u/a.git','a'*40),
+                           ('https://[invalid]/a.git','a'*40),('ssh://git@[v1.example]/a.git','a'*40)]:
+            with self.assertRaises(ValueError,msg=url):
                 self.e.fetch(url,commit)
+
+    def test_git_fetch_accepts_ssh_sources_without_prompting(self):
+        calls=[]
+        def run(args,**kw):
+            calls.append((args,kw))
+            class R: stdout=b''
+            if args[-2:]==['rev-parse','FETCH_HEAD']: R.stdout=('a'*40+'\n').encode()
+            return R
+        for url in ['ssh://git@example.org/group/sim.git','ssh://example.org:2222/group/sim.git','git@example.org:group/sim.git','https://example.org/group/sim.git',
+                    'git@example.org:/srv/git/sim.git','https://[2001:db8::1]/sim.git','ssh://git@[2001:db8::1]:2222/sim.git',
+                    'https://git_internal.example.org/group/sim.git']:
+            calls.clear()
+            with patch.object(self.e.subprocess,'run',side_effect=run), patch.dict(self.e.os.environ,{},clear=True):
+                with self.assertRaisesRegex(ValueError,'empty'):
+                    self.e.fetch(url,'a'*40)
+            fetch_args,kw=calls[1]
+            self.assertEqual(['--','%s'%url,'a'*40],fetch_args[-3:])
+            self.assertEqual('https:ssh',kw['env']['GIT_ALLOW_PROTOCOL'])
+            self.assertEqual('0',kw['env']['GIT_TERMINAL_PROMPT'])
+            self.assertEqual('never',kw['env']['SSH_ASKPASS_REQUIRE'])
+            self.assertNotIn('GIT_SSH_COMMAND',kw['env'])
+            self.assertIs(self.e.subprocess.DEVNULL,kw['stdin'])
+            self.assertTrue(kw['start_new_session'])
+
+    def test_git_environment_preserves_platform_ssh_and_protocol_restrictions(self):
+        for configured,expected in [('https','https'),('ssh:file','ssh'),('file',''),('','')]:
+            with self.subTest(protocols=configured), patch.dict(os.environ,{'GIT_ALLOW_PROTOCOL':configured},clear=True):
+                self.assertEqual(expected,self.e.git_env()['GIT_ALLOW_PROTOCOL'])
+        for name,value in [('GIT_SSH_COMMAND','ssh -i platform-key'),('GIT_SSH','/platform/ssh-wrapper')]:
+            with self.subTest(setting=name), patch.dict(os.environ,{name:value,'SSH_ASKPASS_REQUIRE':'force'},clear=True):
+                env=self.e.git_env()
+                self.assertEqual(value,env[name])
+                self.assertEqual('never',env['SSH_ASKPASS_REQUIRE'])
+                if name=='GIT_SSH':
+                    self.assertNotIn('GIT_SSH_COMMAND',env)
+
+    def test_git_fetch_blocks_file_rewrite_with_real_git(self):
+        mirror=self.root/'mirror'
+        mirror.mkdir()
+        config=self.root/'gitconfig'
+        env={'PATH':os.environ.get('PATH',os.defpath),'GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_GLOBAL':str(config)}
+        def git(*args):
+            return subprocess.run(['git',*args],cwd=mirror,env=env,check=True,capture_output=True).stdout
+        git('init','--template=','.')
+        (mirror/'SKILL.md').write_bytes(b'fixture method')
+        git('add','SKILL.md')
+        git('-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-m','fixture')
+        commit=git('rev-parse','HEAD').decode().strip()
+        git('config','--file',str(config),'protocol.file.allow','always')
+        git('config','--file',str(config),'url.'+mirror.as_uri()+'.insteadOf','https://fixture.invalid/repo.git')
+        with patch.dict(os.environ,env,clear=True):
+            with self.assertRaises(subprocess.CalledProcessError) as raised:
+                self.e.fetch('https://fixture.invalid/repo.git',commit)
+        self.assertIn(b"transport 'file' not allowed",raised.exception.stderr)
+
+    def test_git_fetch_uses_platform_core_ssh_command(self):
+        config=self.root/'gitconfig'
+        script=self.root/'platform_ssh.py'
+        receipt=self.root/'ssh-receipt.json'
+        script.write_text('import json,os,sys\nfrom pathlib import Path\n'
+                          'Path(sys.argv[1]).write_text(json.dumps(dict(args=sys.argv[2:],askpass=os.environ.get("SSH_ASKPASS_REQUIRE"))))\n'
+                          'sys.exit(1)\n')
+        command=shlex.join([sys.executable,str(script),str(receipt)])
+        env={'PATH':os.environ.get('PATH',os.defpath),'GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_GLOBAL':str(config)}
+        subprocess.run(['git','config','--file',str(config),'core.sshCommand',command],env=env,check=True)
+        with patch.dict(os.environ,env,clear=True):
+            with self.assertRaises(subprocess.CalledProcessError):
+                self.e.fetch('git@fixture.invalid:group/repo.git','a'*40)
+        data=json.loads(receipt.read_text())
+        self.assertIn('git@fixture.invalid',data['args'])
+        self.assertIn("git-upload-pack 'group/repo.git'",data['args'])
+        self.assertEqual('never',data['askpass'])
 
 
 class PlatformFixture(Fixture):
