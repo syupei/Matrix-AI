@@ -1,18 +1,18 @@
 {
-  "package": "matrix-ai/0.33",
+  "package": "matrix-ai/0.34",
   "components": {
-    "matrix-front-desk": "0.8",
-    "matrix-project-management": "0.18",
-    "matrix-product": "0.30",
-    "matrix-content-design": "0.10",
-    "matrix-experience-design": "0.27",
-    "matrix-code-engineering-intake": "0.16",
-    "matrix-code-engineering-solution": "0.9",
-    "matrix-code-engineering-build": "0.8",
-    "matrix-quality-engineering": "0.9",
-    "matrix-collaboration": "0.15",
-    "matrix-profession-builder": "0.3",
-    "matrix-product-capability-model": "1.0"
+    "matrix-front-desk": "0.9",
+    "matrix-project-management": "0.19",
+    "matrix-product": "0.31",
+    "matrix-content-design": "0.11",
+    "matrix-experience-design": "0.28",
+    "matrix-code-engineering-intake": "0.17",
+    "matrix-code-engineering-solution": "0.10",
+    "matrix-code-engineering-build": "0.9",
+    "matrix-quality-engineering": "0.10",
+    "matrix-collaboration": "0.16",
+    "matrix-profession-builder": "0.4",
+    "matrix-product-capability-model": "1.1"
   },
   "extensions": [
     "core-baseline/0.1",

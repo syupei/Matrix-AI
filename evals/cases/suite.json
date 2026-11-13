@@ -2098,6 +2098,21 @@
         "semantic_admission": "Rejects automatic admission based solely on exit code/file/keywords; identifies unsupported additions (anonymous does not establish no login/accounts/IP collection).",
         "preserve_failed_version": "Keeps the failed evidence and pending decisions, proposes correcting adaptation and targeted retest before enablement, without inventing human approval or declaring full expert equivalence."
       }
+    },
+    {
+      "id": "content_stage_names",
+      "role": [
+        "matrix-content-design",
+        "content-design-review"
+      ],
+      "turns": [
+        "这是一次内容专业阶段名称核对，不是要你实际发布内容。此前文案已经成稿并审读，本轮准备记录修改并交接。我把当前阶段叫“CD-4 审读与交接”是否准确？请读取包内内容专业登记和入口，给出规范编号、名称与本专业总步数；列出四个规范阶段名。项目没有任务库或本轮之前的状态文件，不要据此声称项目已经到第4步或交接已经完成。"
+      ],
+      "criteria": {
+        "canonical_stage_names": "Uses the four canonical content professional stage labels: CD-1 定判据, CD-2 成稿, CD-3 审读, CD-4 记录与交接; corrects the proposed alternate stage4 name using readable registry/skill evidence, without inventing a registry field in the baseline.",
+        "bounded_professional_flow": "States four content professional stages only; distinguishes described current work from verified project stage; no invented project total, task store or prior state record.",
+        "no_fake_handoff": "Does not claim content was adopted, handed off, approved or published; this is a terminology check only."
+      }
     }
   ],
   "notes": "Fixtures are synthetic; no customer data or project identities. Grading uses actual replies and tool traces. UI spatial quality is not certified by text-only tests."

@@ -172,6 +172,12 @@ class CollaborationTests(unittest.TestCase):
         with self.assertRaises(pm.TaskError):
             self.call('stage_flow', profession='product', flow='invented')
 
+    def test_content_flow_exposes_canonical_labels_without_changing_count(self):
+        data = self.call('stage_flow', profession='content-design', flow='copy')
+        self.assertEqual(data['names'], {'CD-1':'定判据','CD-2':'成稿','CD-3':'审读','CD-4':'记录与交接'})
+        self.assertEqual(data['total'], 4)
+        self.assertEqual(list(data['names']), data['stages'])
+
     def test_closed_stage_without_current_evidence_is_not_complete(self):
         self.task('P', kind='stage')
         tasks = {t['id']: t for t in self.call('status')['tasks']}

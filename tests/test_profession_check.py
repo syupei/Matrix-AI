@@ -65,6 +65,12 @@ class ProfessionCheckTests(unittest.TestCase):
         self.assertTrue(any('T4' in p for p in problems))
         self.assertTrue(any('F3' in p for p in problems))
 
+    def test_stage_names_reject_missing_or_unregistered_codes(self):
+        root, mod = self.copy()
+        self.edit_json(root / 'matrix/professions/content-design/profession.json',
+                       lambda d: d['stage_flows'][0].update(names={'CD-1':'定判据','CD-9':'自拟阶段'}))
+        self.assertTrue(any('names must cover exactly' in p for p in mod.check(root)))
+
     def test_duplicate_stage_flow_and_bad_upstream_are_reported(self):
         root, mod = self.copy()
         self.edit_json(root / 'matrix/professions/experience-design/profession.json', lambda d: d['stage_flows'][0].update(key='product'))

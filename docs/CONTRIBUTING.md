@@ -30,3 +30,9 @@ Missing, stale or regressing evidence blocks the release. Raw model logs stay lo
 New behavioral rules need a demonstrated failure and a passing correction; an unobserved recommendation remains a proposal. Periodically audit rules without evidence, keeping explicit user constraints and professional invariants. Text probes do not certify visual quality, spatial layout, device behavior or native confirmation controls.
 
 The consumer package contains skills, common rules and tools, the installer, `START.md` and `BEHAVIOR-CHECKS.md`. It excludes maintainer tests, evaluation reports, business fixtures and personal state. Release manifests and Git tags preserve source revisions; historical snapshots under `packages/` stay immutable. `tools/release.py verify` checks historical manifests and tagged canonical sources.
+
+## Guidance reading budgets
+
+The build checks character counts for Markdown: skill entries3500, role indexes1500, shared index2500, other guidance3000. Quoted capability standards are exempt. A larger reference needs an explicit package-relative entry in `docs/guidance-budget-exceptions.json` with `max_characters` and a concrete `reason`; missing, stale or exceeded exceptions fail the build. Current exceptions are empty. Inspect `python3 tools/guidance_usage.py --kit <built-kit>` for per-file sizes and reachable reading routes. These are character counts, not model token billing. A shorter router can still cause more reads; compare actual execution traces and usage before claiming runtime savings.
+
+When moving a section, retain the original heading with an operation-specific link, preserve its constraints, and update relative links for the installed layout. Read only the topic needed for the current operation; do not follow every branch of a router preemptively.

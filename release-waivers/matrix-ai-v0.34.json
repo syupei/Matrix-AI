@@ -1,0 +1,110 @@
+{
+  "package": "matrix-ai-v0.34",
+  "source_hash": "7184283ee89ff2acbd73495a49e80090d8f40002cdf45eae6347d72d7754f5e8",
+  "authorized_by": "user",
+  "date": "2026-11-13",
+  "authorization": "采用9场景限定验证，记录省略范围（推荐）",
+  "authorization_call_id": "call_c395855044eb44bb95e937a925175c2a",
+  "scope": "9/125 selected scenarios;116 omitted. Eleven paired samples,40/40 selected criteria pass with human adjudications. Mixed actual source epochs retained. Changelog reviewed;publication explicitly authorized. No other project upgrades.",
+  "existing_evidence": [
+    "544 maintenance checks;292 runtime files;563 links.",
+    "40/40 criteria across9 selected scenarios and11 paired model samples;no unresolved selected-scope regressions.",
+    "27 scenario attempts:22planned,1unchanged timeout retry,4targeted repairs;26completed and1timeout.",
+    "1195 evidence file hashes verified;31 section migrations preserved;81 original standards unchanged."
+  ],
+  "limitations": [
+    "116 scenarios not rerun;full comparison baseline remains0.29.",
+    "Actual selected sources:d5783f11(6Luna,2Sol),ebaebe9f(tech_cost,topic_perf),7184283e(review_a). Original failures including20877dfc remain unchanged.",
+    "Browser rendering and interaction not verified;host browser control and preview port unavailable.",
+    "Single samples;not general fee or cross-model stability certification. Uncached input decreased1.70% overall but Luna increased0.11%;tool text increased4.65%. Extra attempts itemized;timeout usage unknown.",
+    "Existing0.33 Luna complex-lead failures remain outside supported Sol6.1 medium lead/Luna medium executor configuration. No distributed storage,external-permission or arbitrary-platform certification."
+  ],
+  "targeted_cases": [
+    "intake",
+    "review_a",
+    "tech_cost",
+    "topic_perf",
+    "pm_change_ledger",
+    "pm_resource_available",
+    "pm_approved_followup",
+    "review_partial_artifacts",
+    "content_stage_names"
+  ],
+  "models": [
+    "gpt-6-luna",
+    "gpt-6.1-sol"
+  ],
+  "effort": "medium",
+  "score_adjudications": [
+    {
+      "call_id": "call_d6aa711213d34586bd58451aefbd5ed4",
+      "answer": "裁定基线0、候选1（推荐）",
+      "model": "sol",
+      "case": "review_partial_artifacts",
+      "criterion": "progressive_reads",
+      "baseline": 0,
+      "candidate": 1,
+      "publication_authorized": false
+    },
+    {
+      "call_id": "call_b42b0e9636304ae99d02fc905e628e8e",
+      "item": 0,
+      "model": "luna",
+      "case": "pm_resource_available",
+      "criterion": "resource_ready",
+      "baseline": 1,
+      "candidate": 1,
+      "answer": "裁定资源1/1（推荐）",
+      "candidate_source": "d5783f11cd189367cd0b26673685c49ce85265a1a274a75494cccd7aa734ddf8",
+      "publication_authorized": false
+    },
+    {
+      "call_id": "call_b42b0e9636304ae99d02fc905e628e8e",
+      "item": 1,
+      "model": "luna",
+      "case": "review_partial_artifacts",
+      "criterion": "bounded_steps",
+      "baseline": 1,
+      "candidate": 1,
+      "answer": "裁定内容步数1/1（推荐）",
+      "candidate_source": "d5783f11cd189367cd0b26673685c49ce85265a1a274a75494cccd7aa734ddf8",
+      "publication_authorized": false
+    },
+    {
+      "call_id": "call_b42b0e9636304ae99d02fc905e628e8e",
+      "item": 2,
+      "model": "luna",
+      "case": "topic_perf",
+      "criterion": "pm_header_only",
+      "baseline": 1,
+      "candidate": 1,
+      "answer": "PM摘要1/1、规格关联1/0（推荐）",
+      "candidate_source": "d5783f11cd189367cd0b26673685c49ce85265a1a274a75494cccd7aa734ddf8",
+      "publication_authorized": false
+    },
+    {
+      "call_id": "call_b42b0e9636304ae99d02fc905e628e8e",
+      "item": 2,
+      "model": "luna",
+      "case": "topic_perf",
+      "criterion": "conclusion_lands_in_spec",
+      "baseline": 1,
+      "candidate": 0,
+      "answer": "PM摘要1/1、规格关联1/0（推荐）",
+      "candidate_source": "d5783f11cd189367cd0b26673685c49ce85265a1a274a75494cccd7aa734ddf8",
+      "publication_authorized": false
+    }
+  ],
+  "validation_receipt_sha256": "63df867e1ee3234973722672ccf844e173e6dcfebdbc78331e4bc304ab606a36",
+  "local_raw_evidence_index_sha256": "9c873d69001119e1398911083d8419727a41ba5adf2cf3131d0794edc7d554f0",
+  "publication_authorization": {
+    "call_id": "call_591cbefdda0a4dd0bbaa9237fe716581",
+    "item": 0,
+    "date": "2026-11-13",
+    "answer": "批准按该说明提交并发布0.34（推荐）",
+    "source_hash": "7184283ee89ff2acbd73495a49e80090d8f40002cdf45eae6347d72d7754f5e8",
+    "reviewed_notes_sha256": "9055cd1dc8558aa04cfa2b99f6250a46fbf1eaacf5674107fb4ab973f5f34703",
+    "scope": "Commit and publish0.34 under reviewed limited validation;no other project upgrades."
+  },
+  "review_status": "User reviewed changelog and approved commit/publication."
+}

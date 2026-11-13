@@ -57,6 +57,28 @@ def entry_stage_errors(rel,text):
  m=re.search(r'^1\. .*$',text.split('## 启动',1)[1].split('\n## ',1)[0],re.M)
  return [] if m and STAGE_POINTER in m.group(0) else ['startup step 1 does not point at the stage line: '+rel]
 def fingerprint(files):return hashlib.sha256(json.dumps(files,sort_keys=True).encode()).hexdigest()
+def guidance_budget(rel):
+ if rel.startswith(TEXT_EXEMPT) or not rel.endswith('.md'):return None
+ name=Path(rel).name
+ if name=='SKILL.md':return 3500
+ if name=='GUIDANCE-INDEX.md':return 2500 if rel=='matrix/base/GUIDANCE-INDEX.md' else 1500
+ return 3000
+
+def guidance_budget_errors(documents,exceptions):
+ errors=[]
+ for rel,text in documents.items():
+  limit=guidance_budget(rel)
+  if limit is None:continue
+  exception=exceptions.get(rel)
+  if exception is not None:
+   if not isinstance(exception,dict) or not isinstance(exception.get('reason'),str) or not exception['reason'].strip() or type(exception.get('max_characters')) is not int or exception['max_characters']<=limit:
+    errors.append('invalid guidance budget exception: '+rel);continue
+   limit=exception['max_characters']
+  if len(text)>limit:errors.append(f'guidance exceeds {limit} characters: {rel} ({len(text)})')
+ for rel in exceptions:
+  if rel not in documents or guidance_budget(rel) is None:errors.append('stale guidance budget exception: '+rel)
+ return errors
+
 def check_sources():
  files=source_files();src=layout();errors=[];links=0
  dirs={str(Path(r).parent) for r in files}
@@ -77,6 +99,7 @@ def check_sources():
     links+=1
  errors+=[e for rel in files if src[rel].name=='SKILL.md' for e in entry_stage_errors(rel,src[rel].read_text())]
  errors+=stage_template_errors(src['matrix/base/CORE.md'].read_text(),src['matrix/base/USER-INTERACTION.md'].read_text())
+ errors+=guidance_budget_errors({rel:p.read_text() for rel,p in src.items() if p.suffix=='.md'},json.loads((ROOT/'docs/guidance-budget-exceptions.json').read_text()))
  if errors:raise ValueError('\n'.join(errors))
  return files,links
 

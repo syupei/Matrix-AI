@@ -1,6 +1,6 @@
 # 分层任务工具
 
-何时读：每次调用 `pm_tasks.py` 前（初始化、写任务、生成视图）。
+何时读：首次调用 `pm_tasks.py` 或入口/调用条件改变时；随后只读本次操作对应章节，输入版本变化时重读受影响部分。
 
 [pm_tasks.py](tools/pm_tasks.py)（Python 3.9+，仅标准库）保存任务与事件、检查角色与版本、生成只读视图；不启动 Agent、不发消息、不做调度或身份认证，证据由调用者如实填写。
 
@@ -18,52 +18,19 @@
 
 ## 初始化与创建
 
-- `init`：`config={project,pm_actor,authorization,frontdoor_id,max_slots}`（max_slots 1–64），actor 为 pm_actor。用本项目真实主任务与委托，不复制其他项目的库；只能初始化一次。
-- `configure`（仅 pm_actor）：`frontdesk_actor` 登记项目前台的身份，此后前台也可以录入 `human_review`；写 null 取消。`max_slots` 与 `limits`（unattended_launches 30、run_timeout_minutes 60、rework_cap 2、reassign_cap 2、launch_retries 3）是人的决定，带 person 与 quote。
-- 平台运行（见 [TEAM-RUNTIME](TEAM-RUNTIME.md)）：`{"op":"continue"}` 只读，给出要 PM 做的事（附 revision 与命令）、停止原因的计数与额度，`"detail": true` 给出全部；`{"op":"task","id":…}` 只读一项任务；`{"op":"find","text":…}` 按词找任务与共享知识条目；执行者用 `hand_over`（run、evidence、summary）交出、`report_blocked`（run、reason）报受阻；`inbox`（PM 或前台，kind=request/answer/continue/note、text，有人的话带 person 与 quote）与 `inbox_done`（PM，带 note）；`pause_project` / `resume_project`（person、quote、reason）。`launch_start` 等运行记录由启动命令与调度器写，不手写。返工、改派超过上限时带 `escalation={decided_by,note}`，PM 派发的任务另带人的 quote。
-- `create`：`task` 字段——`id`、`parent`（顶层 null）；必填 `title`、`goal`、`next_action`、`owner`（工作维护）、`checker`（专业检验）；`inputs`/`outputs`/`criteria` 为非空字符串数组（输入及版本、成果、判据，可引用专业源）；`dependencies` 为开始前须已完成的任务或里程碑 ID；`completion_requires` 为完成前置，即可以先开始、但标为完成前须已完成的任务 ID（何时用见 workflow），不与 dependencies 重复；两者都不得成环（含父子等待）；`executor` 为真实实例，未知 null；`slots` 默认 1，纯协调容器可为 0；`resources` 为独占资源名；`human_required`；`expanded`（本任务子计划已完整展开）；`source`（专业有效源）。
-- 规划与协作字段（均可选）：
-  - `kind`：`work` 或 `stage`，阶段里程碑写 `stage`、slots 设 0，由 PM 登记协调启动与实际回执，不派发独立执行进程；完成前置用 completion_requires 连接阶段内工作，关闭仍需成果与检验；
-  - `stage`：所属阶段里程碑的 ID；
-  - `direction`：子方向；
-  - `people`：关系到人员 id 列表，关系为 decide、clarify、designate、execute、inform；
-  - `derived_from`：派生来源任务；
-  - `order`：就绪任务多于空位时的先后（小的先）；`timeout_minutes`：本任务运行多久算超时（缺省按 limits）；
-  - `awaiting`：`[{person, action, item, ref?}]`，action 为 decide、clarify、designate、execute。
-- 职级、风险与来源（均可选）：`difficulty`（T1–T9）、`risk`（F0–F5）、`risk_reason`；`origin` 为 `{kind:"request", id, from}`，记来自别的专业请求的工作。owner 或 executor 是已登记实例时，职级不低于 difficulty，没有职级的实例不能接有难度的任务；创建、改执行者或难度、开始前都核对。PM 的项目层任务，owner 是有专业的实例时须是该专业的 master。
-- 有 `management/people.json` 时，出现的人员 id 必须在名单中。
-- 顶层由 pm_actor 创建，子项由父任务 owner 创建；manager 自动确定，即派发者（输出中的 `dispatcher`），之后不能改。
+初始化任务库、创建任务或规划字段时，读取[具体说明](TASK-CREATE.md)。
 
 ## 更新与流转
 
-- `update`（owner；manager 也可改 checker 及协调字段）：`task_id,expected_revision,changes,reason`，不能改 id、parent、owner、kind。非 manager 改 goal、inputs、outputs、criteria、dependencies、completion_requires、human_required、checker、people、derived_from 时，需用 `scope_authorization` 引用实际决定或委托；撤销 human_required 一律需要。除 next_action、executor、source 与规划协作字段（stage、direction、people、derived_from、awaiting、gap）外，其他修改都会递增 work_revision，已有检验与人工决定随之失效；外部成果变了就显式更新 evidence 或 inputs。difficulty、risk、risk_reason 也需 manager 授权；把 F0、F1 调低另带 `person`、`quote`（有名单时须是有权的人）。
-- `transition`（owner 或 manager）：`task_id,expected_revision,state,reason`，state 为 planned/running/waiting_review/blocked/done/cancelled/deprecated。需求变更导致的弃用与关联编号，按[任务完整性](PM-INTEGRITY.md)办理。
-  - 进 running：真实 executor、依赖已完成（完成前置不要求）、槽位与资源可用、`execution_receipt`；准备派发不算运行。
-  - 离开 running：`stop_evidence`（成果已返回可用该返回），防止执行者仍在写时释放槽位。交出（转 waiting_review）带 `evidence`（成果与证据路径，任务已有时可省）；转 blocked 可带 `blocked_by:{task_id}`。
-  - done/cancelled 由 manager 记录，子项须已结束。done 另需 evidence、依赖与完成前置都已完成、checker 对当前基线的 passed、适用的 approved。取消写明原因并处理在途执行，不代替必要验收。F0–F2（模型被坚持使用的实例做的按 F1）且制作者是派生实例时，检验须为 independent；项目里没有其他在用、职级不低于难度的实例时，same_instance 也可关闭；有这样的实例但都与制作者同模型、而本需不同模型时不能关闭，请 PM 按配置派生不同模型的实例，或请人改配置。
-  - 返工就在原任务上做：检验未通过后再进 running，或 manager 重开已完成的任务（转 planned 或 blocked），带 `rework_reason`（execution/requirement_clarification/basis_changed/other；检验未通过的沿用其 cause，可省）、`note`，不是 execution 的另带 `attributed_to`（实例 ID）。work_revision 加 1，已有检验与人工决定失效。已完成且下游已在用（依赖它或以它为完成前置的任务已开始或完成）的不重开，改用变更计划的后继任务。重开时已关闭的上级先重开；终态任务先重开才能修改或登记检验。
-  - transition 与 report 可带 `usage:{cost,currency,tokens,seconds}`，记入台账。
+更新、开始、交出、关闭或重开任务时，读取[具体说明](TASK-TRANSITIONS.md)。
 
 ## 检验、人工决定、上报、转交
 
-- 平台返工用 `plan_restart`（本层 manager）：`task_id,expected_revision,note`，非执行原因另带 `attributed_to`；沿用检验者记录的 cause。工具登记本次工作版本及执行者对应的重启参数，调度器照此执行；缺参数时交派发者补齐，不反复尝试无效启动。实际启动时才累计返工次数，已有额度与升级条件仍有效。
-
-- `review`（checker）：`outcome` passed/failed、`criteria_checked`（完整判据数组）、`evidence`（数组）；需已有成果 evidence，绑定当前工作、子项、依赖与完成前置的版本：完成前置原样通过时检验仍有效，前置返工后须重新检验。failed 带 `cause`（返工原因类别）。工具按 C24 §6 记 `independence`：检验者是制作者为 same_instance，其余两条不满足为 not_independent，否则 independent。它是记录，不会自动检验。
-- `human_review`（pm_actor，或已登记的项目前台）：`outcome` approved/changes_requested/deferred，`presented_ref,source,quote,scope` 对应已展示版本与真实答复。名单中有两人及以上时必须带 `person`，且此人是该任务或其派生上游的决定人，或拥有项目级决定权；同一工作基线上，上游已作出的不同决定不能被下游改写。批量确认按各任务范围分别录入。已有免审委托可由 update 引用后把 human_required 改为 false，不补造人工通过。
-- `report`（owner）：`summary,next_action,impact,delivery`（prepared/sent/received），可带 `request_id`；sent/received 需 `receipt`（宿主消息结果或 PM 读源的接收记录）。上报不发消息，不改变合格状态。
-- `handoff`（manager）：`new_owner,acceptance_receipt,reason`；任务不在 running 且无子项；保留 ID 与历史，清空 executor，接收者重新核对输入。
-- `reassign`（manager）：`task_id,expected_revision,to,reason_kind`（failed_check/executor_unable/other）、`note`；进行中的带 `stop_evidence` 并转回 planned。目标是在用的已登记实例，与原执行者同专业、职级够、不忙；owner 就是执行者时一起转。
-- `conflict`：`id,task_ids,parties,issue,basis,resolution,decided_by,level`（tool/master/owner/pm/human）、`overturned`（task_ids 中被推翻的）。只记录，不改任务状态。actor 须符合 level：tool 为当事方或 PM，master 为涉及专业的 master，owner 为受影响任务的 owner，pm 为 PM，human 由 PM 或前台带 `person`、`quote`；decided_by 是作决定的一方。被推翻的任务各记一条事件。
-- `notice`（PM 或前台）：`id,kind`（F1_output/Q0/Q1/Q2）、`ref`、`summary`、`people`（F1、Q1 必填）。Q0 置于总入口与群摘要顶部，F1、Q1 进当事人的个人视图与群摘要，Q2 进群摘要；缺陷正文留在质量源。
+检验、录入人工决定、上报、转交或改派时，读取[具体说明](TASK-REVIEW.md)。
 
 ## 专业缺口
 
-需要的专业在项目里没有设立时（[CORE](../base/CORE.md) §7），登记缺口，由人选择。编号 G-001 起由工具分配；任务以可选字段 `gap` 关联（create、update 可写），缺口关闭前改掉须带有权的 `person` 与 `quote`。`status` 的 `gaps` 列出缺口与关联任务。
-
-- `gap_open`（PM、前台，或所列任务的 owner、manager）：`domain`（领域，或专业的 ID、名称）、`kind`（not_in_kit 本包没有；not_set_up 项目里没有在用实例）、`why`、`qualification`、`risk`，可带 `task_ids`。该领域已有常设选择时不再问人，返回 `existing` 与 `choice`，照此执行：self 挂到原缺口（风险更高时重新问）；expert、human 另建沿用该选择的缺口（`record`），各自交付、关闭。
-- `gap_decide`（PM 或前台）：`gap,expected_revision,choice`（expert/self/human）、`person,quote`，expert 另带 `expert`（专家 Agent 或人的名称、地址），`standing` 默认 true。person 须对每个关联任务有决定权，无关联任务时为项目级决定人。可以改选；human 给关联任务加"现在等人处理"的条目。
-- `gap_close`（记录者同 gap_open）：只用于 expert、human，`gap,expected_revision,source,evidence`（数组），记下对方成果，去掉等人条目。
-- 缺口未选择，或 expert、human 未关闭时，关联任务不能开工、交出或完成；选 self 的可以做，交出与完成时 evidence 须有一条含"非{领域}专家产出，未经具备资质的人审定"。任务列表、人审点汇总、计划表与群摘要显示缺口。
+登记、决定或关闭专业缺口时，读取[具体说明](TASK-GAPS.md)。
 
 ## 数据边界
 
@@ -77,36 +44,10 @@
 需要接管交付清单、登记需求变更、按实例/岗位查询或暂停恢复时，读取 [任务完整性](PM-INTEGRITY.md) 的字段说明。所有关系仍在同一任务库的 pm_records 中，沿用事件幂等和修订校验；未显式接管的任务保持兼容，不推断已确认或已完成。新增项目层标记 project_level、岗位 role 与成果摘要 artifact_digests 只在实际需要时登记。
 
 实例配置的确认与派生、任职、工作流 PM 的局部项目任务、专业介入义务及任务投递接续见 [团队接口](TEAM-RUNTIME.md)。有人员名单时人工答复必须标明有权的人，名单人数不赋予权限。现有目录部署仅提供协作约束；强制工具隔离需要受信宿主。
-# 阶段状态与协作配置查询
-
 ## 项目类型、资源、结果与收尾
 
-`{"op":"project"}` 查询项目事实及revision，`{"op":"closure_check"}` 查询收尾缺口。PM用 `project_config` 保存，带 actor、唯一event_id、expected_revision、source（实际来源）和changes；只提交改变的顶层字段，goals/resources/closure 各字段整体替换，先读后改以保留其他记录。
+登记项目目标、资源或检查收尾时，读取[具体说明](TASK-PROJECT.md)。
 
-```json
-{"op":"project_config","actor":"PM","event_id":"project-facts-1","expected_revision":0,"source":"用户原话及需求记录","changes":{"project_type":"product_development","goals":[{"id":"adoption","target":"约定的业务目标","owner":"证据提供者","state":"pending","evidence":[]}],"resources":{"device-1":{"kind":"device","exclusive":true,"status":"available","evidence":["已核实的设备记录"]}}}}
-```
+## 阶段与协作配置
 
-- 项目类型使用 product_development 或实际其他类型；其他类型返回路线缺口，不表示本包已具备对应专业能力。
-- 任务 `resources` 引用资源ID。目录 kind 为 person/device/supplier/budget/procurement，status 为 available/pending/unavailable，exclusive 为布尔值；可记owner和note。可用必须有事实依据；未知容量、成本和采购交期留pending。目录一经启用，缺登记的资源也阻断就绪。相同独占资源按任务order、登记时间、ID排先后，非就绪任务不占预约，运行中的占用优先；共享资源必须明确exclusive:false，不编容量。
-- 业务目标必填id/target/owner/state/evidence；state为pending/met/not_met，后两者还需measurement（观测结果）及非空evidence。目标证据是独立记录，任务done和通过检验不替代它。
-- 收尾是 `kind:"stage",closure:true` 的任务。changes.closure 含 accepted（当前已验收顶层工作ID），handoffs（已验收项的交接），pending（所有未结顶层工作）；handoffs/pending 每项含 task_id、receiver、next_action、非空evidence。已知未结事项先建原任务库任务，不另建无法核对的流水。收尾门槛允许目标显式待证据且责任已明确，不把它改记达标。
-- closure.lessons 可选，每项 observation、conditions、evidence，只有实际观察才写。`closure_check` 仅检验记录齐备与当前任务证据，专业质量、接收人的真实答复仍需核实；关闭还须原有任务检验与适用人审，关闭后改变项目事实先显式重开收尾里程碑。
-
-接续仍用 `{"op":"continue"}`。有阶段里程碑时，输出 `stage_line` 和 `project_stages`；PM 的项目阶段行直接引用 `stage_line`。`runtime_state` 表示暂停或额度恢复条件，不改变 `planned` 等任务状态。专业流程总步数用 `{"op":"stage_flow","profession":"product","flow":"product"}` 从专业登记取得；未知流程不猜数。
-
-协作约定见 [TEAM](TEAM.md)；先用 `{"op":"collaboration"}` 读当前配置与 revision。配置保存在任务库，勿另建不被工具读取的配置文件。人员及各专业唯一真人主责仍由负责人维护 `management/people.json`，每人用 `masters:["product"]` 登记主责，项目负责人为唯一 `decides:["project"]` 的人。
-
-以下是命令结构示例；person、quote 必须替换为实际决定人及原话：
-
-```json
-{"op":"collaboration_config","actor":"PM","event_id":"unique-id","expected_revision":0,"person":"leader-id","quote":"实际原话","changes":{"default":"regular","profiles":{"product":"deep","code-engineering":"quick"}}}
-```
-
-- 模式：quick 快速出品、regular 常规协作、deep 精细共创。未选择的专业沿默认，`confirmed:false`；先向人实际提出问题与选择，再记 `collaboration_asked`，带 `professions:["product"]`、`question`（实际问题原文）、`presented_ref`（已展示问题的消息或记录）、actor、event_id 和 expected_revision。仅列出“待确认”、计划提问或工具调用不算问过；没问就保持 `ask_once` 待问。`ask_once` 排除已问未答项，不把问过当确认。
-- 运行中改档仍用 `collaboration_config`，由项目负责人或该专业真人主责决定；只变更明确指定的专业，事件保留前后选择及原话。
-- 若问题在上一轮末尾才展示，本轮先依据真实对话回填已问记录，再读 `ask_once`；用户尚未选档仍保持待确认，不把同一问题重问一次。
-- `changes.delegations` 是增改列表，每项含 `id, profession, scope, person, grantor, quote, decisions`，可带 `task_ids` 和 `active:false` 撤权。decisions 显式列 professional、release、budget 或 project。grantor 必须是本次 person；发布、预算及项目级授权只能由项目负责人给出。scope 精确匹配已登记范围，不用相似词扩大授权；交叠范围先解决再路由。
-- `{"op":"decision_route","profession":"product","scope":"导出功能","kind":"professional"}` 返回 person 与依据；也可传 task_id，从任务的 `profession,decision_scope,decision_kind` 读取。任务创建/修改要登记这三个字段，实际 human_review 和个人视图使用同一路由；没有范围授权则专业真人主责兜底，再到项目负责人。F0 路由额外返回需立即告知的项目负责人。
-- `changes.engineering` 独立保存 `{"tier":"medium","basis":"规模、风险与不确定性的事实","stage":"E-1"}`，由研发真人主责确认；tier 为 small/medium/large。协作模式不会改变此字段。
-- `--render` 派生 `management/views/collaboration.md`，显示每专业的模式、主责、审阅粒度、必需材料与待确认项。配置写入是协作记录，不认证人的身份；不自动派生实例、免除审阅或启动任务。
+查询阶段、协作档位或决定人及委托时，读取[具体说明](TASK-GOVERNANCE.md)。

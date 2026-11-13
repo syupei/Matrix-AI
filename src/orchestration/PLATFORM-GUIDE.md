@@ -53,13 +53,4 @@ python3 matrix/orchestration/tools/reference_worker.py --project . --principal c
 
 ## 常见情况
 
-| 情况 | 正确处理 |
-| --- | --- |
-| STALE_REVISION | 重新查询，不把旧任务包覆盖到当前版本 |
-| IDEMPOTENCY_CONFLICT | 检查 ID 重用；重试原请求用原 ID，新动作才用新 ID |
-| UNSUPPORTED | 补齐能力证据或只读处理，不能改成“支持”来放行 |
-| AUTHORIZATION_CHANGED | 在安全接点停止并核实，不能继续交出作有效结果 |
-| 取消已请求 | 继续等待平台停止回执；未证实停止不重派 |
-| 心跳丢失或启动回执未知 | 回报 unknown，保留占用；核实后再回报，不按超时盲目重启 |
-| 宿主认证失败 | 在平台侧恢复凭证，保留失败证据；不向专家提供密钥 |
-| 进程正常退出却无交接 | 任务保持未完成并登记受阻，排查回报文件与日志 |
+处理平台返回错误或运行状态不明时，读取[具体说明](PLATFORM-TROUBLESHOOTING.md)。

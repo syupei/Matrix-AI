@@ -127,6 +127,10 @@ def registry(path, problems, owners, flows, abbrs):
             continue
         if not all(isinstance(s, str) and code.match(s) for s in stages):
             problems.append(f'{name}: stage codes in {key} must look like {abbr}-1 or {abbr}-1.1')
+        names = flow.get('names')
+        if names is not None and (not isinstance(names, dict) or set(names) != set(stages)
+                                  or any(not isinstance(n, str) or not n.strip() for n in names.values())):
+            problems.append(f'{name}: stage flow {key} names must cover exactly its stages with nonempty labels')
         if not set(flow.get('review', [])) <= set(stages):
             problems.append(f'{name}: stage flow {key} reviews a stage it does not have')
         flows[key] = (name, flow)
