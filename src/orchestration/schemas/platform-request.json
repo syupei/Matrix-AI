@@ -1,0 +1,574 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "request_id",
+    "project_id",
+    "op"
+  ],
+  "properties": {
+    "request_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "event_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "protocol": {
+      "const": "matrix-platform/1"
+    },
+    "op": {
+      "enum": [
+        "actions.claim",
+        "actions.plan",
+        "capabilities",
+        "expert.adapt",
+        "expert.disable",
+        "expert.enable",
+        "expert.prepare",
+        "expert.validate",
+        "inspect",
+        "runs.cancel",
+        "runs.event",
+        "runs.query",
+        "runtime.configure",
+        "scripts.inspect",
+        "scripts.request",
+        "tasks.command",
+        "tasks.query",
+        "validate"
+      ]
+    },
+    "params": {
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "op": {
+            "const": "capabilities"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": [],
+            "additionalProperties": false,
+            "properties": {}
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "op": {
+            "const": "inspect"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": [],
+            "additionalProperties": false,
+            "properties": {}
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "op": {
+            "const": "validate"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": [],
+            "additionalProperties": false,
+            "properties": {}
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "op": {
+            "const": "tasks.query"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": [],
+            "additionalProperties": false,
+            "properties": {
+              "detail": {},
+              "id": {},
+              "name": {},
+              "op": {},
+              "text": {}
+            }
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "op": {
+            "const": "tasks.command"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": []
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "op": {
+            "const": "actions.plan"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": [],
+            "additionalProperties": false,
+            "properties": {}
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "op": {
+            "const": "actions.claim"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": [
+              "action_id",
+              "expected_revision"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "action_id": {},
+              "expected_revision": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "required": [
+          "params"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "op": {
+            "const": "runs.query"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": [],
+            "additionalProperties": false,
+            "properties": {
+              "run_id": {}
+            }
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "op": {
+            "const": "runs.cancel"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": [
+              "expected_revision",
+              "reason",
+              "run_id"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "expected_revision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "reason": {},
+              "run_id": {}
+            }
+          }
+        },
+        "required": [
+          "params"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "op": {
+            "const": "runs.event"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": [
+              "expected_revision",
+              "kind",
+              "run_id"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "evidence": {},
+              "exit_code": {},
+              "expected_revision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "kind": {},
+              "model": {},
+              "pid": {},
+              "reason": {},
+              "receipt": {},
+              "run_id": {},
+              "summary": {},
+              "usage": {},
+              "commands": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 20,
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "params"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "op": {
+            "const": "runtime.configure"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": [
+              "expected_generation",
+              "mode"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "expected_generation": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "mode": {}
+            }
+          }
+        },
+        "required": [
+          "params"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "op": {
+            "const": "scripts.inspect"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": [],
+            "additionalProperties": false,
+            "properties": {}
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "op": {
+            "const": "scripts.request"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": [
+              "id"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "args": {},
+              "id": {}
+            }
+          }
+        },
+        "required": [
+          "params"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "op": {
+            "const": "expert.prepare"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": [
+              "commit",
+              "id",
+              "profession",
+              "url",
+              "version"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "commit": {},
+              "id": {},
+              "profession": {},
+              "subdir": {},
+              "url": {},
+              "version": {}
+            }
+          }
+        },
+        "required": [
+          "params"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "op": {
+            "const": "expert.adapt"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": [
+              "id",
+              "methods",
+              "review",
+              "version"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {},
+              "methods": {},
+              "review": {},
+              "unresolved": {},
+              "version": {}
+            }
+          }
+        },
+        "required": [
+          "params"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "op": {
+            "const": "expert.validate"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": [
+              "evidence",
+              "id",
+              "version"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "evidence": {},
+              "id": {},
+              "version": {}
+            }
+          }
+        },
+        "required": [
+          "params"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "op": {
+            "const": "expert.enable"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": [
+              "id",
+              "version"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {},
+              "version": {}
+            }
+          }
+        },
+        "required": [
+          "params"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "op": {
+            "const": "expert.disable"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "params"
+        ],
+        "properties": {
+          "params": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "reason",
+              "version"
+            ],
+            "properties": {
+              "id": {},
+              "reason": {},
+              "version": {}
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "op": {
+            "enum": [
+              "actions.claim",
+              "expert.adapt",
+              "expert.enable",
+              "expert.prepare",
+              "expert.validate",
+              "runs.cancel",
+              "runs.event",
+              "runtime.configure",
+              "scripts.request",
+              "tasks.command",
+              "expert.disable"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "event_id"
+        ]
+      }
+    }
+  ]
+}

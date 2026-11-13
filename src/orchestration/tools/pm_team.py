@@ -2,13 +2,18 @@
 
 Records are cooperative facts. Authentication belongs to the host, not actor strings.
 """
+import importlib.util
 import hashlib
 import json
 from pathlib import Path
 import re
 
-READ_OPS = {'team'}
-INSTANCE_OPS = {'confirm_config', 'derive', 'retire_instance', 'relevel_instance'}
+_spec = importlib.util.spec_from_file_location('matrix_experts', Path(__file__).with_name('expert_packages.py'))
+experts = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(experts)
+
+READ_OPS = {'team', 'resolve_instance'}
+INSTANCE_OPS = {'confirm_config', 'derive', 'retire_instance', 'relevel_instance', 'rename_instance'}
 WRITE_OPS = {'appoint', 'revoke_appointment', 'register_participation', 'participation_event', 'bind_participation'} | INSTANCE_OPS
 CONFIG, FIT = 'management/instance-config.json', 'management/model-fit.json'
 KIT = Path(__file__).resolve().parents[3]  # tools/ -> orchestration/ -> matrix/ -> project root
@@ -59,9 +64,9 @@ def fit_entries(pm, root, regs):
     data, sha = read(pm, root, CONFIG)
     items = data.get('entries') if isinstance(data, dict) else None
     pm.require(isinstance(items, list), 'instance-config.json: entries list required')
-    seen, masters = set(), set()
+    seen, masters, aliases = set(), set(), set()
     for e in items:
-        pm.require(isinstance(e, dict) and set(e) <= {'id', 'profession', 'level', 'model', 'count', 'master'}, 'instance-config.json: entry fields are id, profession, level, model, count, master')
+        pm.require(isinstance(e, dict) and set(e) <= {'id', 'profession', 'level', 'model', 'count', 'master', 'aliases', 'expert', 'runner'}, 'instance-config.json: entry fields are id, profession, level, model, count, master, aliases, expert, runner')
         eid = e.get('id')
         pm.require(isinstance(eid, str) and re.fullmatch(pm.SAFE_ID, eid) is not None and eid not in seen, 'instance-config.json: unique simple entry ids required')
         seen.add(eid)
@@ -72,6 +77,14 @@ def fit_entries(pm, root, regs):
         pm.require(pm.nonempty(e.get('model')), eid + ': model name required')
         pm.require(type(e.get('count')) is int and e['count'] >= 0, eid + ': count must be an integer >= 0')
         pm.require(type(e.get('master', False)) is bool, eid + ': master must be boolean')
+        pm.require('runner' not in e or (isinstance(e['runner'], str) and re.fullmatch(pm.SAFE_ID, e['runner'])), eid + ': simple runner id required')
+        names = e.get('aliases', [])
+        pm.require(pm.strings(names) and (not names or len(names) == e['count']), eid + ': aliases must match configured count')
+        for name in names:
+            k = experts.key(name)
+            pm.require(k not in aliases, 'duplicate instance alias')
+            aliases.add(k)
+        experts.binding(pm, root, e['profession'], e.get('expert'))
         if e.get('master'):
             floor = reg['levels'].get('master_min')
             pm.require(e['count'] == 1, eid + ': a master entry has count 1')
@@ -137,10 +150,25 @@ def profile(pm, root, inst, conf):
     person = ((pm.roster(root) or {}).get('people', {}).get(conf['person']) or {}).get('name', conf['person'])
     text = (f"# 实例档案：{display(regs, inst['id'])}\n\n由派生工具生成，不手写。\n\n"
             f"- 编号：{inst['id']}\n- 专业：{reg['name']}\n- 职级：{inst['level']}\n- 身份：{'master' if inst['master'] else '执行者'}\n"
-            f"- 模型名称：{inst['model']}\n- 配置项：{inst['config_entry']}\n- 派生人与时间：{inst['derived_by']}，{inst['derived_at']}\n"
+            f"- 别名：{inst.get('alias', inst['id'])}\n- 专家：{inst.get('expert', {'id': 'builtin', 'version': 'installed'})}\n- 运行器：{inst.get('runner', 'default')}\n- 模型名称：{inst['model']}\n- 配置项：{inst['config_entry']}\n- 派生人与时间：{inst['derived_by']}，{inst['derived_at']}\n"
             f"- 配置的确认人与原话：{person}：「{conf['quote']}」\n- 适用性：{FIT_NAMES[inst['fit']]}\n\n"
             f"## 本职级（{inst['level']}）\n\n- 能做：{can}\n- 能判断：{judge}\n- 不能做（越权）：{cannot}\n")
     pm.atomic(pm.local(root, workspace(pm, root, inst['id']) + '/profile.md'), text)
+
+
+def assert_alias(pm, instances, alias, iid):
+    k = experts.key(alias)
+    for other in instances.values():
+        if other['id'] != iid:
+            reserved = [other['id'], other.get('alias', other['id']), *other.get('alias_history', [])]
+            pm.require(all(experts.key(a) != k for a in reserved), 'duplicate or historical instance alias')
+
+
+def resolve(pm, instances, value):
+    k = experts.key(value)
+    hits = [i for i in instances.values() if any(experts.key(a) == k for a in [i['id'], i.get('alias', i['id']), *i.get('alias_history', [])])]
+    pm.require(len(hits) == 1, 'instance alias is missing or ambiguous')
+    return hits[0]
 
 
 def derived(inst):
@@ -159,7 +187,14 @@ def level_issue(pm, db, task):
         if need is not None and level(inst.get('level')) is None:
             return iid + ' has no level and cannot take a task of difficulty ' + task['difficulty']
         if need is not None and level(inst['level']) < need:
-            return iid + ' (' + inst['level'] + ') is below difficulty ' + task['difficulty'] + ': split the task or assign a higher level; do not relabel'
+            alternatives = [i['id'] + ' (' + i['level'] + ')' for i in instances.values()
+                            if i.get('active') is not False and i.get('profession') == inst.get('profession')
+                            and level(i.get('level')) is not None and level(i['level']) >= need]
+            return (iid + ' (' + inst['level'] + ') is below difficulty ' + task['difficulty']
+                    + ': split the task or assign a higher level; do not relabel. Keep this difficulty when reassigning. Same-profession level-qualified instances '
+                    + '(check availability and delegation): ' + (', '.join(sorted(alternatives)) or 'none registered')
+                    + '. Otherwise split the actual goal/outputs/criteria into smaller tasks. Rewording the same scope '
+                    + 'or adding “only follow confirmed rules” does not justify lowering difficulty; do not relabel.')
     return None
 
 
@@ -251,6 +286,7 @@ def confirm(pm, root, db, cfg, tasks, cmd):
     pm.require(not problems, 'configuration not confirmed: ' + '; '.join(problems))
     before = pm.integrity.records(db, 'instance_config').get('confirmed')
     pm.require(cmd.get('expected_revision') == before['revision'] if before else cmd.get('expected_revision') in {None, 0}, 'stale confirmation; reload the team view')
+    items = [dict(e, expert_binding=experts.binding(pm, root, e['profession'], e.get('expert'))) for e in items]
     value = dict(id='confirmed', config=CONFIG, sha256=sha, entries=[dict(e, insisted=e['fit'] == 'unfit') for e in items],
                  person=cmd['person'], quote=cmd['quote'], presented_ref=cmd['presented_ref'], at=pm.now(),
                  revision=(before or {}).get('revision', 0) + 1, updated_at=pm.now())
@@ -264,6 +300,18 @@ def instance_op(pm, root, db, cfg, tasks, cmd):
     if op == 'confirm_config':
         return confirm(pm, root, db, cfg, tasks, cmd)
     pm.require(actor == cfg['pm_actor'], 'PM derives and updates instances from the confirmed configuration')
+    if op == 'rename_instance':
+        instances = pm.integrity.records(db, 'instance')
+        inst = instances.get(cmd.get('id'))
+        pm.require(inst and cmd.get('expected_revision') == inst['revision'], 'stale or missing instance')
+        alias = cmd.get('alias')
+        assert_alias(pm, instances, alias, inst['id'])
+        value = dict(inst, alias=alias.strip(), alias_history=list(dict.fromkeys(inst.get('alias_history', []) + [inst.get('alias', inst['id'])])), revision=inst['revision'] + 1, updated_at=pm.now())
+        pm.integrity.save(pm, db, 'instance', value)
+        old_conf = pm.integrity.records(db, 'instance_config').get('confirmed')
+        if inst.get('config_entry') and old_conf:
+            profile(pm, root, value, old_conf)
+        return {'record': value}
     conf = confirmed(pm, root, db)
     pm.require(conf, 'no current confirmed instance configuration; ask the person to confirm the file first')
     instances = pm.integrity.records(db, 'instance')
@@ -276,11 +324,17 @@ def instance_op(pm, root, db, cfg, tasks, cmd):
         pm.require(pm.strings(cmd.get('write_roots', [])), 'write_roots must be paths')
         n = 1 + max([int(m[1]) for k in instances for m in [re.fullmatch(re.escape(entry['profession']) + r'-(\d{3,})', k)] if m] or [0])
         iid = entry['profession'] + '-' + str(n).zfill(3)
+        chosen = experts.binding(pm, root, entry['profession'], entry.get('expert'))
+        pm.require(chosen == entry.get('expert_binding', {'id':'builtin','version':'installed'}), 'expert changed since configuration approval')
+        available = [a for a in entry.get('aliases', []) if not any(experts.key(a) == experts.key(i.get('alias', i['id'])) for i in active)]
+        alias = available[0] if available else iid
+        assert_alias(pm, instances, alias, iid)
         endpoint = 'platform:' + iid if cmd['endpoint'] == 'platform' else cmd['endpoint']
         pm.require(not any(i.get('active', True) and i.get('endpoint') == endpoint for i in instances.values()), 'endpoint already registered')
         roots = list(dict.fromkeys([workspace(pm, root, iid) + '/workspace'] + cmd.get('write_roots', [])))
         pm.require(all(pm.local(root, ref) != root for ref in roots), 'instance cannot own the whole project')
         value = dict(id=iid, role=entry['profession'], profession=entry['profession'], level=entry['level'], model=entry['model'],
+                     alias=alias, alias_history=[], expert=chosen, runner=entry.get('runner', 'default'),
                      config_entry=entry['id'], fit=DERIVED_FIT[entry['fit']], master=entry.get('master', False),
                      endpoint=endpoint, write_roots=roots, derived_by=actor, derived_at=pm.now(), active=True, revision=1)
     else:
@@ -288,14 +342,15 @@ def instance_op(pm, root, db, cfg, tasks, cmd):
         pm.require(inst and inst.get('config_entry') and inst.get('active'), 'active derived instance required')
         pm.require(cmd.get('expected_revision') == inst['revision'], 'stale instance record')
         pm.require(pm.nonempty(cmd.get('reason')), 'reason required')
+        pm.require(not any(r['instance'] == inst['id'] for r in pm.platform.active(pm, db)), 'stop running work before changing the instance')
         pm.require(not any(t['state'] == 'running' and inst['id'] in {t['owner'], t.get('executor')} for t in tasks.values()), 'stop running work before changing the instance')
         entry = next((e for e in conf['entries'] if e['id'] == inst['config_entry']), None)
         if op == 'retire_instance':
             active = [i for i in instances.values() if i.get('config_entry') == inst['config_entry'] and i.get('active')]
-            pm.require(not entry or len(active) > entry['count'] or entry['model'] != inst['model'], 'the confirmed configuration still includes this instance')
+            pm.require(not entry or len(active) > entry['count'] or entry['model'] != inst['model'] or entry.get('expert_binding', {'id':'builtin','version':'installed'}) != inst.get('expert', {'id':'builtin','version':'installed'}) or entry.get('runner', 'default') != inst.get('runner', 'default'), 'the confirmed configuration still includes this instance')
             value = dict(inst, active=False, retired_by=actor, retired_at=pm.now(), reason=cmd['reason'])
         else:
-            pm.require(entry and entry['model'] == inst['model'], 'entry removed or its model changed; retire the instance instead')
+            pm.require(entry and entry['model'] == inst['model'] and entry.get('expert_binding', {'id':'builtin','version':'installed'}) == inst.get('expert', {'id':'builtin','version':'installed'}) and entry.get('runner', 'default') == inst.get('runner', 'default'), 'entry removed or its model changed; retire the instance instead')
             change = dict(level=entry['level'], master=entry.get('master', False), fit=DERIVED_FIT[entry['fit']])
             pm.require(any(inst.get(k) != v for k, v in change.items()), 'the confirmed configuration does not change this instance')
             value = dict(inst, previous_level=inst['level'], relevelled_by=actor, relevelled_at=pm.now(), reason=cmd['reason'], **change)
@@ -408,6 +463,8 @@ def blockers(pm, root, db, tasks, tid, closing=False):
 def execute(pm, root, db, cmd):
     cfg, tasks = pm.config(db), pm.task_map(db)
     op, actor = cmd['op'], cmd.get('actor')
+    if op == 'resolve_instance':
+        return {'record': resolve(pm, pm.integrity.records(db, 'instance'), cmd.get('name'))}
     if op == 'team':
         appointments = pm.integrity.records(db, 'appointment')
         return {'appointments': [dict(a, current=current(pm, root, a)) for a in appointments.values()],

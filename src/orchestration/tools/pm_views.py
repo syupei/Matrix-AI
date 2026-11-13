@@ -58,7 +58,9 @@ def context(pm, root, db):
 
 
 def name(c, iid):
-    return c.pm.team.display(c.regs, iid)
+    label = c.pm.team.display(c.regs, iid)
+    alias = c.instances.get(iid, {}).get('alias')
+    return alias + '（' + label + '）' if alias and alias != iid else label
 
 
 def kids(c, t):

@@ -99,13 +99,14 @@ def upstream_context(pm, task, all_tasks):
     return rows
 
 
-def packet(pm, root, rid, purpose, inst, tasks, stops, all_tasks=None):
+def packet(pm, root, rid, purpose, inst, tasks, stops, all_tasks=None, managed=False):
     """The task packet the instance reads: who it is, the one job of this run and how to report through the task tool."""
     iid, t = inst['id'], tasks[0]
     regs = pm.team.registries(pm, root)
     profession = regs.get(inst.get('profession'), {}).get('name', inst.get('profession') or inst.get('role'))
     who = iid + '（' + str(profession) + ('，' + inst['level'] if inst.get('level') else '') + ('，master' if inst.get('master') else '') + '）'
-    reads = skills(root, inst.get('profession') or inst.get('role')) + ['management/instances/' + iid + '/profile.md']
+    selected = pm.team.experts.entry(pm.api(), root, inst)
+    reads = ([selected] if selected else skills(root, inst.get('profession') or inst.get('role'))) + ['management/instances/' + iid + '/profile.md']
     head = ['# 任务包 ' + rid + '（平台运行：' + pm.platform.PURPOSES[purpose] + '）', '',
             '你是本项目的 ' + who + '。平台为下面的事拉起你；只做这件事，做完或受阻就结束本次运行。', '',
             '- 工作目录是项目根目录。先读：' + bullet(reads) + '（有几个技能的，按任务所在阶段选用）；其余规则按技能的指引索引用到时再打开。'
@@ -151,6 +152,16 @@ def packet(pm, root, rid, purpose, inst, tasks, stops, all_tasks=None):
                  '- 检验没过：安排返工（transition 回 planned）或改派；超过返工、改派上限的，写明情况上报 PM，不再自行返工；',
                  '- 依据已变：按当前的任务与输入重新检验，或回到 planned 重做；',
                  '- 等派发者采用：核对后采用并关闭；受阻或前置未满足：处理能处理的，处理不了的上报。']
+    if managed:
+        # The worker cannot write the database. Its controller verifies a bounded outbox.
+        head = [line for line in head if not line.startswith('- 任务工具：')]
+        head = [line.replace('汇报只用下面写好的命令', '汇报只写下面指定的交接文件') for line in head]
+        split = body.index('## 回报') if '## 回报' in body else len(body)
+        body = body[:split] + ['## 回报', '',
+            '将最终回报写入 management/instances/' + iid + '/workspace/public/' + rid + '-handoff.json。',
+            'JSON 为 {"summary":"交付摘要","evidence":["本实例 workspace/public/ 下候选文件的项目相对路径"]}；受阻则写 {"reason":"缺口及待谁处理"}。',
+            '检验或协调运行可写 {"commands":[任务工具命令]}；每条省略 actor/event_id，仅限本次任务树内的 create/update/report/review/transition/reassign/handoff，修改仍带当前 expected_revision。人工批准和配置不得由执行者提交。',
+            '只写本实例工作区，不直接调用任务工具或平台控制器。控制器按真实实例身份接收回报，交出不等于采用。']
     text = '\n'.join(head + body) + '\n'
     path = 'management/instances/' + iid + '/runs/' + rid + '.md'
     pm.atomic(pm.local(root, path), text)
@@ -162,6 +173,8 @@ def launch(project, task_id, purpose='start', task_ids=None, event_id=None, opti
     pm, root = load_pm(), Path(project).resolve()
     cfg_platform = settings(pm, root)
     status = pm.execute(root, {'op': 'status'})
+    runtime = status['integrity'].get('runtime_owner', {}).get('project', {})
+    pm.require(not runtime.get('principal') and runtime.get('mode', 'local') == 'local', 'configured runtime owns launches; use actions.claim')
     tasks = {t['id']: t for t in status['tasks']}
     ids = task_ids or [task_id]
     pm.require(all(i in tasks for i in ids), 'unknown task')
@@ -170,6 +183,12 @@ def launch(project, task_id, purpose='start', task_ids=None, event_id=None, opti
     inst = status['integrity']['instance'].get(iid)
     pm.require(inst, 'the run needs a registered instance; ' + str(iid) + ' is not one')
     pm.require(pm.nonempty(inst.get('model')), iid + ' has no configured model; derive instances from the confirmed instance configuration')
+    runner_id = inst.get('runner', 'default')
+    if runner_id != 'default':
+        selected_runner = cfg_platform.get('runners', {}).get(runner_id)
+        pm.require(isinstance(selected_runner, dict), 'instance runner is not configured')
+        cfg_platform = dict(cfg_platform, **selected_runner)
+    pm.require(inst.get('expert', {}).get('id', 'builtin') == 'builtin', 'imported experts require the isolated runtime controller')
     pm_actor = actor or status['config']['pm_actor']
     rid = 'run-' + (event_id or uuid.uuid4().hex[:12])
     event_id = event_id or rid

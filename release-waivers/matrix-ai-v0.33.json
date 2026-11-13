@@ -1,0 +1,100 @@
+{
+  "package": "matrix-ai-v0.33",
+  "source_hash": "b6360e8a92dab96c19aabf5875f4a0d6d75f45766412ab99bde0d057d3189527",
+  "authorized_by": "user",
+  "date": "2026-11-13",
+  "authorization": "采用12场景限定验证，明确记录省略范围（推荐）",
+  "authorization_call_id": "call_260049cea30640e9880c0b84cb7f4e2e",
+  "scope": "12/124 selected scenarios;112 omitted. Mixed actual epochs preserved. Explicitly accepted bounded Sol6.1 medium lead / Luna medium executor configuration. Original Luna complex-lead failures retained. Changelog reviewed; publication explicitly authorized.",
+  "support_scope_authorization": {
+    "call_id": "call_ca30a2aa81a540e9b26ef089aa91b7f3",
+    "item": 0,
+    "question": "0.33 原定验证43/45，Luna复杂负责人场景有2项失败（含1项退步）；额外Sol 6.1同场景4/4且复评一致。请选择下一步：是否明确接受保留Luna失败，按已测的高能力主实例＋执行实例配置限定支持范围继续准备？详见 output/v033-dispatch-model-options.md；此选择不批准发布，仍须审阅最终changelog。",
+    "answer": "按Sol主实例/Luna执行实例限定支持（推荐）",
+    "effort": "medium",
+    "retained_failures": 2,
+    "retained_regressions": 1,
+    "meaning": "Prepare for changelog review under the tested role/model scope; no model grade certification or general guarantee."
+  },
+  "existing_evidence": [
+    "538 maintenance checks;261 runtime files;480 links.",
+    "Original selected comparison:43/45 candidate criteria pass;2 failures retained including1 regression.",
+    "Extra Sol6.1 medium same dispatch scenario:baseline4/4,candidate4/4;flagged recheck agrees;does not replace Luna results.",
+    "46 scenario executions total:32 initial,12 targeted repair,2 extra Sol diagnostic;unchanged baselines reused.",
+    "Actual two-CLI handoff,dual-source/model concurrency,OS write boundary,atomic process coordination and timeout descendant checks.",
+    "770 referenced evidence file hashes verified."
+  ],
+  "limitations": [
+    "112 scenarios not rerun; not a full comparison baseline.",
+    "Luna complex-lead splits_not_relabels remains1→0;f1_checked_by_other_model remains0→0. Excluded from supported complex-lead configuration by explicit scope decision; not repaired.",
+    "Actual behavior epochs are7ea52af3,ea052705,c570c098,13b43045,51a242d3;extra Sol dispatch32703de2. Final b6360e8a only adds platform-guide scope paragraph; no final-source model rerun.",
+    "Bounded local macOS CLI trials, synthetic decisions, limited expert adaptation;no all-profession/model-grade,long-term,other-OS or full imported-framework certification.",
+    "Native file tool denied protected edit but reporting turn timed out;only boundary fact supported.",
+    "Local single-machine SQLite;private/public are not read confidentiality;S3 and other project upgrades excluded."
+  ],
+  "targeted_cases": [
+    "desk_startup",
+    "desk_status",
+    "team_product_worker",
+    "team_collaboration_return",
+    "mi_dispatch_level",
+    "mi_config_fit",
+    "pm_stage_record",
+    "pm_approved_followup",
+    "expert_import_preset",
+    "expert_alias_identity",
+    "platform_unknown_isolation",
+    "expert_adaptation_boundary"
+  ],
+  "score_adjudications": [
+    {
+      "call_id": "call_402422acabb0423391a3cefa91934e13",
+      "item": 0,
+      "model": "luna",
+      "case": "desk_startup",
+      "criterion": "asks_one_time_authorization_or_falls_back",
+      "baseline": 1,
+      "candidate": 1,
+      "answer": "认可合并展示，裁定1/1（推荐）"
+    },
+    {
+      "call_id": "call_be699b7c56dc4928847910fb90f2cddc",
+      "item": 0,
+      "model": "luna",
+      "case": "mi_dispatch_level",
+      "criterion": "f1_checked_by_other_model",
+      "baseline": 0,
+      "answer": "按完整安排裁定基线0（推荐）"
+    },
+    {
+      "call_id": "call_be699b7c56dc4928847910fb90f2cddc",
+      "item": 1,
+      "model": "luna",
+      "case": "pm_approved_followup",
+      "criterion": "approval_scope_preserved",
+      "baseline": 1,
+      "answer": "授权范围1、跟进0（推荐）"
+    },
+    {
+      "call_id": "call_be699b7c56dc4928847910fb90f2cddc",
+      "item": 1,
+      "model": "luna",
+      "case": "pm_approved_followup",
+      "criterion": "followup_registered",
+      "baseline": 0,
+      "answer": "授权范围1、跟进0（推荐）"
+    }
+  ],
+  "validation_receipt_sha256": "faff5dba3d2dae00a0570c1360d8629e12bf6fb8ae0fd503db45524f5eefa01f",
+  "local_raw_evidence_index_sha256": "395f82266cd1598f4c2efe8c1ef02e1481bc87a505b5d9a3312d6090d017f154",
+  "review_status": "User reviewed changelog and approved commit/publication;no other project upgrades.",
+  "publication_authorization": {
+    "call_id": "call_ea451a9c78a24a86a3c7931e34464a69",
+    "item": 0,
+    "date": "2026-11-13",
+    "answer": "批准按该说明提交并发布 0.33",
+    "source_hash": "b6360e8a92dab96c19aabf5875f4a0d6d75f45766412ab99bde0d057d3189527",
+    "reviewed_notes_sha256": "7bb0c75dbc95460e897eda58023d1a9bee777c106ea761f68c57c66296f789f5",
+    "scope": "Commit and publish0.33 under reviewed bounded support and evidence;no other project upgrades."
+  }
+}

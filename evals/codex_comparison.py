@@ -181,10 +181,13 @@ def score(a):
     out, work = Path(a.out).resolve(), Path(a.work).resolve()
     work.mkdir(parents=True, exist_ok=True)
     tool = [sys.executable, '-B', str(EVALS / 'scoring.py')]
+    wanted = set(a.cases.split(',')) if a.cases else None
+    ids = [c['id'] for c in cases() if wanted is None or c['id'] in wanted]
+    if wanted is not None and set(ids) != wanted:
+        raise ValueError('unknown scoring case ids')
     if not (work / 'labels.json').is_file():
         subprocess.run(tool + ['blind', '--baseline', str(flat(out, 'baseline', work)), '--candidate', str(flat(out, 'candidate', work)),
-                               '--cases', 'all', '--workspace', str(work / 'ws'), '--labels', str(work / 'labels.json'), '--seed', '31'], check=True)
-    ids = [c['id'] for c in cases()]
+                               '--cases', ','.join(ids), '--workspace', str(work / 'ws'), '--labels', str(work / 'labels.json'), '--seed', '31'], check=True)
     batches = [ids[i:i + a.batch] for i in range(0, len(ids), a.batch)]
     first = []
     jobs = [scorer(work, 'first-' + str(n), brief(work, b), a.model, None) for n, b in enumerate(batches)
@@ -194,7 +197,7 @@ def score(a):
         folder = work / 'scorers' / ('first-' + str(n))
         collect(folder, folder / 'scores.json')
         first.append(str(folder / 'scores.json'))
-    subprocess.run(tool + ['merge', '--labels', str(work / 'labels.json'), '--scores', *first, '--out', str(work / 'merged.json')], check=True)
+    subprocess.run(tool + ['merge', '--labels', str(work / 'labels.json'), '--scores', *first, '--out', str(work / 'merged.json')] + (['--partial'] if wanted is not None else []), check=True)
     subprocess.run(tool + ['recheck', '--scores', str(work / 'merged.json'), '--out', str(work / 'recheck.json')], check=True)
     listed = json.loads((work / 'recheck.json').read_text())
     keys = sorted(listed)
@@ -326,7 +329,7 @@ def main():
     r.add_argument('--out', required=True); r.add_argument('--jobs', type=int, default=4); r.add_argument('--model'); r.add_argument('--effort'); r.add_argument('--cases')
     r.add_argument('--resume', action='store_true', help='later turns resume the first turn\'s session (pilot of E5)')
     s = sub.add_parser('score'); s.add_argument('--out', required=True); s.add_argument('--work', required=True)
-    s.add_argument('--batch', type=int, default=7); s.add_argument('--jobs', type=int, default=3); s.add_argument('--model')
+    s.add_argument('--batch', type=int, default=7); s.add_argument('--jobs', type=int, default=3); s.add_argument('--model'); s.add_argument('--cases', help='explicit approved subset; retains every normal recheck condition')
     m = sub.add_parser('assemble'); m.add_argument('--out', required=True); m.add_argument('--work', required=True)
     m.add_argument('--candidate-kit', required=True); m.add_argument('--baseline-ref', required=True); m.add_argument('--reviewer', required=True)
     f = sub.add_parser('focus'); f.add_argument('--old', required=True); f.add_argument('--new', required=True); f.add_argument('--criteria', required=True)

@@ -1,8 +1,8 @@
 {
-  "package": "matrix-ai/0.32",
+  "package": "matrix-ai/0.33",
   "components": {
-    "matrix-front-desk": "0.7",
-    "matrix-project-management": "0.17",
+    "matrix-front-desk": "0.8",
+    "matrix-project-management": "0.18",
     "matrix-product": "0.30",
     "matrix-content-design": "0.10",
     "matrix-experience-design": "0.27",
@@ -63,7 +63,10 @@
     "declared-inputs/0.1",
     "reuse-units/0.1",
     "next-step/0.1",
-    "matrix-layout/0.1"
+    "matrix-layout/0.1",
+    "expert-packages/0.1",
+    "platform-protocol/1",
+    "isolated-runtime/0.1"
   ],
   "baseline": "professional-agents-kit-v0.29"
 }

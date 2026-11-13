@@ -222,6 +222,9 @@ def execute(pm, root, db, cmd):
 def start(pm, root, db, cfg, tasks, cmd, records):
     """Record a run before the launcher starts it; a start run moves the task to running in the same transaction."""
     actor, rid = cmd['actor'], cmd['id']
+    runtime = pm.integrity.records(db, 'runtime_owner').get('project', {'mode':'local'})
+    if runtime.get('principal') or runtime['mode'] == 'external':
+        pm.require(cmd.get('runtime_generation') == runtime['generation'] and cmd.get('runtime_principal') == runtime['principal'], 'external runtime owns launches; use actions.claim')
     pm.require(actor in {cfg['pm_actor'], SCHEDULER}, 'the PM or the scheduler launches runs')
     pm.require(rid not in records, 'new launch id required')
     pm.require(not paused(pm, db), 'project paused by a person; launch nothing until they resume it')
@@ -610,7 +613,12 @@ def summary(pm, root, db, cfg, tasks, detail=False):
         out['stage_line'] = '项目阶段尚未登记｜依据：任务库｜阶段进度待核实｜下一步：由 PM 核对并登记实际阶段；本轮事项另列'
     out['runtime_state'] = {'stop': stop, 'resume_required': bool(ctx['paused']) or any(r['code'] == 'budget' for r in reasons.values()),
                             'note': '运行恢复条件不改变任务或阶段的登记状态'}
-    out['scheduler_health'] = pm.service.health(root)
+    runtime = pm.integrity.records(db, 'runtime_owner').get('project')
+    if runtime:
+        out['runtime_owner'] = runtime
+    out['scheduler_health'] = ({'state':'managed', 'mode':runtime['mode'],
+        'message':'当前由已登记控制器执行；旧本地调度器心跳不适用，查询平台检查记录与 runs.query；配置存在不代表正在运行'}
+        if runtime and runtime.get('principal') else pm.service.health(root))
     if detail:
         out.update(stops=reasons, slots={'max': cfg['max_slots'], 'used': running_slots}, limits=ctx['limits'], budget=ctx['budget'], paused=ctx['paused'],
                    active_runs=[dict(id=l['id'], instance=l['instance'], tasks=l.get('task_ids'), purpose=l['purpose'], pid=l.get('pid'),

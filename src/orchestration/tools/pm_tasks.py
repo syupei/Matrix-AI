@@ -404,7 +404,7 @@ def snapshot(db):
     queued = projects.reservations(api(), tasks, cfg, gates, held)
     return {'schema': SCHEMA, 'config': cfg, 'revision': seq, 'observed_at': now(),
             'integrity': {k: integrity.records(db,k) for k in ['instance','scope','change','pause','appointment','participation_rule','participation_obligation','instance_config','conflict','notice',
-                                                               'launch','inbox','project_pause','pm_session']},
+                                                               'launch','inbox','project_pause','pm_session','runtime_owner']},
             'gaps': {gid: gap_view(g, tasks) for gid, g in gaps.items()},
             'top_level': counts(children(tasks, None), tasks),
             'tasks': [dict(t, state_label=STATE_NAMES[t['state']], dispatcher=t['manager'], child_counts=counts(children(tasks, t['id']), tasks),

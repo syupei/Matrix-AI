@@ -220,6 +220,13 @@ def tick(project, interval=None):
 
 
 def checked(root, pm, interval=None):
+    db = pm.connect(root, readonly=True)
+    try:
+        runtime = pm.integrity.records(db, 'runtime_owner').get('project', {'mode':'local'})
+    finally:
+        db.close()
+    if runtime.get('principal') or runtime['mode'] == 'external':
+        return {'mode':runtime['mode'], 'started':[], 'note':'configured runtime controller owns execution'}
     launcher = load('scheduler_launch', 'launch.py')
     service = load('scheduler_service', 'scheduler_service.py')
     try:
