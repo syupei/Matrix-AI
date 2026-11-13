@@ -1,0 +1,50 @@
+{
+  "package": "matrix-ai/0.35",
+  "baseline": "professional-agents-kit-v0.29",
+  "state": "frozen before P2; behavior results pending",
+  "source_hash": "1f59ad55426bd39cf130ba729f62e730599d3ee54c7f09d4f8c69ab2b19c9e16",
+  "suite": {
+    "path": "evals/cases/suite.json",
+    "sha256": "d2c68b82cb228599d2be35acf766ab6fa59bdda1253219e04d769255776a5a72"
+  },
+  "case_count": 125,
+  "turn_count": 137,
+  "inputs": {
+    "evals/cases/suite.json": "d2c68b82cb228599d2be35acf766ab6fa59bdda1253219e04d769255776a5a72",
+    "evals/README.md": "fb8f2503da5a4a72e0364225540f1667075bfca11c334f7bc915c63da45aa523",
+    "evals/scoring-brief.md": "1f272b1c4ba628b0272f38cf681b2e08eaca9804340d719b116104629f7dbd41",
+    "evals/scoring.py": "56d33c9d12272a0df6fa703a53f5b5c12c5bc8e4ef24d30327e546182f554a08",
+    "evals/run.py": "9f8077c30f330febe2c98adab6cbe9b32cb493a2295cf655df93d51fe375d274",
+    "evals/codex_comparison.py": "130f5047624899359888a60a23c4e980d2feee0d02eb3162a3b387876d0577a0",
+    "evals/subagent_turns.py": "e8932e36e8dc7862becd171135d7563793aafd323b192eb355b11a3d72f7276f",
+    "evals/read_records.py": "0b84001afcb353e499c25dfc69d00a27e13a30d7c628008c3fa504bd36ad3295",
+    "evals/fixture_equivalence.py": "76c65d5e75c4c064a239d727a22186bc4a3154fd781928a39f4fd7662daaa942",
+    "evals/fixtures/boundary_setup.py": "aa2635dca08a1618c14f54e95dcc12e7fde71b2feaea0e08f6263aa75aaa30a1",
+    "evals/fixtures/copy_table_project.py": "21ebd89918e9ed47a0f1b82b1be0f4e91d6e1d510e4d96f94639143068cd1c74",
+    "evals/fixtures/gap_project.py": "849d207348e6b9cb4c2f9922761a1d7dc14e16a7c893f9367550a2712a648414",
+    "evals/fixtures/home_motion_project.py": "a23a1d08a82d17c57ed7ca8db9ad25e014db570ef4b21cec2b6d1965ff2db119",
+    "evals/fixtures/key_decisions_project.py": "714eee2cd5398a59162b1c57eb22a4a896968f8f2247692525ed16ceda95f4a2",
+    "evals/fixtures/layout.py": "3701121f70faa302f858a567a7cf7d0324563eed3416c63cc1c6cb27f0cb5103",
+    "evals/fixtures/leaderboard_project.py": "1188bf2017828720b4b62abc7f603f1679ce0bc8ad1eb7ec5b2326ed64cb863a",
+    "evals/fixtures/login_popup_project.py": "7e3965ff988f71ae817085bfd9c32fe6b805819d092f379e96e3f79a4b49327a",
+    "evals/fixtures/order_refund_project.py": "0b26d56a71a07eef656fe337dcdd2c263d09043a6921adb26d771cd32e22266f",
+    "evals/fixtures/pay_errors_project.py": "adca54440dc1ed2d9ca1160d033a38c36af4096ed9dcb81a8aa6e200e7831064",
+    "evals/fixtures/pay_situations_project.py": "e7839c857038f769d50634fe864c3d689ff42d173bd0d365ac9fae691a29c1c2",
+    "evals/fixtures/platform_project.py": "29b0aa5c4f73070da5da25b07a4ed88ad79098c3ae7d16828c6d4bcd48384089",
+    "evals/fixtures/pm_followup.py": "8b7b197e1ff0cb31cfe5ea6acec84ce74e2bfee8672723773563ca4c1feea5d1",
+    "evals/fixtures/pm_project.py": "2f3450a2a69f4cf234f1e8ad50440fd51f5490cf579717e8fc52af122fa94c05",
+    "evals/fixtures/project_outcomes.py": "55de6a6c9ec809b02999ff04237917274b572ec2ef024c458655d5297acac940",
+    "evals/fixtures/scheduler_health.py": "f488e3efa35f13ddfbf8bf80f3a49132aad093dff73f147c39c91a7743945c4a",
+    "evals/fixtures/stage_collaboration.py": "355b0fd8018884b657df089e38a6e017f1ea738c5a3d8972739a3a644421124a",
+    "evals/fixtures/team_compat.py": "0c98932f485018c621717ebc04ad1031b7c6e4c5afda5be12d169246b431f31a",
+    "evals/fixtures/team_project.py": "4af9fe9eb89b1c189e62c769b7a5a2a5480d607e7877d3025aebf921d24d0891",
+    "evals/fixtures/team_project_reassign.py": "72173451f085c11bd7a7c0893d68e9188379c01b1f980fb581ba257f0d7df793",
+    "evals/fixtures/team_project_stale.py": "298ec96565a55c40f2a8b33797148f904a1224b7dcaf39a9b9b9cd11d8f61049"
+  },
+  "policy": {
+    "claude": "Full comparison; all criteria 1 and no regressions; actual raw subagent transcripts required.",
+    "codex": "gpt-6-luna medium; reference results. Serious destructive/production, money/legal/privacy/credential, or false approval/completion/review/delivery failures require human decision after second review.",
+    "baseline_supplement": "19 turns per host: 17 new cases (18 turns) plus changed mi_config_fit; 17 unchanged-input legacy fixtures proved equivalent, old scores not automatically reused.",
+    "scoring": "Claude blind first review on both hosts; second Claude reviewer on full Claude results and serious Codex zeroes/regressions. Same-family limitation retained."
+  }
+}

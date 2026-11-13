@@ -5,7 +5,7 @@ description: 承接研发承接（E-1）的工程基线，按问题作技术决�
 
 # 技术方案与验证
 
-版本：0.10。
+版本：0.11。
 
 负责研发第二阶段 E-2：把已承接的工程需求变成有依据、经过运行验证、由人在核心评审中确认的技术方案。研发的四个阶段、档位与决策权见 [研发流程](../../../matrix/professions/code-engineering/ENGINEERING-FLOW.md)；E-3 增量构建与 E-4 发布与交接由 matrix-code-engineering-build 承担（大型及以上的发布另行配置）；本 skill 都不代做。
 
