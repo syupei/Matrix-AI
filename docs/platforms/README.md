@@ -18,25 +18,19 @@ The original selected set remains **43/45**, with the additional Sol dispatch **
 
 ## Codex CLI
 
-The reference `codex-native` adapter uses Codex CLI 0.167.0 on macOS, launches in the stable instance workspace, selects the mapped model explicitly, and sets `workspace-write` with approval policy `never`. Temporary writable roots and additional writable roots are excluded. User config/rules, apps, plugins, hooks, browser/computer tools, subagent spawning and automatic host skill discovery are disabled for this dedicated worker. It reads the exact Matrix entry named in the task packet. Models used for comparison are `gpt-6.1-sol` and `gpt-6-luna`, both medium.
+The versioned [command-template configuration](codex-0.167.0.json) uses Codex CLI 0.167.0 on macOS, launches in the stable instance workspace, selects the mapped model explicitly, and sets `workspace-write` with approval policy `never`. Temporary writable roots and additional writable roots are excluded. User config/rules, apps, plugins, hooks, browser/computer tools, subagent spawning and automatic host skill discovery are disabled for this dedicated worker. It reads the exact Matrix entry named in the task packet. Models used for comparison are `gpt-6.1-sol` and `gpt-6-luna`, both medium.
 
 An outer process-wide write-deny policy prevented this CLI's own app-server initialization. The adapter therefore uses the CLI's native file/tool enforcement while the trusted controller remains outside. Native shell, direct file editing and descendant escape tests must be checked on the actual version. Do not interpret successful startup alone as isolation evidence. See the [official configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) for workspace and permission settings.
 
-Runner fragment (capability evidence is supplied by the deploying platform after validation):
+The complete runner fragment lives in `codex-0.167.0.json`, outside the install package. Copy it into the project's trusted `platform-access.json` runner, replace model mappings, and attach actual capability evidence after conformance checks. `tests/test_command_templates.py` checks the versioned example's boundary settings; `evals/native_boundary.py` performs the real local probe. A changed CLI version requires its own example and matching check.
 
-```json
-{"adapter":"codex-native","version":"0.167.0","models":{"Sol":"gpt-6.1-sol","Luna":"gpt-6-luna"},"capabilities":{"launch":{"state":"unknown"},"write_isolation":{"state":"unknown"},"model_selection":{"state":"unknown"}}}
-```
-
-The native adapter constructs the command itself; it does not accept task-provided command overrides. Existing local `launch.py` templates remain for built-in experts; imported experts use the managed controller.
+The controller expands the trusted runner template; tasks cannot supply command overrides. Set `effort` on the human-confirmed instance configuration; the worker passes that value into `{effort}`, with no hardcoded inference level. `cwd`, `unset_env` and `prepend_paths` are also controller configuration. Existing local `launch.py` templates remain for built-in experts; imported experts use the managed controller.
 
 ## Claude Code CLI
 
 Tested CLI: 2.1.72 on macOS; configured model `claude-sonnet-4-6`, effort medium. The reference controller wraps the entire CLI process tree in the kernel write boundary, allowing only the selected instance workspace. Run with `--setting-sources ""`, strict MCP configuration, explicit Read/Write/Bash tools, no persisted session, and `disableAllHooks`. Authentication belongs to the CLI/platform. If OAuth fails, reauthorize that CLI with `claude auth login`; browser login and `auth status` alone do not prove the service accepts its token.
 
-```json
-{"adapter":"kernel","version":"2.1.72","models":{"Sonnet":"claude-sonnet-4-6"},"argv":["claude","-p","--model","{model}","--effort","medium","--output-format","stream-json","--verbose","--no-session-persistence","--setting-sources","","--strict-mcp-config","--disable-slash-commands","--tools","Read,Write,Bash","--allowedTools","Read,Write,Bash","--settings","{\"disableAllHooks\":true}"],"capabilities":{"launch":{"state":"unknown"},"write_isolation":{"state":"unknown"},"model_selection":{"state":"unknown"}}}
-```
+The complete [2.1.72 runner fragment](claude-2.1.72.json) uses the kernel boundary and the same generic template fields. Its `{effort}` comes from the confirmed instance. The environment removal list also clears inherited parent-app control handles. The version-specific test checks strict settings and explicit tool permissions.
 
 Empty argv elements are valid and must be preserved; they are not shell text. Review the [official headless documentation](https://code.claude.com/docs/en/headless) and the installed CLI's help when upgrading.
 

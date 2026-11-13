@@ -1,0 +1,53 @@
+{
+  "adapter": "kernel",
+  "version": "2.1.72",
+  "models": {
+    "Sonnet": "claude-sonnet-4-6"
+  },
+  "argv": [
+    "claude",
+    "-p",
+    "--model",
+    "{model}",
+    "--effort",
+    "{effort}",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--no-session-persistence",
+    "--setting-sources",
+    "",
+    "--strict-mcp-config",
+    "--disable-slash-commands",
+    "--tools",
+    "Read,Write,Bash",
+    "--allowedTools",
+    "Read,Write,Bash",
+    "--settings",
+    "{\"disableAllHooks\":true}"
+  ],
+  "capabilities": {
+    "launch": {
+      "state": "unknown"
+    },
+    "write_isolation": {
+      "state": "unknown"
+    },
+    "model_selection": {
+      "state": "unknown"
+    }
+  },
+  "cwd": "{project}",
+  "unset_env": [
+    "CODEX_APP_TOOLS_PIPE_PATH",
+    "CODEX_APP_RUNTIME_CLI_PATH",
+    "CODEX_INTERNAL_ORIGINATOR_OVERRIDE",
+    "CODEX_SESSION_ID",
+    "CODEX_THREAD_ID",
+    "CODEX_TOOL_CALL_ID",
+    "CODEX_PERMISSION_PROFILE",
+    "CODEX_TASK_WORKSPACE_VERIFYING_IDENTITY",
+    "CODEX_TECTONIC_PATH"
+  ],
+  "prepend_paths": false
+}

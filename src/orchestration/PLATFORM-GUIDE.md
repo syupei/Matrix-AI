@@ -1,6 +1,6 @@
 # 平台接入 guide
 
-Matrix 管专业、任务、批准、就绪与成果采用；平台管模型进程、定时触发、凭证和实际权限。平台无需读生产项目历史，按本页接入即可。详细字段见 [协议](PLATFORM-CONTRACT.md)，专家转换见 [自带专家接入](EXPERT-IMPORT.md)。首批宿主附件与实测边界见[平台文档](https://github.com/syupei/Matrix-AI/tree/main/docs/platforms)。
+Matrix 管专业、任务、批准、就绪与成果采用；平台管模型进程、定时触发、凭证和实际权限。平台按本页接入。详细字段见 [协议](PLATFORM-CONTRACT.md)，专家转换见 [自带专家接入](EXPERT-IMPORT.md)。首批宿主附件与实测边界见[平台文档](https://github.com/syupei/Matrix-AI/tree/main/docs/platforms)。
 
 平台附件同时声明已验证的负责人／执行者与模型组合；接入时按该范围配置，未验证组合另行验证。进程能够启动及交接成功，只证明相应链路，不等于具备复杂负责人的拆分、定级与检验安排能力，也不授予模型固定职级。
 
@@ -8,7 +8,7 @@ Matrix 管专业、任务、批准、就绪与成果采用；平台管模型进�
 
 1. **安装并准备项目。** 按 [START](../../START.md) 安装到新项目，初始化任务库；确认人员、专业与实例配置。不要让运行器自动填入人的批准。平台身份映射来自已认证会话，而非请求正文的 actor。
 2. **配置可信控制器。** 由平台维护 `management/runtime/platform-access.json`，格式为 `matrix-platform/1`；包含 project_id、principals、runners，可选 scripts。每个 principal 有 active、actor、operations 白名单及 task_ops 白名单。配置不存凭证，执行实例不可修改它。
-3. **验证能力。** 查询 capabilities；每个运行器逐项记录 supported/unsupported/unknown 与证据。启动、模型映射、实际写入隔离缺一项就不能自动执行。运行器配置中 models 把实例模型名映射到真实模型，argv 为可信模板，不能由任务内容补入 shell 字符串。先用无模型工作器验证协议与隔离，再验证实际模型。
+3. **验证能力。** 查询 capabilities；每个运行器逐项记录 supported/unsupported/unknown 与证据。启动、模型映射、实际写入隔离缺一项就不能自动执行。运行器配置中 models 把实例模型名映射到真实模型，argv 为可信参数模板（支持 `{workspace}`、`{model}`、`{effort}`；effort 来自已确认实例）。可配 cwd、unset_env 与 prepend_paths；任务不能覆盖模板。kernel 使用内核写边界，command-template 依赖已验证的宿主原生边界。先用无模型工作器验证协议与隔离，再验证实际模型。
 4. **指定唯一执行方。** 在无在途运行时调用 runtime.configure，mode 为 local 或 external，expected_generation 来自 inspect。当前控制器 principal 取得运行权；原 scheduler 不再启动工作。local 使用本机参考控制器，external 由外层平台消费同一协议。没有配置运行权的原有本地流程保持原入口。
 5. **计划、领取、执行、回报。** actions.plan 只读，选择 action_id，携带返回的 revision 调用 actions.claim。领取原子复核就绪并创建独立 run_id；平台随后启动。只重复相同请求不能再起进程。真实进程启动后回报 started；候选通过 handover 回报；实际退出后回报 finished 或 stopped。成功退出不自动验收任务。
 6. **核验后启用。** 验证重复领取、取消、失联、迟到、撤权、越界、同专业双实例和下游输入版本。保存宿主版本、系统、模型、权限配置及原始证据；只登记已验证范围。其它平台通过同一契约后再登记，不因能启动命令而自动认证。

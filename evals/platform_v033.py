@@ -54,8 +54,9 @@ def main():
         models=['gpt-6.1-sol','gpt-6-luna'] if a.host=='codex' else ['claude-sonnet-4-6','claude-sonnet-4-6']
         caps={k:dict(state='supported',evidence='local write-boundary probe and CLI probe; raw evidence retained by acceptance operator') for k in ['launch','write_isolation','model_selection','cancel']}
         runner=dict(version='acceptance',models={m:m for m in models},capabilities=caps)
-        if a.host=='codex':runner['adapter']='codex-native'
-        else:runner['argv']=['claude','-p','--model','{model}','--effort','medium','--output-format','stream-json','--verbose','--no-session-persistence','--setting-sources','','--strict-mcp-config','--tools','Read,Write,Bash','--allowedTools','Read,Write,Bash','--settings','{"disableAllHooks":true}']
+        name='codex-0.167.0.json' if a.host=='codex' else 'claude-2.1.72.json'
+        runner.update(json.loads((Path(__file__).resolve().parents[1]/'docs/platforms'/name).read_text()))
+        runner.update(models={m:m for m in models},capabilities=caps)
         write(api.CONFIG,dict(schema=api.SPEC,project_id='SIM-V033',principals={'controller':dict(active=True,actor='PM',operations=sorted(api.OPERATIONS),task_ops=[])},runners={'default':runner}))
         # Fetch a real pinned Git expert source. Adapt shared paths, retain source for review.
         identity={'id':'imported-product','version':'1'}
@@ -78,7 +79,7 @@ def main():
         adm_iid='ADMISSION'
         prompt='这是合成准入测试。请读取 '+str(base/'ENTRY.md')+' 和 '+str(base/'METHODS.md')+'。按该专业方法为已明确要求的留言板写一段候选说明：匿名留言、费用未定。保留费用未定，不开发。只写 '+str(project/'management/instances/ADMISSION/workspace/public/admission.md')+'，完成即退出。'
         argv=[p.replace('{model}',models[0]) for p in runner.get('argv',[])]
-        result=boundary.run(project,adm_iid,argv,prompt,180,adapter=runner.get('adapter','kernel'),model=models[0])
+        result=boundary.run(project,adm_iid,argv,prompt,180,adapter=runner.get('adapter','kernel'),model=models[0],effort='medium',template=runner)
         (out/'admission.json').write_text(json.dumps(result,ensure_ascii=False,indent=2))
         artifact=project/'management/instances/ADMISSION/workspace/public/admission.md'
         write('management/admission-pending.json',dict(runner=a.host,methods_sha256=sha,artifact=str(artifact.relative_to(project)),exit_code=result['exit_code'],review='pending actual artifact and trace review; keyword checks are not admission'))
@@ -88,7 +89,7 @@ def main():
     identity={'id':'imported-product','version':'1'}
     pm.team.experts.binding(pm.api(),project,'product',identity)
     models=['gpt-6.1-sol','gpt-6-luna'] if a.host=='codex' else ['claude-sonnet-4-6','claude-sonnet-4-6']
-    entries=[dict(id='P',profession='product',level='T7',model=models[0],count=1,master=True,expert=identity,aliases=['小王.ai']),dict(id='E',profession='code-engineering',level='T7',model=models[1],count=1,master=True,aliases=['小 M.ai'])]
+    entries=[dict(id='P',profession='product',level='T7',model=models[0],effort='medium',count=1,master=True,expert=identity,aliases=['小王.ai']),dict(id='E',profession='code-engineering',level='T7',model=models[1],effort='medium',count=1,master=True,aliases=['小 M.ai'])]
     write('management/instance-config.json',{'entries':entries})
     call('confirm_config',person='SIM-person',quote='SIMULATED approval of acceptance fixture only',presented_ref='SIM fixture',choices={e['id']:'acknowledge_unregistered' for e in entries})
     p=call('derive',entry='P',endpoint='platform')['record']['id'];e=call('derive',entry='E',endpoint='platform')['record']['id']

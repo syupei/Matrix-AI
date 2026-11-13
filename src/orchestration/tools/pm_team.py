@@ -70,7 +70,7 @@ def fit_entries(pm, root, regs, db=None):
     pm.require(isinstance(items, list), 'instance-config.json: entries list required')
     seen, masters, aliases = set(), set(), set()
     for e in items:
-        pm.require(isinstance(e, dict) and set(e) <= {'id', 'profession', 'level', 'model', 'count', 'master', 'aliases', 'expert', 'runner'}, 'instance-config.json: entry fields are id, profession, level, model, count, master, aliases, expert, runner')
+        pm.require(isinstance(e, dict) and set(e) <= {'id', 'profession', 'level', 'model', 'count', 'master', 'aliases', 'expert', 'runner', 'effort'}, 'instance-config.json: entry fields are id, profession, level, model, count, master, aliases, expert, runner, effort')
         eid = e.get('id')
         pm.require(isinstance(eid, str) and re.fullmatch(pm.SAFE_ID, eid) is not None and eid not in seen, 'instance-config.json: unique simple entry ids required')
         seen.add(eid)
@@ -79,6 +79,7 @@ def fit_entries(pm, root, regs, db=None):
         low, high = (level(x) for x in reg['levels']['range'])
         pm.require(level(e.get('level')) is not None and low <= level(e['level']) <= high, eid + ': level outside ' + '–'.join(reg['levels']['range']))
         pm.require(pm.nonempty(e.get('model')), eid + ': model name required')
+        pm.require('effort' not in e or (isinstance(e['effort'], str) and re.fullmatch(r'[A-Za-z0-9_-]{1,64}', e['effort'])), eid + ': effort must be a host-supported identifier')
         pm.require(type(e.get('count')) is int and e['count'] >= 0, eid + ': count must be an integer >= 0')
         pm.require(type(e.get('master', False)) is bool, eid + ': master must be boolean')
         pm.require('runner' not in e or (isinstance(e['runner'], str) and re.fullmatch(pm.SAFE_ID, e['runner'])), eid + ': simple runner id required')
@@ -163,7 +164,7 @@ def instance_fit_issue(pm, root, db, inst):
     if not conf:
         return 'model fit or configuration changed; review and confirm before launching'
     entry = next((e for e in conf['entries'] if e['id'] == inst['config_entry']), None)
-    if not entry or any(inst.get(k) != entry.get(k) for k in ('model', 'level')) or inst.get('fit') != DERIVED_FIT[entry['fit']]:
+    if not entry or any(inst.get(k) != entry.get(k) for k in ('model', 'level', 'effort')) or inst.get('fit') != DERIVED_FIT[entry['fit']]:
         return 'apply the confirmed instance configuration with relevel_instance or retire_instance before launching'
     return None
 
@@ -195,7 +196,7 @@ def profile(pm, root, inst, conf):
     person = ((pm.roster(root) or {}).get('people', {}).get(conf['person']) or {}).get('name', conf['person'])
     text = (f"# 实例档案：{display(regs, inst['id'])}\n\n由派生工具生成，不手写。\n\n"
             f"- 编号：{inst['id']}\n- 专业：{reg['name']}\n- 职级：{inst['level']}\n- 身份：{'master' if inst['master'] else '执行者'}\n"
-            f"- 别名：{inst.get('alias', inst['id'])}\n- 专家：{inst.get('expert', {'id': 'builtin', 'version': 'installed'})}\n- 运行器：{inst.get('runner', 'default')}\n- 模型名称：{inst['model']}\n- 配置项：{inst['config_entry']}\n- 派生人与时间：{inst['derived_by']}，{inst['derived_at']}\n"
+            f"- 别名：{inst.get('alias', inst['id'])}\n- 专家：{inst.get('expert', {'id': 'builtin', 'version': 'installed'})}\n- 运行器：{inst.get('runner', 'default')}\n- 模型名称：{inst['model']}\n- 推理强度：{inst.get('effort') or '未指定'}\n- 配置项：{inst['config_entry']}\n- 派生人与时间：{inst['derived_by']}，{inst['derived_at']}\n"
             f"- 配置的确认人与原话：{person}：「{conf['quote']}」\n- 适用性：{FIT_NAMES[inst['fit']]}（派生时记录；当前状态查询 team）\n\n"
             f"## 本职级（{inst['level']}）\n\n- 能做：{can}\n- 能判断：{judge}\n- 不能做（越权）：{cannot}\n")
     pm.atomic(pm.local(root, workspace(pm, root, inst['id']) + '/profile.md'), text)
@@ -387,7 +388,7 @@ def instance_op(pm, root, db, cfg, tasks, cmd):
         pm.require(all(pm.local(root, ref) != root for ref in roots), 'instance cannot own the whole project')
         value = dict(id=iid, role=entry['profession'], profession=entry['profession'], level=entry['level'], model=entry['model'],
                      alias=alias, alias_history=[], expert=chosen, runner=entry.get('runner', 'default'),
-                     config_entry=entry['id'], fit=DERIVED_FIT[entry['fit']], master=entry.get('master', False),
+                     effort=entry.get('effort'), config_entry=entry['id'], fit=DERIVED_FIT[entry['fit']], master=entry.get('master', False),
                      endpoint=endpoint, write_roots=roots, derived_by=actor, derived_at=pm.now(), active=True, revision=1)
     else:
         inst = instances.get(cmd.get('id'))
@@ -403,7 +404,7 @@ def instance_op(pm, root, db, cfg, tasks, cmd):
             value = dict(inst, active=False, retired_by=actor, retired_at=pm.now(), reason=cmd['reason'])
         else:
             pm.require(entry and entry['model'] == inst['model'] and entry.get('expert_binding', {'id':'builtin','version':'installed'}) == inst.get('expert', {'id':'builtin','version':'installed'}) and entry.get('runner', 'default') == inst.get('runner', 'default'), 'entry removed or its model changed; retire the instance instead')
-            change = dict(level=entry['level'], master=entry.get('master', False), fit=DERIVED_FIT[entry['fit']])
+            change = dict(level=entry['level'], effort=entry.get('effort'), master=entry.get('master', False), fit=DERIVED_FIT[entry['fit']])
             pm.require(any(inst.get(k) != v for k, v in change.items()), 'the confirmed configuration does not change this instance')
             value = dict(inst, previous_level=inst['level'], relevelled_by=actor, relevelled_at=pm.now(), reason=cmd['reason'], **change)
         value['revision'] = inst['revision'] + 1

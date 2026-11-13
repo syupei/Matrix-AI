@@ -128,7 +128,7 @@ def claim(root, db, cfg, who, request, p):
     data.update(a.get('options', {}))
     rec = pm.execute(root, data, _db=db)['record']
     rec.update(runtime_owner=own, runner=rid, expert=inst.get('expert', {'id':'builtin','version':'installed'}),
-               instance_revision=inst['revision'], instance_binding={k:inst.get(k) for k in ('active','model','runner','expert','level','master','write_roots')}, config_sha256=pm.team.read(pm.api(), root, CONFIG)[1], signal='claimed')
+               instance_revision=inst['revision'], instance_binding={k:inst.get(k) for k in ('active','model','effort','runner','expert','level','master','write_roots')}, config_sha256=pm.team.read(pm.api(), root, CONFIG)[1], signal='claimed')
     pm.integrity.save(pm.api(), db, 'launch', rec)
     tasks = pm.task_map(db)
     launcher = load('launch')

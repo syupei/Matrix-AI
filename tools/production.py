@@ -79,12 +79,19 @@ def guidance_budget_errors(documents,exceptions):
   if rel not in documents or guidance_budget(rel) is None:errors.append('stale guidance budget exception: '+rel)
  return errors
 
+# Keep host CLI templates/environment in versioned platform examples, not runtime source.
+HOST_RUNTIME = re.compile(r"(?i)(?<![\w.])(?:codex|claude)(?![\w./])|(?:CODEX|CLAUDE)_[A-Z0-9_]+")
+def host_runtime_errors(rel,text):
+ if rel=='START.md':return []
+ return ['host command or environment in runtime source: '+rel+': '+m.group(0) for m in HOST_RUNTIME.finditer(text)]
+
 def check_sources():
  files=source_files();src=layout();errors=[];links=0
  dirs={str(Path(r).parent) for r in files}
  dirs|={str(Path(d).parents[i]) for d in list(dirs) for i in range(len(Path(d).parts))}
  for rel in files:
   p=src[rel]
+  if p.suffix in {'.py','.md','.json','.yaml','.txt'}:errors+=host_runtime_errors(rel,p.read_text())
   if p.name=='SKILL.md' and len(p.read_text())>3500:errors.append('entry exceeds 3500 characters: '+rel)
   if p.suffix in {'.md','.html'} and not rel.startswith(TEXT_EXEMPT):
    text=p.read_text().replace('.claude/skills','.<host>/skills') if rel=='START.md' else p.read_text()

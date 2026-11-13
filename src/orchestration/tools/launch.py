@@ -233,7 +233,7 @@ def spawn(pm, root, record, actor):
 
 
 def outcome(path):
-    """The final message and the token usage a host printed as JSON lines (as Codex exec --json does); None when it did not."""
+    """The final message and the token usage a host printed as JSON lines (structured host events); None when it did not."""
     message, usage, seen = None, {'input': 0, 'cached': 0, 'output': 0}, False
     for line in open(path, errors='ignore'):
         line = line.strip()
@@ -260,16 +260,17 @@ def outcome(path):
 def host_model(path):
     """Explicit host metadata only; never infer a version from the command or model prose."""
     reported = None
-    for line in open(path, errors='ignore'):
-        try:
-            event = json.loads(line)
-        except ValueError:
-            continue
-        if not isinstance(event, dict):
-            continue
-        metadata = (event.get('type') == 'system' and event.get('subtype') == 'init') or event.get('type') == 'result'
-        if metadata and isinstance(event.get('model'), str) and event['model'].strip():
-            reported = event['model']
+    with open(path, errors='ignore') as stream:
+        for line in stream:
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(event, dict):
+                continue
+            metadata = (event.get('type') == 'system' and event.get('subtype') == 'init') or event.get('type') == 'result'
+            if metadata and isinstance(event.get('model'), str) and event['model'].strip():
+                reported = event['model']
     return reported
 
 

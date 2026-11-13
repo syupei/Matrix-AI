@@ -46,25 +46,16 @@ def execute(project,principal,action_id=None,timeout=180):
         r=current()
         return call('runs.event',run_id=rid,expected_revision=r['revision'],kind=kind,**params)
     workspace=api.pm.local(root,'management/instances/'+inst['id']+'/workspace')
-    values={'model':rec['model'],'instance':inst['id'],'workspace':str(workspace),'project':str(root),
-            'state':str(workspace/'private/runner-state'),'log':str(workspace/'private/runner-log')}
-    argv=[]
     try:
-        if runner.get('adapter','kernel') != 'codex-native' and (not isinstance(runner.get('argv'),list) or not runner['argv'] or not all(isinstance(x,str) for x in runner['argv']) or not runner['argv'][0]):
-            raise ValueError('registered runner argv required')
-        for part in runner.get('argv', []):
-            for k,v in values.items():
-                part=part.replace('{'+k+'}',v)
-            argv.append(part)
         outbox=api.pm.local(root,'management/instances/'+inst['id']+'/workspace/public/'+rid+'-handoff.json')
         if outbox.exists():
             raise ValueError('outbox exists before a new run')
         log=api.pm.local(root,'management/runtime/logs/'+rid)
         log.parent.mkdir(parents=True,exist_ok=True)
         with open(str(log)+'.stdout','w') as stdout,open(str(log)+'.stderr','w') as stderr:
-            result=boundary.run(root,inst['id'],argv,claimed['prompt'],timeout,stdout,stderr,
+            result=boundary.run(root,inst['id'],runner.get('argv', []),claimed['prompt'],timeout,stdout,stderr,
                 started=lambda pid:event('started',pid=pid,model=rec['model'],receipt='local sandbox process '+str(pid)),
-                cancelled=lambda:bool(current().get('cancel_requested')), adapter=runner.get('adapter','kernel'), model=rec['model'])
+                cancelled=lambda:bool(current().get('cancel_requested')), adapter=runner.get('adapter','kernel'), model=rec['model'], effort=inst.get('effort'), template=runner)
         r=current()
         handed=False
         if result['exit_code']==0 and not result['timed_out'] and not r.get('cancel_requested') and outbox.is_file():

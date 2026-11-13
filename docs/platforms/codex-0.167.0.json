@@ -1,0 +1,81 @@
+{
+  "adapter": "command-template",
+  "version": "0.167.0",
+  "cwd": "{workspace}",
+  "prepend_paths": true,
+  "unset_env": [
+    "CODEX_APP_TOOLS_PIPE_PATH",
+    "CODEX_APP_RUNTIME_CLI_PATH",
+    "CODEX_INTERNAL_ORIGINATOR_OVERRIDE",
+    "CODEX_SESSION_ID",
+    "CODEX_THREAD_ID",
+    "CODEX_TOOL_CALL_ID",
+    "CODEX_PERMISSION_PROFILE",
+    "CODEX_TASK_WORKSPACE_VERIFYING_IDENTITY",
+    "CODEX_TECTONIC_PATH"
+  ],
+  "argv": [
+    "codex",
+    "exec",
+    "--ephemeral",
+    "--ignore-user-config",
+    "--ignore-rules",
+    "--skip-git-repo-check",
+    "--sandbox",
+    "workspace-write",
+    "--json",
+    "-C",
+    "{workspace}",
+    "-m",
+    "{model}",
+    "--disable",
+    "apps",
+    "--disable",
+    "plugins",
+    "--disable",
+    "hooks",
+    "--disable",
+    "browser_use",
+    "--disable",
+    "browser_use_external",
+    "--disable",
+    "computer_use",
+    "--disable",
+    "multi_agent",
+    "--enable",
+    "skip_host_skill_discovery",
+    "-c",
+    "mcp_servers={}",
+    "-c",
+    "model_reasoning_effort=\"{effort}\"",
+    "-c",
+    "approval_policy=\"never\"",
+    "-c",
+    "project_doc_max_bytes=0",
+    "-c",
+    "skills.bundled.enabled=false",
+    "-c",
+    "sandbox_workspace_write.writable_roots=[]",
+    "-c",
+    "sandbox_workspace_write.exclude_tmpdir_env_var=true",
+    "-c",
+    "sandbox_workspace_write.exclude_slash_tmp=true",
+    "-c",
+    "shell_environment_policy.ignore_default_excludes=false",
+    "-"
+  ],
+  "models": {
+    "project-model": "gpt-6-luna"
+  },
+  "capabilities": {
+    "launch": {
+      "state": "unknown"
+    },
+    "write_isolation": {
+      "state": "unknown"
+    },
+    "model_selection": {
+      "state": "unknown"
+    }
+  }
+}

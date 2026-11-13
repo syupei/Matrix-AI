@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import signal
 import subprocess
 import tempfile
@@ -46,36 +47,58 @@ def policy(workspace):
             '(deny file-link)\n')
 
 
-def run(project, iid, argv, prompt='', timeout=180, stdout=None, stderr=None, started=None, cancelled=None, adapter='kernel', model=None):
+def command_template(root, workspace, argv, template, model=None, effort=None):
+    """Expand only trusted controller configuration; no shell or task-supplied argv."""
+    cfg = template or {}
+    args = cfg.get('argv', argv)
+    if not isinstance(args, list) or not args or not all(isinstance(x, str) for x in args) or not args[0]:
+        raise ValueError('registered runner argv required')
+    values = {'project': str(root), 'workspace': str(workspace), 'instance': workspace.parent.name,
+              'state': str(workspace / 'private/runner-state'), 'log': str(workspace / 'private/runner-log'),
+              'model': model, 'effort': effort}
+    def expand(text):
+        if not isinstance(text, str):
+            raise ValueError('template values must be strings')
+        def replace(match):
+            key = match[1]
+            if key not in values or not isinstance(values[key], str) or not values[key]:
+                raise ValueError('missing or unknown template value: ' + key)
+            return values[key]
+        return re.sub(r'\{([A-Za-z_][A-Za-z0-9_]*)\}', replace, text)
+    cwd = Path(expand(cfg.get('cwd', '{project}')))
+    if not cwd.is_absolute():
+        cwd = root / cwd
+    cwd = cwd.resolve()
+    if not cwd.is_dir() or not cwd.is_relative_to(root):
+        raise ValueError('runner cwd must be an existing project directory')
+    unset = cfg.get('unset_env', [])
+    if not isinstance(unset, list) or not all(isinstance(x, str) and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', x) for x in unset):
+        raise ValueError('unset_env must contain environment variable names')
+    prefix = cfg.get('prepend_paths', False)
+    if type(prefix) is not bool:
+        raise ValueError('prepend_paths must be boolean')
+    return [expand(x) for x in args], cwd, unset, prefix
+
+
+def run(project, iid, argv, prompt='', timeout=180, stdout=None, stderr=None, started=None, cancelled=None,
+        adapter='kernel', model=None, effort=None, template=None):
     root = Path(project).resolve()
-    workspace = safe_workspace(root,iid)
-    with tempfile.TemporaryDirectory(prefix='.runtime-',dir=workspace/'private') as cache:
-        profile = Path(cache)/'boundary.sb'
+    workspace = safe_workspace(root, iid)
+    if adapter not in {'kernel', 'command-template'}:
+        raise ValueError('unknown isolation adapter')
+    if adapter == 'command-template' and not isinstance(template, dict):
+        raise ValueError('command-template adapter requires trusted runner configuration')
+    command, cwd, unset, prefix = command_template(root, workspace, argv, template, model, effort)
+    if prefix:
+        prompt = 'Project root for reading and project-relative evidence paths: ' + str(root) + '\nYour writable workspace: ' + str(workspace) + '\n' + prompt
+    with tempfile.TemporaryDirectory(prefix='.runtime-', dir=workspace / 'private') as cache:
         if adapter == 'kernel':
-            profile.write_text(policy(workspace),encoding='utf-8')
-            command = ['/usr/bin/sandbox-exec','-f',str(profile),*argv]
-            cwd = root
-        elif adapter == 'codex-native':
-            if not isinstance(model,str) or not model:
-                raise ValueError('native adapter requires a pinned model')
-            command = ['codex','exec','--ephemeral','--ignore-user-config','--ignore-rules','--skip-git-repo-check',
-                       '--sandbox','workspace-write','--json','-C',str(workspace),'-m',model,
-                       '--disable','apps','--disable','plugins','--disable','hooks','--disable','browser_use',
-                       '--disable','browser_use_external','--disable','computer_use','--disable','multi_agent',
-                       '--enable','skip_host_skill_discovery','-c','mcp_servers={}',
-                       '-c','model_reasoning_effort="medium"','-c','approval_policy="never"',
-                       '-c','project_doc_max_bytes=0','-c','skills.bundled.enabled=false',
-                       '-c','sandbox_workspace_write.writable_roots=[]','-c','sandbox_workspace_write.exclude_tmpdir_env_var=true',
-                       '-c','sandbox_workspace_write.exclude_slash_tmp=true','-c','shell_environment_policy.ignore_default_excludes=false','-']
-            cwd = workspace
-            prompt = 'Project root for reading and project-relative evidence paths: '+str(root)+'\nYour writable workspace: '+str(workspace)+'\n'+prompt
-        else:
-            raise ValueError('unknown isolation adapter')
+            profile = Path(cache) / 'boundary.sb'
+            profile.write_text(policy(workspace), encoding='utf-8')
+            command = ['/usr/bin/sandbox-exec', '-f', str(profile), *command]
+        # A command-template adapter relies on the configured host's tested native boundary.
         env = dict(os.environ, TMPDIR=cache, TMP=cache, TEMP=cache)
-        # Do not attach an independent worker to the parent application's control pipe.
-        for name in ('CODEX_APP_TOOLS_PIPE_PATH','CODEX_APP_RUNTIME_CLI_PATH','CODEX_INTERNAL_ORIGINATOR_OVERRIDE',
-                     'CODEX_SESSION_ID','CODEX_THREAD_ID','CODEX_TOOL_CALL_ID','CODEX_PERMISSION_PROFILE',
-                     'CODEX_TASK_WORKSPACE_VERIFYING_IDENTITY','CODEX_TECTONIC_PATH'):
+        for name in unset:
             env.pop(name, None)
         proc = subprocess.Popen(command, cwd=cwd,
                                 stdin=subprocess.PIPE,stdout=stdout or subprocess.PIPE,stderr=stderr or subprocess.PIPE,

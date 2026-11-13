@@ -33,7 +33,7 @@ proc=subprocess.run([sys.executable,'-c',"open('bad-script.txt','w').write('esca
 out['child_script_escape']=proc.returncode==0
 print(json.dumps(out))
 '''
-            result=boundary.run(root,'SIM-A',[sys.executable,'-c',script])
+            result=boundary.run(root,'SIM-A',[],template={'argv':[sys.executable,'-c',script],'cwd':'{project}'})
             self.assertEqual(0,result['exit_code'],result)
             self.assertEqual({'private':True,'public':True,'other':False,'root':False,'parent':False,'symlink_escape':False,'hardlink_escape':False,'child_script_escape':False},json.loads(result['stdout']))
             self.assertEqual('unchanged',protected.read_text())

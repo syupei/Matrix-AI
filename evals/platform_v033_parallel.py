@@ -31,7 +31,7 @@ def main():
   call('init',config=dict(project='SIM-V033-PARALLEL',pm_actor='PM',authorization='user-authorized synthetic compatibility test only',frontdoor_id='SIM',max_slots=3))
   write('management/expert-professions.json',dict(schema='matrix-expert-professions/1',professions=['code-engineering'],configured_by='SIM-fixture',authorization='SIMULATED preset for test'))
   caps={k:dict(state='supported',evidence='actual native workspace-write boundary and CLI probe retained by test operator') for k in ['launch','write_isolation','model_selection','cancel']}
-  write(api.CONFIG,dict(schema=api.SPEC,project_id='SIM-V033-PARALLEL',principals={'controller':dict(active=True,actor='PM',operations=sorted(api.OPERATIONS),task_ops=[])},runners={'default':dict(adapter='codex-native',version='0.167.0',models={'gpt-6-luna':'gpt-6-luna','gpt-6.1-sol':'gpt-6.1-sol'},capabilities=caps)}))
+  write(api.CONFIG,dict(schema=api.SPEC,project_id='SIM-V033-PARALLEL',principals={'controller':dict(active=True,actor='PM',operations=sorted(api.OPERATIONS),task_ops=[])},runners={'default':dict(json.loads((Path(__file__).resolve().parents[1]/'docs/platforms/codex-0.167.0.json').read_text()),models={'gpt-6-luna':'gpt-6-luna','gpt-6.1-sol':'gpt-6.1-sol'},capabilities=caps)}))
   facade('expert.prepare',**identity,profession='code-engineering',url='https://github.com/syupei/Matrix-AI.git',commit='bd65c5ff854c1f272b18e21e86abcba769d0dfdf',subdir='src/professions/code-engineering/skills/matrix-code-engineering-build')
   methods='''# 代码工程子任务专家（限定适配）
 读取项目的 matrix/base/CORE.md 与 matrix/professions/code-engineering/profession.json。
@@ -47,13 +47,13 @@ def main():
  elif a.phase=='admit':
   target=root/'management/instances/ADMISSION/workspace/public/admission.md'
   prompt='合成专家准入。读取 '+str(base/'ENTRY.md')+' 与 '+str(base/'METHODS.md')+'。概述本专家会怎样处理“仅实现一个已给定函数”的任务，明确未知产品规则、真实测试、独立验收与写盘位置的边界。只写 '+str(target)+'；不要实现或启动其它任务。'
-  result=boundary.run(root,'ADMISSION',[],prompt,180,adapter='codex-native',model='gpt-6.1-sol')
+  result=boundary.run(root,'ADMISSION',[],prompt,180,adapter='command-template',model='gpt-6.1-sol',effort='medium',template=json.loads((root/api.CONFIG).read_text())['runners']['default'])
   (out/'admission.json').write_text(json.dumps(result,ensure_ascii=False,indent=2))
   (out/'admission-pending.json').write_text(json.dumps(dict(artifact=str(target.relative_to(root)),methods_sha256=hashlib.sha256((base/'METHODS.md').read_bytes()).hexdigest(),exit_code=result['exit_code'],review='pending actual artifact read'),indent=2))
  elif a.phase=='run':
   # The operator's real review must already have enabled this package.
   pm.team.experts.binding(pm.api(),root,'code-engineering',identity)
-  entries=[dict(id='builtin',profession='code-engineering',level='T7',model='gpt-6-luna',count=1,master=True,aliases=['小 M.ai']),dict(id='imported',profession='code-engineering',level='T4',model='gpt-6.1-sol',count=1,expert=identity,aliases=['小王.ai'])]
+  entries=[dict(id='builtin',profession='code-engineering',level='T7',effort='medium',model='gpt-6-luna',count=1,master=True,aliases=['小 M.ai']),dict(id='imported',profession='code-engineering',level='T4',effort='medium',model='gpt-6.1-sol',count=1,expert=identity,aliases=['小王.ai'])]
   write('management/instance-config.json',{'entries':entries});call('confirm_config',person='SIM-person',quote='SIMULATED test fixture approval only',presented_ref='SIM fixture',choices={e['id']:'acknowledge_unregistered' for e in entries})
   ids=[call('derive',entry=e['id'],endpoint='platform')['record']['id'] for e in entries]
   for tid,iid,fn,parity in [('A',ids[0],'sum_odd','奇数'),('B',ids[1],'sum_even','偶数')]:
