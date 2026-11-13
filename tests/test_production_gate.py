@@ -117,16 +117,24 @@ class PublishingGateTests(unittest.TestCase):
   for item in self.data['cases']['intake']['candidate_evidence']:
    if item['path']=='candidate-intake/run.json':item['sha256']=p.sha(run_path)
  def test_reuse_for_unchanged_role_passes(self):
-  self.reuse_intake('product-agent',self.baseline_role_files('product-agent'));self.assertTrue(self.check())
+  self.reuse_intake('product-agent',self.baseline_role_files('product-agent'))
+  with self.assertRaisesRegex(ValueError,'no verifiable read record'):self.check()
  def test_reuse_for_changed_role_blocks(self):
   changed=self.baseline_role_files('product-agent');changed[next(iter(changed))]='f'*64;self.reuse_intake('product-agent',changed)
-  with self.assertRaisesRegex(ValueError,'changed role'):self.check()
+  with self.assertRaisesRegex(ValueError,'no verifiable read record'):self.check()
  def test_reuse_from_other_source_blocks(self):
   self.reuse_intake('product-agent',self.baseline_role_files('product-agent'),source='0'*64)
   with self.assertRaisesRegex(ValueError,'baseline release'):self.check()
  def reuse_with_reads(self,read,files):
   self.reuse_intake('product-agent',files);run_path=self.root/'candidate-intake/run.json';run=json.loads(run_path.read_text())
+  import sys
+  sys.path.insert(0,str(p.ROOT/'evals'))
+  from read_records import extract
+  events=[{'item':{'type':'command_execution','command':'cat '+ ' '.join('kit/'+x for x in read)}},{'type':'turn.completed'}]
+  for t in run['cases'][0]['turns']:(run_path.parent/t['events']).write_text('\n'.join(json.dumps(e) for e in events))
+  run['cases'][0]['read_set']=extract(events,'codex exec',files,'.agents/skills/product-agent/SKILL.md')
   run['cases'][0]['read_files']=read;run_path.write_text(json.dumps(run))
+  for item in self.data['cases']['intake']['candidate_evidence']:item['sha256']=p.sha(self.root/item['path'])
   for item in self.data['cases']['intake']['candidate_evidence']:
    if item['path']=='candidate-intake/run.json':item['sha256']=p.sha(run_path)
  def test_reuse_is_judged_by_the_files_the_case_read(self):

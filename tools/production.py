@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Build only canonical consumer sources; require real comparison evidence, or an explicit human waiver, to publish."""
-import argparse,hashlib,json,os,re,shutil,subprocess,sys
+import argparse,hashlib,json,os,re,shutil,subprocess,sys,importlib.util
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 SOURCE=ROOT/'src'
@@ -136,10 +136,11 @@ def check_recheck(cid,case,criteria):
   if r['agree'] and final!=r['first'] and k not in person:raise ValueError('score changed after agreeing re-check: '+cid+'/'+k)
   if not r['agree'] and k not in person:raise ValueError('scorers disagree without a person\'s decision: '+cid+'/'+k)
 
-def check_evidence(report,files):
+def check_evidence(report,files,*,_suite=None,_chain=()):
+ report=report.resolve()
  data=json.loads(report.read_text())
  if data.get('candidate_hash')!=fingerprint(files):raise ValueError('behavior evidence belongs to different source')
- suite=ROOT/'evals/cases/suite.json'
+ suite=_suite or ROOT/'evals/cases/suite.json'
  if data.get('suite_hash')!=sha(suite):raise ValueError('behavior suite changed')
  specs={c['id']:c for c in json.loads(suite.read_text())['cases']}
  expected={cid:set(c['criteria']) for cid,c in specs.items()}
@@ -152,6 +153,11 @@ def check_evidence(report,files):
  base_files=json.loads(prior.read_text())['files'];baseline_hash=fingerprint(base_files)
  if data.get('baseline_hash')!=baseline_hash:raise ValueError('wrong baseline source')
  if set(data.get('cases',{}))!=set(expected):raise ValueError('missing/extra behavior cases')
+ module_spec=importlib.util.spec_from_file_location('matrix_scoped_gate',Path(__file__).with_name('scoped_evidence.py'))
+ scoped=importlib.util.module_from_spec(module_spec);module_spec.loader.exec_module(scoped)
+ class Gate:pass
+ gate=Gate();gate.sha=sha;gate.fingerprint=fingerprint;gate.check_evidence=check_evidence
+ carried,depth=scoped.prepare(gate,report,data,files,specs,_chain)
  runners=set()
  for cid,criteria in expected.items():
   case=data['cases'][cid]
@@ -171,8 +177,9 @@ def check_evidence(report,files):
    run_path=(report.parent/case[side+'_run']).resolve()
    if str(run_path) not in paths:raise ValueError('run metadata missing from evidence')
    run=json.loads(run_path.read_text())
-   source_hash=data['candidate_hash'] if side=='candidate' else baseline_hash
-   if run.get('runner') not in RUNNERS or run.get('source_hash')!=source_hash or run.get('suite_hash')!=data['suite_hash']:raise ValueError('run environment/source mismatch')
+   origin=carried.get(cid,data)
+   source_hash=origin['candidate_hash'] if side=='candidate' else baseline_hash
+   if run.get('runner') not in RUNNERS or run.get('source_hash')!=source_hash or run.get('suite_hash')!=origin.get('side_suites',{}).get(side,origin['suite_hash']):raise ValueError('run environment/source mismatch')
    runners.add((run['runner'],run.get('model'),run.get('effort')))  # one runner, model and effort for both versions
    records=[r for r in run['cases'] if r['id']==cid]
    if len(records)!=1 or [t['user'] for t in records[0]['turns']]!=specs[cid]['turns']:raise ValueError('actual user turns incomplete')
@@ -187,12 +194,10 @@ def check_evidence(report,files):
     # Carried over from the previous release's run: allowed only while every file the case read is unchanged. A run
     # without a record of its reads counts the role's files and the common rules as read.
     if side!='candidate' or reuse.get('source_hash')!=baseline_hash:raise ValueError('reused evidence must come from the baseline release: '+cid)
-    read=records[0].get('read_files')
-    if read is None:
-     prefix='.agents/skills/'+str(records[0].get('role',''))+'/'
-     if not records[0].get('role') or not any(k.startswith(prefix) for k in files):raise ValueError('reused evidence for a changed role: '+cid)
-     read=[k for k in set(base_files)|set(files) if k.startswith(prefix) or k.startswith('matrix/base/')]
-    changed=sorted(k for k in read if base_files.get(k)!=files.get(k))
+    read_set=scoped.record_reads(run_path,records[0],base_files)
+    if records[0].get('read_set')!=read_set or not read_set['complete']:raise ValueError('no verifiable read record: '+cid)
+    read=read_set['files']
+    changed=scoped.intersects(read_set,{k for k in set(base_files)|set(files) if base_files.get(k)!=files.get(k)})
     if not read or changed:raise ValueError('reused evidence for a changed role or read file: '+cid+' ('+', '.join(changed[:5])+')')
    turns[side]=[t['sha256'] for t in records[0]['turns']]
    for turn in records[0]['turns']:
@@ -204,7 +209,7 @@ def check_evidence(report,files):
 
  if len(runners)!=1:raise ValueError('baseline and candidate must use the same runner, model and effort')
  if not data.get('reviewer') or not data.get('limitations'):raise ValueError('review attribution and limits required')
- return data
+ return dict(data,_verified_scoped_depth=depth)
 
 def release_name(config):
  name,version=config['package'].split('/');return name+'-v'+version

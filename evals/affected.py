@@ -4,12 +4,12 @@
   affected.py --run <previous run.json> --old <old built kit> --new <new built kit>
 
 Prints the cases to run again and the cases whose previous replies may be carried over (assemble_run.py --reuse).
-A case without a record of its reads counts its role's files and the common rules (matrix/base/) as read, as
-tools/production.py does.
+A case without a verifiable trace-derived read_set must rerun; directory scopes cover new files too.
 """
 import argparse
 import json
 from pathlib import Path
+from read_records import record_reads,intersects
 
 
 def main():
@@ -21,12 +21,9 @@ def main():
     changed = {k for k in set(old) | set(new) if old.get(k) != new.get(k)}
     rerun, carry = {}, []
     for case in json.loads(a.run.read_text())['cases']:
-        read = case.get('read_files')
-        if read is None:
-            prefix = '.agents/skills/' + str(case.get('role', '')) + '/'
-            read = [k for k in set(old) | set(new) if k.startswith(prefix) or k.startswith('matrix/base/')]
-        hit = sorted(changed & set(read))
-        if hit or not read:
+        read = record_reads(a.run,case,old)
+        hit = intersects(read,changed)
+        if hit or not read['complete'] or case.get('read_set')!=read:
             rerun[case['id']] = hit[:5] or ['no record of what it read']
         else:
             carry.append(case['id'])

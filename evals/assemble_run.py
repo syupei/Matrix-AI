@@ -17,6 +17,7 @@ origin as `generated_on`, so the record never claims it was produced on this sou
 import argparse, hashlib, json, shutil
 from pathlib import Path
 import importlib.util
+from read_records import extract
 spec = importlib.util.spec_from_file_location('run', Path(__file__).with_name('run.py'))
 run = importlib.util.module_from_spec(spec); spec.loader.exec_module(run)
 
@@ -25,6 +26,7 @@ p.add_argument('--source', type=Path, required=True)
 p.add_argument('--output', type=Path, required=True)
 p.add_argument('--runner', default='claude subagent')
 p.add_argument('--note', required=True, help='how the turns were executed and recorded')
+p.add_argument('--scoped-report',type=Path,help='verified previous comparison; copy --reuse cases without relabeling metadata')
 p.add_argument('--reuse-from', type=Path, help="previous release's run directory")
 p.add_argument('--reuse', default='', help='comma-separated case ids carried over verbatim from --reuse-from')
 p.add_argument('--carry-from', type=Path, help='an earlier run directory of the same source')
@@ -34,6 +36,11 @@ p.add_argument('--fixture-equivalence', type=Path, help='fixture_equivalence.py 
 a = p.parse_args()
 suite_path = Path(__file__).parent / 'cases/suite.json'; suite = json.loads(suite_path.read_text())
 reuse = [x for x in a.reuse.split(',') if x]
+if a.scoped_report:
+    if not reuse or a.reuse_from or a.carry_from:raise SystemExit('--scoped-report requires only --reuse case ids')
+    from scoped_run import carry as scoped_carry
+    print(json.dumps(scoped_carry(a.scoped_report,a.output,a.source,reuse),ensure_ascii=False))
+    raise SystemExit(0)
 if reuse and not a.reuse_from:
     raise SystemExit('--reuse needs --reuse-from')
 previous = json.loads((a.reuse_from / 'run.json').read_text()) if reuse else None
@@ -95,8 +102,12 @@ for case in suite['cases']:
         if not reply.is_file():
             raise SystemExit(f'missing recorded reply: {reply}')
         events = a.output / f"{case['id']}-{n}.jsonl"
-        events.write_text(json.dumps({'type': 'result', 'runner': a.runner, 'recorded_by': 'orchestrator', 'note': a.note}, ensure_ascii=False) + '\n')
+        if not events.exists():events.write_text(json.dumps({'type': 'result', 'runner': a.runner, 'recorded_by': 'orchestrator', 'note': a.note}, ensure_ascii=False) + '\n')
         record['turns'].append({'user': user, 'reply': reply.name, 'events': events.name, 'sha256': hashlib.sha256(reply.read_bytes()).hexdigest()})
+    traces=[json.loads(line) for t in record['turns'] for line in (a.output/t['events']).read_text().splitlines() if line.strip()]
+    files=json.loads((a.source/'MANIFEST.json').read_text())['files']
+    record['read_set']=extract(traces,a.runner,files,entry or '.agents/skills/'+role+'/SKILL.md')
+    record['read_files']=record['read_set']['files'] if record['read_set']['complete'] else None
     meta['cases'].append(record)
 (a.output / 'run.json').write_text(json.dumps(meta, ensure_ascii=False, indent=2) + '\n')
 print(json.dumps({'source_hash': meta['source_hash'], 'cases': len(meta['cases']), 'reused': len(reuse), 'carried': len(carry)}))

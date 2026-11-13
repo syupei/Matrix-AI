@@ -4,6 +4,7 @@ Results are ungraded raw evidence; no canned response is treated as model behavi
 """
 import argparse,hashlib,json,os,re,shutil,subprocess,tempfile,time,importlib.util
 from pathlib import Path
+from read_records import extract
 
 def fingerprint(root):
  return hashlib.sha256(json.dumps({str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.rglob('*')) if p.is_file() and '__pycache__' not in p.parts and p.name!='MANIFEST.json'},sort_keys=True).encode()).hexdigest()
@@ -68,7 +69,9 @@ def main():
    # A trace that changes into the kit folder reads by relative paths that cannot be told apart, so it records none.
    traces=''.join((args.output/t['events']).read_text(errors='ignore') for t in record['turns'])
    kit_files=json.loads((source/'MANIFEST.json').read_text())['files']
-   record['read_files']=None if re.search(r'cd\s+["\']?(\./)?kit\b',traces) else sorted(f for f in kit_files if 'kit/'+f in traces)
+   events_all=[json.loads(line) for t in record['turns'] for line in (args.output/t['events']).read_text().splitlines() if line.strip()]
+   record['read_set']=extract(events_all,meta['runner'],kit_files,entry or '.agents/skills/'+role+'/SKILL.md')
+   record['read_files']=record['read_set']['files'] if record['read_set']['complete'] else None
    artifacts=args.output/(case['id']+'-artifacts');artifacts.mkdir(exist_ok=True)
    for item in work.iterdir():
     if item.name=='kit':continue
