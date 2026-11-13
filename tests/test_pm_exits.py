@@ -18,6 +18,10 @@ contract_spec.loader.exec_module(contract)
 REGISTRIES = {r['id']: r for r in (json.loads(p.read_text(encoding='utf-8')) for p in (SOURCE / 'matrix/professions').glob('*/profession.json'))}
 MODELS = {'models': [{'model': 'SIM-big', 'levels': {p: r['levels']['range'][1] for p, r in REGISTRIES.items()},
                       'capabilities': sorted({c for r in REGISTRIES.values() for c in r.get('model_capabilities', [])}), 'filled_by': 'SIMULATED person'}]}
+for assessment in MODELS['models']:
+    assessment.update(basis='human', evidence=['SIMULATED assessment only'], evaluated_at='2020-01-01T00:00:00+00:00',
+                      model_version=assessment['model'], review_after='2099-01-01T00:00:00+00:00', review_conditions={})
+    assessment['capabilities'] = sorted(set(assessment['capabilities']) | {'long_horizon', 'complex_dispatch', 'deep_reasoning'})
 MASTERS = ['product', 'experience-design', 'code-engineering', 'quality-engineering']
 TEAM = {'entries': [{'id': p, 'profession': p, 'level': REGISTRIES[p]['levels']['master_min'], 'model': 'SIM-big', 'count': 1, 'master': True} for p in MASTERS]
         + [{'id': 'code-worker', 'profession': 'code-engineering', 'level': 'T4', 'model': 'SIM-big', 'count': 1}]}

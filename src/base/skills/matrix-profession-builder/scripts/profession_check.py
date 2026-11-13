@@ -159,6 +159,13 @@ def registry(path, problems, owners, flows, abbrs):
     master = levels.get('master_min')
     if master is not None and (not LEVEL.match(str(master)) or not low <= int(master[1]) <= high):
         problems.append(f'{name}: levels.master_min must be null or inside the range')
+    capabilities = levels.get('capabilities', {})
+    if not isinstance(capabilities, dict) or any(
+            not LEVEL.match(str(k)) or not low <= int(k[1]) <= high or
+            not isinstance(v, list) or not v or not all(isinstance(tag, str) for tag in v) or len(v) != len(set(v)) or
+            any(tag not in {'long_horizon', 'complex_dispatch', 'deep_reasoning'} for tag in v)
+            for k, v in capabilities.items()):
+        problems.append(f'{name}: levels.capabilities requires in-range floors and known capability tags')
     doc = path.parent / str(levels.get('doc'))
     anchors = r.get('anchors') or {}
     if not levels.get('doc') or not doc.is_file():

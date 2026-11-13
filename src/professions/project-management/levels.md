@@ -27,3 +27,5 @@
 - Q3：视图统计错误，不影响决定。
 - Q4：记录格式问题。
 - Q5：流程改进建议。
+
+**高职级模型能力**：T6 及以上须有 `long_horizon`（跨会话保持目标）、`complex_dispatch`（拆分、派发与整合不降标）、`deep_reasoning`（多方约束权衡）的有效证据。按[模型适配](../../orchestration/MODEL-FIT.md)试岗与复核；职级不由模型名称决定。

@@ -2,15 +2,15 @@
 
 Matrix owns task decisions and approvals. The authenticated controller owns processes and credentials. The installed [platform guide](../../src/orchestration/PLATFORM-GUIDE.md) describes the neutral contract. A platform is supported only for its tested CLI, operating system, model and permissions configuration.
 
-## Tested role/model scope for 0.33
+## Dated role/model observations: 2026-11-13 (0.33 evidence)
 
-The accepted bounded configuration uses **Sol 6.1 medium for lead instances and Luna medium for execution instances**. This is a supported configuration within the evidence below, not fixed professional-grade certification or a guarantee across every profession/task.
+The 0.33 validation recorded the observations below using Sol 6.1 medium and Luna medium. These are dated results, not a permanent model support list. Projects assess current versions using [model-fit evidence and review conditions](../../src/orchestration/MODEL-FIT.md).
 
 | Configuration | Actual evidence and limit |
 | --- | --- |
 | Sol 6.1 medium, complex engineering lead | Same dispatch scenario: baseline and candidate each 4/4, flagged criterion recheck agrees; one scenario, no live staffing or launch approval |
 | Luna medium, execution instance | Bounded worker/handoff scenarios and a real concurrent built-in code worker; two resulting functions separately checked against 781 inputs each, still awaiting task acceptance |
-| Luna medium, complex engineering lead | Excluded from this release's supported complex-lead scope: 2 failed criteria retained, including one 1→0 regression; not silently substituted with Sol results |
+| Luna medium, complex engineering lead | That run retained 2 failed criteria, including one 1→0 regression; Sol results do not erase these failures |
 | Claude Sonnet 4.6 medium | Actual bounded import/admission and product-to-engineering handoff only; not certified for complex lead scheduling |
 | Other models, hosts or role combinations | Unknown until relevant platform and professional behavior are validated |
 

@@ -17,6 +17,10 @@ REGISTRIES = {r['id']: r for r in (json.loads(p.read_text(encoding='utf-8')) for
 CAPABILITIES = sorted({c for r in REGISTRIES.values() for c in r.get('model_capabilities', [])})
 MODELS = {'models': [{'model': m, 'levels': {p: r['levels']['range'][1] for p, r in REGISTRIES.items()}, 'capabilities': CAPABILITIES,
                       'filled_by': 'SIMULATED person'} for m in ['SIM-big', 'SIM-other']]}
+for assessment in MODELS['models']:
+    assessment.update(basis='human', evidence=['SIMULATED assessment only'], evaluated_at='2020-01-01T00:00:00+00:00',
+                      model_version=assessment['model'], review_after='2099-01-01T00:00:00+00:00', review_conditions={})
+    assessment['capabilities'] = sorted(set(assessment['capabilities']) | {'long_horizon', 'complex_dispatch', 'deep_reasoning'})
 TEAM = {'entries': [
     {'id': 'E-M', 'profession': 'code-engineering', 'level': 'T7', 'model': 'SIM-big', 'count': 1, 'master': True},
     {'id': 'E-W', 'profession': 'code-engineering', 'level': 'T4', 'model': 'SIM-other', 'count': 2},

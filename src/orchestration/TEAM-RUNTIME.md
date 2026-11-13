@@ -5,6 +5,7 @@
 | op | 字段与作用 |
 | --- | --- |
 | team | 只读任职、专业参与规则与未完成义务，以及实例配置：确认记录、是否当前、各项适用性 |
+| model_performance | 只读查询模型在各任务职级的检验失败、返工、上报及结束未交出；可带 since；字段与复核见[模型适配](MODEL-FIT.md) |
 | confirm_config | PM 或前台记录人的确认：person、quote、presented_ref、choices（不适用的项为 insist，未登记的为 acknowledge_unregistered）；校验 `management/instance-config.json`，按 `model-fit.json` 核对适用性，记下文件哈希；文件再改就不再当前，重新确认带 expected_revision；有名单时 person 须有项目级决定权 |
 | derive | PM 提交 entry、endpoint（宿主返回的真实地址）、write_roots；配置当前、该项未满数才登记，编号 `<专业标识>-<序号>` 由工具生成、不复用，write_roots 自动含实例 workspace；生成档案 `management/instances/<编号>/profile.md`，不写地址与凭证 |
 | relevel_instance / retire_instance | PM 提交 id、expected_revision、reason；新确认的配置改了该项职级才可调级（重写档案），删去该项、数量少于在用实例或换了模型才可停用；实例不能有进行中的工作 |

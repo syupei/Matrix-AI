@@ -1,7 +1,7 @@
 """Machine operation fields shared by the facade, schema and guide checks."""
 FIELDS = {
  'capabilities': (set(), set()), 'inspect': (set(), set()), 'validate': (set(), set()),
- 'tasks.query': (set(), {'op','id','text','name','detail'}),
+ 'tasks.query': (set(), {'op','id','text','name','detail','since'}),
  'tasks.command': (set(), None),
  'actions.plan': (set(), set()),
  'actions.claim': ({'action_id','expected_revision'}, {'action_id','expected_revision'}),

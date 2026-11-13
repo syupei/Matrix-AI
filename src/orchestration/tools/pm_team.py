@@ -12,7 +12,11 @@ _spec = importlib.util.spec_from_file_location('matrix_experts', Path(__file__).
 experts = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(experts)
 
-READ_OPS = {'team', 'resolve_instance'}
+_spec = importlib.util.spec_from_file_location('matrix_model_fit', Path(__file__).with_name('pm_model_fit.py'))
+model_fit = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(model_fit)
+
+READ_OPS = {'team', 'resolve_instance', 'model_performance'}
 INSTANCE_OPS = {'confirm_config', 'derive', 'retire_instance', 'relevel_instance', 'rename_instance'}
 WRITE_OPS = {'appoint', 'revoke_appointment', 'register_participation', 'participation_event', 'bind_participation'} | INSTANCE_OPS
 CONFIG, FIT = 'management/instance-config.json', 'management/model-fit.json'
@@ -59,7 +63,7 @@ def read(pm, root, ref):
     return json.loads(raw.decode('utf-8')), hashlib.sha256(raw).hexdigest()
 
 
-def fit_entries(pm, root, regs):
+def fit_entries(pm, root, regs, db=None):
     """Validated configuration entries with their model fit: fit, unregistered or unfit."""
     data, sha = read(pm, root, CONFIG)
     items = data.get('entries') if isinstance(data, dict) else None
@@ -102,35 +106,60 @@ def fit_entries(pm, root, regs):
             pm.require('capabilities' not in m or pm.strings(m['capabilities']), 'model-fit.json: capabilities must be a string list')
             pm.require(pm.nonempty(m.get('filled_by')), 'model-fit.json: filled_by required for ' + m['model'])
             models[m['model']] = m
-    out = []
+    out, freshness = [], {}
     for e in items:
-        m, need = models.get(e['model'], {}), regs[e['profession']].get('model_capabilities', [])
+        m, need = models.get(e['model'], {}), model_fit.required(regs[e['profession']], e['level'])
         top, caps = m.get('levels', {}).get(e['profession']), m.get('capabilities')
         missing = [c for c in need if caps is not None and c not in caps]
-        if m and ((top and level(top) < level(e['level'])) or missing):
+        if e['model'] not in freshness:
+            freshness[e['model']] = model_fit.reasons(pm, db, m)
+        stale = freshness[e['model']]
+        if stale:
+            fit = 'unregistered'
+        elif m and ((top and level(top) < level(e['level'])) or missing):
             fit = 'unfit'
         elif top and (caps is not None or not need):
             fit = 'fit'
         else:
             fit = 'unregistered'  # model not listed, no level for this profession, or capabilities not recorded
-        out.append(dict(e, fit=fit, max_level=top, missing_capabilities=missing))
+        out.append(dict(e, fit=fit, max_level=top, missing_capabilities=missing, review_reasons=stale))
     return out, sha
+
+
+def fit_signature(pm, root, db):
+    entries = fit_entries(pm, root, registries(pm, root), db)[0]
+    digest = pm.integrity.file_hash(pm, root, FIT) if pm.local(root, FIT).is_file() else None
+    return hashlib.sha256(json.dumps([digest, entries], sort_keys=True).encode()).hexdigest()
 
 
 def confirmed(pm, root, db):
     """The last confirmation while the file still has the confirmed content, else None."""
     rec = pm.integrity.records(db, 'instance_config').get('confirmed')
     try:
-        return rec if rec and pm.integrity.file_hash(pm, root, CONFIG) == rec['sha256'] else None
+        if not rec or pm.integrity.file_hash(pm, root, CONFIG) != rec['sha256']:
+            return None
+        return rec if rec.get('fit_signature') == fit_signature(pm, root, db) else None
     except (ValueError, OSError):
         return None
+
+
+def instance_fit_issue(pm, root, db, inst):
+    if not inst or not inst.get('config_entry'):
+        return None
+    conf = confirmed(pm, root, db)
+    if not conf:
+        return 'model fit or configuration changed; review and confirm before launching'
+    entry = next((e for e in conf['entries'] if e['id'] == inst['config_entry']), None)
+    if not entry or any(inst.get(k) != entry.get(k) for k in ('model', 'level')) or inst.get('fit') != DERIVED_FIT[entry['fit']]:
+        return 'apply the confirmed instance configuration with relevel_instance or retire_instance before launching'
+    return None
 
 
 def config_state(pm, root, db):
     state = {'confirmed': pm.integrity.records(db, 'instance_config').get('confirmed'), 'current': bool(confirmed(pm, root, db))}
     if pm.local(root, CONFIG).is_file():
         try:
-            state['entries'] = fit_entries(pm, root, registries(pm, root))[0]
+            state['entries'] = fit_entries(pm, root, registries(pm, root), db)[0]
         except (ValueError, OSError) as error:
             state['problem'] = str(error)
     return state
@@ -151,7 +180,7 @@ def profile(pm, root, inst, conf):
     text = (f"# 实例档案：{display(regs, inst['id'])}\n\n由派生工具生成，不手写。\n\n"
             f"- 编号：{inst['id']}\n- 专业：{reg['name']}\n- 职级：{inst['level']}\n- 身份：{'master' if inst['master'] else '执行者'}\n"
             f"- 别名：{inst.get('alias', inst['id'])}\n- 专家：{inst.get('expert', {'id': 'builtin', 'version': 'installed'})}\n- 运行器：{inst.get('runner', 'default')}\n- 模型名称：{inst['model']}\n- 配置项：{inst['config_entry']}\n- 派生人与时间：{inst['derived_by']}，{inst['derived_at']}\n"
-            f"- 配置的确认人与原话：{person}：「{conf['quote']}」\n- 适用性：{FIT_NAMES[inst['fit']]}\n\n"
+            f"- 配置的确认人与原话：{person}：「{conf['quote']}」\n- 适用性：{FIT_NAMES[inst['fit']]}（派生时记录；当前状态查询 team）\n\n"
             f"## 本职级（{inst['level']}）\n\n- 能做：{can}\n- 能判断：{judge}\n- 不能做（越权）：{cannot}\n")
     pm.atomic(pm.local(root, workspace(pm, root, inst['id']) + '/profile.md'), text)
 
@@ -265,7 +294,7 @@ def confirm(pm, root, db, cfg, tasks, cmd):
     pm.require(cmd['actor'] in {cfg['pm_actor'], cfg.get('frontdesk_actor')} - {None}, 'PM or front desk records the person\'s confirmation')
     pm.require(all(pm.nonempty(cmd.get(k)) for k in ['quote', 'presented_ref']), 'exact quote and presented reference required')
     pm.authorized(cmd.get('person'), [None], tasks, pm.roster(root))
-    items, sha = fit_entries(pm, root, registries(pm, root))
+    items, sha = fit_entries(pm, root, registries(pm, root), db)
     choices = cmd.get('choices', {})
     pm.require(isinstance(choices, dict) and set(choices) <= {e['id'] for e in items}, 'choices must name configuration entries')
     problems = []
@@ -280,7 +309,7 @@ def confirm(pm, root, db, cfg, tasks, cmd):
                             + ('; lacks ' + '、'.join(e['missing_capabilities']) if e['missing_capabilities'] else '')
                             + ' - change the model, lower the level, or insist')
         elif want:
-            problems.append(e['id'] + ': model ' + e['model'] + ' is not registered for ' + e['profession'] + '; confirm it as acknowledge_unregistered')
+            problems.append(e['id'] + ': model ' + e['model'] + ' is not registered for ' + e['profession'] + '; review ' + ', '.join(e['review_reasons']) + '; change model, lower level or explicitly continue as acknowledge_unregistered')
         else:
             problems.append(e['id'] + ': the model fits; no choice applies')
     pm.require(not problems, 'configuration not confirmed: ' + '; '.join(problems))
@@ -289,6 +318,7 @@ def confirm(pm, root, db, cfg, tasks, cmd):
     items = [dict(e, expert_binding=experts.binding(pm, root, e['profession'], e.get('expert'))) for e in items]
     value = dict(id='confirmed', config=CONFIG, sha256=sha, entries=[dict(e, insisted=e['fit'] == 'unfit') for e in items],
                  person=cmd['person'], quote=cmd['quote'], presented_ref=cmd['presented_ref'], at=pm.now(),
+                 fit_signature=fit_signature(pm, root, db),
                  revision=(before or {}).get('revision', 0) + 1, updated_at=pm.now())
     pm.integrity.save(pm, db, 'instance_config', value)
     return {'record': value}
@@ -428,6 +458,11 @@ def blockers(pm, root, db, tasks, tid, closing=False):
     problem = None if closing or t['state'] in pm.TERMINAL else level_issue(pm, db, t)
     if problem:
         out.append({'code': 'instance_level', 'task': tid, 'action': problem})
+    if not closing and t['state'] != 'running':
+        inst = pm.integrity.records(db, 'instance').get(t.get('executor') or t['owner'])
+        issue = instance_fit_issue(pm, root, db, inst)
+        if issue:
+            out.append({'code': 'model_fit_review', 'task': tid, 'action': issue})
     appointments = pm.integrity.records(db, 'appointment')
     relevant = any(within(tid, a['root_tasks'], tasks) for a in appointments.values())
     if relevant:
@@ -463,6 +498,8 @@ def blockers(pm, root, db, tasks, tid, closing=False):
 def execute(pm, root, db, cmd):
     cfg, tasks = pm.config(db), pm.task_map(db)
     op, actor = cmd['op'], cmd.get('actor')
+    if op == 'model_performance':
+        return model_fit.performance(pm, db, cmd.get('since'))
     if op == 'resolve_instance':
         return {'record': resolve(pm, pm.integrity.records(db, 'instance'), cmd.get('name'))}
     if op == 'team':

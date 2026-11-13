@@ -94,7 +94,14 @@
       "T7"
     ],
     "master_min": "T6",
-    "doc": "levels.md"
+    "doc": "levels.md",
+    "capabilities": {
+      "T6": [
+        "long_horizon",
+        "complex_dispatch",
+        "deep_reasoning"
+      ]
+    }
   },
   "anchors": {
     "risk": "levels.md",

@@ -44,13 +44,19 @@ def config(extra=()):
 
 def model_fit():
     regs = [json.loads(p.read_text(encoding='utf-8')) for p in sorted((SOURCE / 'matrix/professions').glob('*/profession.json'))]
-    caps = sorted({c for r in regs for c in r.get('model_capabilities', [])})
+    caps = sorted({c for r in regs for c in r.get('model_capabilities', [])} | {'long_horizon', 'complex_dispatch', 'deep_reasoning'})
     code = next(r for r in regs if r['id'] == 'code-engineering')
-    return {'models': [
+    data = {'models': [
         {'model': 'strong-model', 'levels': {r['id']: r['levels']['range'][1] for r in regs}, 'capabilities': caps, 'filled_by': 'SYNTHETIC user'},
         {'model': 'fast-model', 'levels': {r['id']: min(r['levels']['range'][1], 'T5', key=lambda v: int(v[1:])) for r in regs},
          'capabilities': caps, 'filled_by': 'SYNTHETIC user'},
         {'model': 'tiny-model', 'levels': {'code-engineering': 'T3'}, 'capabilities': code.get('model_capabilities', []), 'filled_by': 'SYNTHETIC user'}]}
+
+    for row in data['models']:
+        row.update(basis='human', evidence=['SYNTHETIC assessment for fixture setup only'],
+                   evaluated_at='2020-01-01T00:00:00Z', model_version=row['model'],
+                   review_after='2099-01-01T00:00:00Z', review_conditions={})
+    return data
 
 
 def populate(root, case_id, final=True):
@@ -167,6 +173,13 @@ def populate(root, case_id, final=True):
              inputs=['product/rules/R-CART-05.md v3'])
         start('T-0043')
     elif case_id == 'mi_config_fit':
+        task('T-FIT-P', 'code-engineering-001', 'SYNTHETIC model version observation', difficulty='T4', risk='F3', risk_reason='SYNTHETIC low-risk')
+        task('T-FIT-W', 'code-engineering-002', 'SYNTHETIC prior worker run', parent='T-FIT-P', checker='code-engineering-001', difficulty='T4', risk='F3', risk_reason='SYNTHETIC low-risk')
+        call('launch_start', id='SYNTHETIC-FIT-RUN', purpose='start', task_id='T-FIT-W', instance='code-engineering-002',
+             model='fast-model-v2', session='SYNTHETIC', command=['SYNTHETIC-no-process'])
+        call('launch_started', id='SYNTHETIC-FIT-RUN', pid=4242)
+        hand_over('T-FIT-W', ['SYNTHETIC previous result; no real worker'])
+        call('launch_exit', actor='launcher', id='SYNTHETIC-FIT-RUN', exit_code=0)
         write('management/instance-config.json', json.dumps(config([('E-T9-FAST', 'code-engineering', 'T9', 'fast-model', 1, False)]), ensure_ascii=False, indent=2) + '\n')
     elif case_id == 'mi_review_independence':
         task('T-0049', 'code-engineering-001', 'INC-4 会员扣费', difficulty='T7', risk='F1', risk_reason='SYNTHETIC: 扣费')

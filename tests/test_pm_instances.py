@@ -13,12 +13,15 @@ spec = importlib.util.spec_from_file_location('pm_instances_under_test', SOURCE 
 pm = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pm)
 REGISTRIES = {r['id']: r for r in (json.loads(p.read_text(encoding='utf-8')) for p in (SOURCE / 'matrix/professions').glob('*/profession.json'))}
-ALL_CAPABILITIES = sorted({c for r in REGISTRIES.values() for c in r.get('model_capabilities', [])})
+ALL_CAPABILITIES = sorted({c for r in REGISTRIES.values() for c in r.get('model_capabilities', [])} | {'long_horizon', 'complex_dispatch', 'deep_reasoning'})
 MODELS = {'models': [
     {'model': 'SIM-big', 'levels': {p: r['levels']['range'][1] for p, r in REGISTRIES.items()}, 'capabilities': ALL_CAPABILITIES, 'filled_by': 'SIMULATED person'},
     {'model': 'SIM-small', 'levels': {'code-engineering': 'T5', 'quality-engineering': 'T5'}, 'capabilities': ALL_CAPABILITIES, 'filled_by': 'SIMULATED tool'},
     {'model': 'SIM-blind', 'levels': {'experience-design': 'T8'}, 'capabilities': [c for c in ALL_CAPABILITIES if c != '能看图'], 'filled_by': 'SIMULATED person'},
     {'model': 'SIM-nocaps', 'levels': {'code-engineering': 'T9'}, 'filled_by': 'SIMULATED person'}]}
+for assessment in MODELS['models']:
+    assessment.update(basis='human', evidence=['SIMULATED assessment only'], evaluated_at='2020-01-01T00:00:00+00:00',
+                      model_version=assessment['model'], review_after='2099-01-01T00:00:00+00:00', review_conditions={})
 TEAM = {'entries': [
     {'id': 'E-T9', 'profession': 'code-engineering', 'level': 'T9', 'model': 'SIM-big', 'count': 1, 'master': True},
     {'id': 'E-T4', 'profession': 'code-engineering', 'level': 'T4', 'model': 'SIM-small', 'count': 2},

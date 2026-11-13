@@ -119,6 +119,11 @@ class Experts(Fixture, unittest.TestCase):
 class PlatformFixture(Fixture):
     def setUp(self):
         super().setUp()
+        assessments=json.loads((self.root/'management/model-fit.json').read_text())
+        for row in assessments['models']:
+            if row['model']=='SIM-big': row['model_version']='SIM-actual'
+            if row['model']=='SIM-small': row['model_version']='SIM-actual-small'
+        self.write('model-fit.json',assessments)
         self.staff()
         self.create('A')
         caps={k:{'state':'supported','evidence':'SIMULATED fixture; no real sandbox claim'} for k in ('launch','write_isolation','model_selection')}

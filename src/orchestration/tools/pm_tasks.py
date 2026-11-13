@@ -819,6 +819,8 @@ def execute(project, cmd, _db=None, _applying=None):
                     retirement = integrity.deprecation(api(), db, tid, change_id, _applying) if state == 'deprecated' else None
                     require(retirement or nonempty(cmd.get('reason')), 'transition reason required')
                     if state == 'running':
+                        fit_issue = team.instance_fit_issue(api(), root, db, integrity.records(db, 'instance').get(after.get('executor') or after['owner']))
+                        require(not fit_issue, fit_issue)
                         require(not reasons(after, tasks, cfg), '; '.join(reasons(after, tasks, cfg)))
                         reservations = next(t for t in snapshot(db)['tasks'] if t['id'] == tid)['readiness_issues']
                         require(not any(r.startswith('resource queued') for r in reservations), '; '.join(reservations))

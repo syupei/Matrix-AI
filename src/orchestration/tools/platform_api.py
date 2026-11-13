@@ -207,7 +207,7 @@ def dispatch(root, db, cfg, who, request):
     if op in {'inspect','validate'}:
         return dict(owner=owner(db), capabilities=capabilities(cfg), revision=revision(db))
     if op == 'tasks.query':
-        need(p.get('op','status') in {'status','task','team','find','continue','project','resolve_instance'}, 'INVALID_REQUEST', 'unsupported task query')
+        need(p.get('op','status') in {'status','task','team','find','continue','project','resolve_instance','model_performance'}, 'INVALID_REQUEST', 'unsupported task query')
         return pm.execute(root, dict(p, op=p.get('op','status')), _db=db)
     if op == 'tasks.command':
         return command(root, db, who, request, p)

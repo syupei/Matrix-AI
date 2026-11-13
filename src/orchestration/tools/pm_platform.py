@@ -179,7 +179,8 @@ def execute(pm, root, db, cmd):
         pm.require(actor in {cfg['pm_actor'], SCHEDULER} and rec['state'] == 'starting', 'the PM, or the scheduler that starts queued runs, records how a start went')
         if op == 'launch_started':
             pm.require(type(cmd.get('pid')) is int and cmd['pid'] > 0, 'process id of the started run required')
-            rec.update(state='running', pid=cmd['pid'], running_at=pm.now())
+            pm.require(cmd.get('model') is None or pm.nonempty(cmd['model']), 'actual model must be a nonempty version identifier')
+            rec.update(state='running', pid=cmd['pid'], running_at=pm.now(), model=cmd.get('model', rec['model']))
         else:
             pm.require(pm.nonempty(cmd.get('error')), 'why the run did not start')
             if rec['purpose'] == 'start' and task['state'] == 'running':
@@ -236,6 +237,8 @@ def start(pm, root, db, cfg, tasks, cmd, records):
     pm.require(purpose != 'start' or len(ids) == 1, 'a start run takes one task')
     inst = pm.integrity.records(db, 'instance').get(cmd.get('instance'))
     pm.require(inst and inst.get('active', True), 'active registered instance required')
+    fit_issue = pm.team.instance_fit_issue(pm, root, db, inst)
+    pm.require(not fit_issue, fit_issue)
     pm.require(not any(l['instance'] == inst['id'] for l in active(pm, db)), inst['id'] + ' is already running; one run per instance at a time')
     pm.require(pm.nonempty(cmd.get('model')) and pm.nonempty(cmd.get('session')) and pm.strings(cmd.get('command')) and cmd['command'], 'model, session and command of the run required')
     task = tasks[ids[0]]
