@@ -105,6 +105,19 @@ class FetchTransaction(PlatformFixture,unittest.TestCase):
             finally:release.set()
             self.assertTrue(future.result(timeout=3)['ok'])
 
+    def test_existing_package_deleted_after_preflight_cannot_register_empty_source(self):
+        import shutil
+        request=self.setup_prepare()
+        experts=api.pm.team.experts
+        with patch.object(experts,'fetch',return_value={'SKILL.md':b'SIM'}):
+            self.assertTrue(self.run_api(request)['ok'])
+        plan=experts.prepare_plan(api.pm.api(),self.root,request['params'])
+        self.assertIn('existing',plan)
+        shutil.rmtree(self.root/'experts/sim-new/1')
+        with self.assertRaisesRegex(ValueError,'source must not be empty'):
+            experts.prepare(api.pm.api(),self.root,request['params'],prepared={'source':{},'preset':plan['preset']})
+        self.assertFalse((self.root/'experts/sim-new/1').exists())
+
     def test_preset_is_rechecked_after_fetch(self):
         request=self.setup_prepare()
         def changed(**kw):

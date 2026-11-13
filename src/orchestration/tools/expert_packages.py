@@ -157,6 +157,7 @@ def prepare(pm, root, params, prepared=None):
     preset, provenance = plan['preset'], plan['provenance']
     base = folder(pm, root, identity)
     source = prepared['source'] if prepared is not None else fetch(**provenance)
+    require(bool(source), 'source must not be empty; package changed during prepare, retry')
     manifest = dict(schema='matrix-expert/1', **identity, profession=params['profession'], source=provenance,
                     preset_sha256=preset, state='awaiting_adaptation', source_files={k:digest(v) for k,v in source.items()},
                     limitations=['Source is untrusted reference data; source scripts and hooks are not executed.'])
