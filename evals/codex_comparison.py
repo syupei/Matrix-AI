@@ -230,7 +230,9 @@ def assemble(a):
     kit = Path(a.candidate_kit).resolve()
     files = json.loads((kit / 'MANIFEST.json').read_text())['files']
     report = out / 'comparison.json'
-    data = {'candidate_hash': hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest(), 'baseline_ref': a.baseline_ref,
+    snapshot = out / 'suite.snapshot.json'
+    snapshot.write_bytes(SUITE.read_bytes())
+    data = {'mode': 'full', 'candidate_files': files, 'suite_snapshot': {'path': snapshot.name, 'sha256': sha(snapshot)}, 'candidate_hash': hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest(), 'baseline_ref': a.baseline_ref,
             'suite_hash': sha(SUITE), 'reviewer': a.reviewer, 'cases': {},
             'limitations': ['Both versions ran and were scored on the ' + RUNNER.capitalize() + ' command line (one sample per case); scorers were blind ' + RUNNER.capitalize() + ' sessions, '
                             'a second scorer re-checked the scores that decide the gate.', 'Synthetic projects and scripted user turns; no real person or project.'],

@@ -15,7 +15,7 @@ class ReadTests(unittest.TestCase):
     def test_claude_tool_use_and_unknown_cwd(self):
         r=extract([{'message':{'content':[{'type':'tool_use','name':'Read','input':{'file_path':'/tmp/proj/kit/matrix/base/a.md'}}]}}],'claude subagent',self.files)
         self.assertEqual(r['files'],['matrix/base/a.md']);self.assertTrue(r['complete'])
-        self.assertEqual(extract([{'item':{'type':'command_execution','command':'cd kit && cat matrix/base/a.md'}}],'codex exec',self.files)['scopes'],[''])
+        self.assertEqual(extract([{'item':{'type':'command_execution','command':'cd kit && cat matrix/base/a.md'}}],'codex exec',self.files)['files'],['matrix/base/a.md'])
     def test_completion_alone_is_not_read_evidence(self):
         self.assertFalse(extract([{'type':'result'}],'claude subagent',self.files)['complete'])
 
@@ -78,3 +78,21 @@ class ScopedTests(unittest.TestCase):
     def test_fresh_run_must_match_final_source(self):
         d=json.loads(self.old.read_text());files=dict(self.files,**{'a.md':'c'*64});d.update(candidate_hash=gate.fingerprint(files),candidate_files=files);self.old.write_text(json.dumps(d))
         with self.assertRaisesRegex(ValueError,'source mismatch'):gate.check_evidence(self.old,files)
+
+    def test_name_only_observation_does_not_block_content_edit_but_blocks_new_file(self):
+        data=json.loads(self.old.read_text());case=data['cases']['one']
+        runpath=self.root/case['candidate_run'];run=json.loads(runpath.read_text())
+        events=[{'item':{'type':'command_execution','command':'cat kit/a.md; ls kit'}},{'type':'turn.completed'}]
+        trace=runpath.parent/'events.jsonl';trace.write_text('\n'.join(json.dumps(e) for e in events))
+        run['cases'][0]['read_set']=extract(events,'codex exec',self.files);runpath.write_text(json.dumps(run))
+        for evidence in case['candidate_evidence']:evidence['sha256']=gate.sha(self.root/evidence['path'])
+        self.old.write_text(json.dumps(data))
+        edited=dict(self.files,**{'b.md':'c'*64});report=self.scope('names-edit',self.old,edited)
+        self.assertTrue(gate.check_evidence(report,edited))
+        added=dict(self.files,**{'new.md':'d'*64});report=self.scope('names-add',self.old,added)
+        with self.assertRaisesRegex(ValueError,'intersects'):gate.check_evidence(report,added)
+
+    def test_full_snapshot_is_verified_when_supplied(self):
+        data=json.loads(self.old.read_text());snapshot=self.root/data['suite_snapshot']['path']
+        snapshot.write_text('{}')
+        with self.assertRaisesRegex(ValueError,'reference'):gate.check_evidence(self.old,self.files)

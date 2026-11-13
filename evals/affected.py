@@ -9,7 +9,7 @@ A case without a verifiable trace-derived read_set must rerun; directory scopes 
 import argparse
 import json
 from pathlib import Path
-from read_records import record_reads,intersects
+from read_records import record_reads,intersects,changes
 
 
 def main():
@@ -18,7 +18,7 @@ def main():
     a = ap.parse_args()
     old = json.loads((a.old / 'MANIFEST.json').read_text())['files']
     new = json.loads((a.new / 'MANIFEST.json').read_text())['files']
-    changed = {k for k in set(old) | set(new) if old.get(k) != new.get(k)}
+    changed = changes(old, new)
     rerun, carry = {}, []
     for case in json.loads(a.run.read_text())['cases']:
         read = record_reads(a.run,case,old)

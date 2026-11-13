@@ -3,7 +3,7 @@
 
 Use when the model CLI cannot be launched (for example inside another agent session).
 Each turn's reply must already be saved verbatim as <case>-<n>.md in --output; this
-script records one completion event per turn, labeled with the runner, and hashes.
+script preserves collected raw events and records reply hashes.
 It does not create or alter replies.
 
 --reuse-from/--reuse carry cases over verbatim from the previous release's run: replies,
@@ -18,6 +18,7 @@ import argparse, hashlib, json, shutil
 from pathlib import Path
 import importlib.util
 from read_records import extract
+from subagent_turns import transcript
 spec = importlib.util.spec_from_file_location('run', Path(__file__).with_name('run.py'))
 run = importlib.util.module_from_spec(spec); spec.loader.exec_module(run)
 
@@ -102,6 +103,10 @@ for case in suite['cases']:
         if not reply.is_file():
             raise SystemExit(f'missing recorded reply: {reply}')
         events = a.output / f"{case['id']}-{n}.jsonl"
+        if not events.exists() and a.runner == 'claude subagent':
+            raise SystemExit('raw transcript missing; run subagent_turns.py collect --transcripts before assembly: ' + str(events))
+        if a.runner == 'claude subagent':
+            transcript({'turn': str(events.resolve())}, 'turn', a.output.resolve())
         if not events.exists():events.write_text(json.dumps({'type': 'result', 'runner': a.runner, 'recorded_by': 'orchestrator', 'note': a.note}, ensure_ascii=False) + '\n')
         record['turns'].append({'user': user, 'reply': reply.name, 'events': events.name, 'sha256': hashlib.sha256(reply.read_bytes()).hexdigest()})
     traces=[json.loads(line) for t in record['turns'] for line in (a.output/t['events']).read_text().splitlines() if line.strip()]

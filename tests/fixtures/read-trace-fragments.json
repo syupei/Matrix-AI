@@ -1,0 +1,161 @@
+{
+  "note": "Tool-input fragments from real0.31 Claude second-round and Codex final traces. Absolute paths are normalized; output bodies, personal identifiers and source paths are excluded. Provenance retained in local factory evidence.",
+  "examples": [
+    {
+      "id": "claude-shared-content",
+      "runner": "claude subagent",
+      "events": [
+        {
+          "type": "assistant",
+          "message": {
+            "content": [
+              {
+                "type": "tool_use",
+                "name": "Bash",
+                "input": {
+                  "command": "cd /project && cat kit/matrix/base/CORE.md && echo ---- && cat kit/.agents/skills/matrix-product/GUIDANCE-INDEX.md",
+                  "description": "Read the shared core rules and the product guidance index"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "front_content_dependency": false,
+      "matrix_content_dependency": true
+    },
+    {
+      "id": "claude-whole-kit-content",
+      "runner": "claude subagent",
+      "events": [
+        {
+          "type": "assistant",
+          "message": {
+            "content": [
+              {
+                "type": "tool_use",
+                "name": "Bash",
+                "input": {
+                  "command": "cd /project && cat kit/matrix/base/MATRIX.md && echo ---- && grep -rn \"BEHAVIOR-CHECKS\" kit --include=*.md --include=*.json --include=*.py | head -20",
+                  "description": "Read the kit entry overview and check references to behavior checks"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "front_content_dependency": true,
+      "matrix_content_dependency": true
+    },
+    {
+      "id": "claude-outside-Read",
+      "runner": "claude subagent",
+      "events": [
+        {
+          "type": "assistant",
+          "message": {
+            "content": [
+              {
+                "type": "tool_use",
+                "name": "Read",
+                "input": {
+                  "file_path": "/project/product/01-产品定义.md"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "front_content_dependency": false,
+      "matrix_content_dependency": false
+    },
+    {
+      "id": "claude-names-find",
+      "runner": "claude subagent",
+      "events": [
+        {
+          "type": "assistant",
+          "message": {
+            "content": [
+              {
+                "type": "tool_use",
+                "name": "Bash",
+                "input": {
+                  "command": "cd /project && find . -type f | sort && echo \"---\" && find . -type d | sort",
+                  "description": "List all files and directories in the evaluation project"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "front_content_dependency": false,
+      "matrix_content_dependency": false
+    },
+    {
+      "id": "claude-matrix-script",
+      "runner": "claude subagent",
+      "events": [
+        {
+          "type": "assistant",
+          "message": {
+            "content": [
+              {
+                "type": "tool_use",
+                "name": "Bash",
+                "input": {
+                  "command": "cd /project && python3 -I kit/matrix/base/tools/stage_gate.py --help 2>&1 | head -40; grep -n \"digest\" kit/matrix/base/tools/stage_gate.py | head -20",
+                  "description": "Check the stage gate tool's digest option"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "front_content_dependency": false,
+      "matrix_content_dependency": true
+    },
+    {
+      "id": "codex-names-rg",
+      "runner": "codex exec",
+      "events": [
+        {
+          "item": {
+            "type": "command_execution",
+            "command": "/bin/zsh -lc \"pwd && rg --files -g 'AGENTS.md' -g 'SKILL.md' -g '*AC*' -g '*TA-21*' -g '*INC-2*' -g '*验收*' -g '*accept*' -g '*test*' -g '*matrix*'\""
+          }
+        }
+      ],
+      "front_content_dependency": false,
+      "matrix_content_dependency": false
+    },
+    {
+      "id": "codex-shared-content",
+      "runner": "codex exec",
+      "events": [
+        {
+          "item": {
+            "type": "command_execution",
+            "command": "/bin/zsh -lc 'cat kit/matrix/base/CORE.md && cat kit/matrix/base/GUIDANCE-INDEX.md && cat kit/.agents/skills/matrix-project-management/references/workflow.md && cat kit/matrix/base/USER-INTERACTION.md && cat kit/matrix/orchestration/PM-REPORTING.md'"
+          }
+        }
+      ],
+      "front_content_dependency": false,
+      "matrix_content_dependency": true
+    },
+    {
+      "id": "codex-matrix-script",
+      "runner": "codex exec",
+      "events": [
+        {
+          "item": {
+            "type": "command_execution",
+            "command": "/bin/zsh -lc \"python3 kit/matrix/orchestration/tools/pm_tasks.py --help; python3 -c 'import sqlite3; c=sqlite3.connect(\\\"file:management/runtime/tasks.sqlite3?mode=ro\\\",uri=True); print(c.execute(\\\"select name,sql from sqlite_master where type=\\\\\\\"table\\\\\\\"\\\").fetchall())' \""
+          }
+        }
+      ],
+      "front_content_dependency": false,
+      "matrix_content_dependency": true
+    }
+  ]
+}

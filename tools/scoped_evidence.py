@@ -2,7 +2,7 @@
 import json,sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'evals'))
-from read_records import record_reads,intersects
+from read_records import record_reads,intersects,changes
 
 def reference(gate, report, ref):
     path=(report.parent/ref.get('path','')).resolve()
@@ -14,7 +14,11 @@ def prepare(gate,report,data,files,specs,chain):
     mode=data.get('mode','full')
     if mode not in {'full','scoped'}:raise ValueError('unknown comparison mode')
     if data.get('candidate_files',files)!=files:raise ValueError('candidate manifest mismatch')
-    if mode=='full':return {},0
+    if mode=='full':
+        if data.get('suite_snapshot'):
+            snapshot=reference(gate,report,data['suite_snapshot'])
+            if gate.sha(snapshot)!=data.get('suite_hash'):raise ValueError('full suite snapshot mismatch')
+        return {},0
     previous=reference(gate,report,data.get('previous',{}))
     if previous in chain or len(chain)>20:raise ValueError('cyclic comparison history')
     old=json.loads(previous.read_text());old_files=old.get('candidate_files')
@@ -27,7 +31,7 @@ def prepare(gate,report,data,files,specs,chain):
     if depth>2:raise ValueError('third consecutive scoped comparison requires a full run')
     old_specs={c['id']:c for c in json.loads(suite.read_text())['cases']}
     if not set(old_specs)<=set(specs):raise ValueError('scoped suite cannot remove cases')
-    changed={p for p in set(files)|set(old_files) if files.get(p)!=old_files.get(p)}
+    changed=changes(old_files,files)
     carried={}
     for cid,case in data['cases'].items():
         ref=case.get('carried_from')

@@ -7,13 +7,14 @@ The model under test is a fresh subagent per turn. This script does everything a
       turn 0: a fresh project OUT/work/ID with the kit copied to kit/ and the case's fixture populated;
       every turn: OUT/inputs/ID-N.txt, the full input of that turn (the same wording as run.py, earlier turns of
       this case pasted in), and OUT/inputs/ID-N.prompt, the instruction to give the subagent.
-  subagent_turns.py collect --kit KIT --out OUT --cases a,b
+  subagent_turns.py collect --kit KIT --out OUT --cases a,b --transcripts MAP.json
       copies each finished case's project files (all but kit/) to OUT/run/ID-artifacts and its replies to OUT/run/,
       ready for assemble_run.py --output OUT/run.
 
 The subagent reads the input file, works only inside the project, writes its reply verbatim to OUT/replies/ID-N.md
 and answers only "已保存". Replies are never edited here."""
 import argparse, hashlib, importlib.util, json, shutil, sys
+from read_records import claude_tools
 from pathlib import Path
 
 EVALS = Path(__file__).resolve().parent
@@ -71,29 +72,83 @@ def prepare(a):
     print(json.dumps({'case': case['id'], 'turn': a.turn, 'turns': len(case['turns']), 'role': role, 'prompt': str(out / 'inputs' / f"{case['id']}-{a.turn}.prompt")}, ensure_ascii=False))
 
 
+def transcript(mapping, key, base):
+    value = mapping.get(key)
+    if not isinstance(value, str) or not value:
+        raise SystemExit(key + ': transcript mapping missing; use {"case-0":"path/to/raw.jsonl"}')
+    path = (base / value).resolve()
+    if not path.is_file():
+        raise SystemExit(key + ': raw transcript does not exist')
+    raw = path.read_bytes()
+    try:
+        events = [json.loads(line) for line in raw.decode('utf-8').splitlines() if line.strip()]
+    except (ValueError, UnicodeError) as error:
+        raise SystemExit(key + ': invalid raw JSONL transcript: ' + str(error))
+    if not list(claude_tools(events)):
+        raise SystemExit(key + ': raw transcript has no tool_use records')
+    def results(value):
+        if isinstance(value, dict):
+            return value.get('type') == 'tool_result' or any(results(v) for v in value.values())
+        return isinstance(value, list) and any(results(v) for v in value)
+    if not results(events):
+        raise SystemExit(key + ': raw transcript has no tool_result records')
+    return raw, path
+
+
 def collect(a):
     kit, out = Path(a.kit).resolve(), Path(a.out).resolve()
-    run = out / 'run'; run.mkdir(parents=True, exist_ok=True)
+    map_path = Path(a.transcripts).resolve()
+    mapping = json.loads(map_path.read_text(encoding='utf-8'))
+    if not isinstance(mapping, dict):
+        raise SystemExit('transcripts must be an object mapping case-turn to a raw JSONL path')
+    prepared, assigned = [], set()
+    # Validate every mapping before changing the collected evidence bundle.
     for cid in a.cases.split(','):
         case = spec(cid)
-        replies = [out / 'replies' / f'{cid}-{n}.md' for n in range(len(case['turns']))]
-        if not all(r.is_file() for r in replies):
-            raise SystemExit(f'{cid}: not every turn has a reply')
-        for r in replies:
-            shutil.copy2(r, run / r.name)
+        turns = []
+        for n in range(len(case['turns'])):
+            key = f'{cid}-{n}'
+            reply = out / 'replies' / (key + '.md')
+            if not reply.is_file():
+                raise SystemExit(key + ': reply missing')
+            raw, source = transcript(mapping, key, map_path.parent)
+            if source in assigned:
+                raise SystemExit(key + ': each fresh subagent turn needs its own transcript')
+            assigned.add(source)
+            turns.append((key, reply, raw, source))
+        if not (out / 'work' / cid).is_dir():
+            raise SystemExit(cid + ': project directory missing')
+        prepared.append((cid, turns))
+    run = out / 'run'; run.mkdir(parents=True, exist_ok=True)
+    for cid, turns in prepared:
+        for key, reply, raw, source in turns:
+            shutil.copy2(reply, run / reply.name)
+            completion = dict(type='result', runner='claude subagent', recorded_by='orchestrator',
+                              note='Collected original subagent transcript after its reply was saved',
+                              case_turn=key, project_root=str(out / 'work' / cid),
+                              transcript_sha256=hashlib.sha256(raw).hexdigest(), transcript_source=str(source))
+            # Keep the raw prefix byte-for-byte, including tool_use and tool_result
+            # envelopes. Only append a clearly attributed completion record.
+            (run / (key + '.jsonl')).write_bytes(raw + (b'' if raw.endswith(b'\n') else b'\n') +
+                                                json.dumps(completion, ensure_ascii=False).encode('utf-8') + b'\n')
         art = run / f'{cid}-artifacts'
         shutil.rmtree(art, ignore_errors=True); art.mkdir()
         for item in (out / 'work' / cid).iterdir():
             if item.name == 'kit':
                 continue
             (shutil.copytree(item, art / item.name) if item.is_dir() else shutil.copy2(item, art / item.name))
-        print(cid, 'collected', len(replies), 'turns')
+        print(cid, 'collected', len(turns), 'turns with original tool traces')
+    snapshot = run / 'suite.snapshot.json'
+    snapshot.write_bytes(SUITE.read_bytes())
+    files = json.loads((kit / 'MANIFEST.json').read_text())['files']
+    context = dict(candidate_files=files, suite_snapshot={'path': snapshot.name, 'sha256': hashlib.sha256(snapshot.read_bytes()).hexdigest()})
+    (run / 'comparison-context.json').write_text(json.dumps(context, ensure_ascii=False, indent=2) + '\n')
 
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     s = p.add_subparsers(dest='command', required=True)
     q = s.add_parser('prepare'); q.add_argument('--kit', required=True); q.add_argument('--out', required=True); q.add_argument('--case', required=True); q.add_argument('--turn', type=int, default=0)
-    c = s.add_parser('collect'); c.add_argument('--kit', required=True); c.add_argument('--out', required=True); c.add_argument('--cases', required=True)
+    c = s.add_parser('collect'); c.add_argument('--kit', required=True); c.add_argument('--out', required=True); c.add_argument('--cases', required=True); c.add_argument('--transcripts', required=True, help='JSON mapping case-turn to the original subagent JSONL path; relative paths resolve beside the mapping')
     a = p.parse_args()
     {'prepare': prepare, 'collect': collect}[a.command](a)

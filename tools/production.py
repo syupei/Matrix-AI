@@ -197,7 +197,7 @@ def check_evidence(report,files,*,_suite=None,_chain=()):
     read_set=scoped.record_reads(run_path,records[0],base_files)
     if records[0].get('read_set')!=read_set or not read_set['complete']:raise ValueError('no verifiable read record: '+cid)
     read=read_set['files']
-    changed=scoped.intersects(read_set,{k for k in set(base_files)|set(files) if base_files.get(k)!=files.get(k)})
+    changed=scoped.intersects(read_set,scoped.changes(base_files,files))
     if not read or changed:raise ValueError('reused evidence for a changed role or read file: '+cid+' ('+', '.join(changed[:5])+')')
    turns[side]=[t['sha256'] for t in records[0]['turns']]
    for turn in records[0]['turns']:

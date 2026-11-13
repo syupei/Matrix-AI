@@ -63,14 +63,13 @@ def main():
      if not started_event:raise RuntimeError(f'no session to resume: {case["id"]}')
      session=started_event['thread_id']
     reply=last.read_text();history.extend([{'role':'user','text':user},{'role':'assistant','text':reply}])
-    record['turns'].append({'user':user,'reply':last.name,'events':events.name,'seconds':round(time.time()-started,2),'sha256':hashlib.sha256(last.read_bytes()).hexdigest()})
+    record['turns'].append({'user':user,'reply':last.name,'events':events.name,'project_root':str(work),'seconds':round(time.time()-started,2),'sha256':hashlib.sha256(last.read_bytes()).hexdigest()})
     print(case['id'],n,'completed',flush=True)
    # The kit files this case read, from its traces: its reply may be carried over later only while they are unchanged.
-   # A trace that changes into the kit folder reads by relative paths that cannot be told apart, so it records none.
-   traces=''.join((args.output/t['events']).read_text(errors='ignore') for t in record['turns'])
+   # Resolve relative paths against this isolated evaluated project.
    kit_files=json.loads((source/'MANIFEST.json').read_text())['files']
    events_all=[json.loads(line) for t in record['turns'] for line in (args.output/t['events']).read_text().splitlines() if line.strip()]
-   record['read_set']=extract(events_all,meta['runner'],kit_files,entry or '.agents/skills/'+role+'/SKILL.md')
+   record['read_set']=extract(events_all,meta['runner'],kit_files,entry or '.agents/skills/'+role+'/SKILL.md',str(work))
    record['read_files']=record['read_set']['files'] if record['read_set']['complete'] else None
    artifacts=args.output/(case['id']+'-artifacts');artifacts.mkdir(exist_ok=True)
    for item in work.iterdir():

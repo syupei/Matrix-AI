@@ -3,7 +3,7 @@ import json,shutil,sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
 import production as gate
-from read_records import record_reads,intersects
+from read_records import record_reads,intersects,changes
 
 def carry(previous,output,source,ids):
     previous=previous.resolve();output=output.resolve()
@@ -16,7 +16,7 @@ def carry(previous,output,source,ids):
     files=json.loads((source/'MANIFEST.json').read_text())['files']
     specs={c['id']:c for c in json.loads((gate.ROOT/'evals/cases/suite.json').read_text())['cases']}
     old_specs={c['id']:c for c in json.loads(suite.read_text())['cases']}
-    changed={p for p in set(files)|set(old_files) if files.get(p)!=old_files.get(p)}
+    changed=changes(old_files,files)
     for cid in ids:
         if cid not in old_specs or old_specs[cid]!=specs.get(cid):raise ValueError('new/changed case must rerun: '+cid)
         case=old['cases'][cid];rp=previous.parent/case['candidate_run'];run=json.loads(rp.read_text());record=next(r for r in run['cases'] if r['id']==cid)
