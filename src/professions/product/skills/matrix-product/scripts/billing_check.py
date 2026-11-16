@@ -98,19 +98,34 @@ def validate(data, handoff=False, required_kinds=()):
     return errors
 
 
+def notice(rules):
+    """Render the decision-maker's risk notice from already validated rules."""
+    def join(values):
+        return '；'.join(dict.fromkeys(' '.join(value.split()) for value in values))
+
+    recipients = join(r['notify'] for r in rules)
+    risk = 'F0' if any(r['risk'] == 'F0' for r in rules) else 'F1'
+    cost = join(r['financial_impact'] for r in rules)
+    compliance = join(r['compliance_questions'] for r in rules)
+    checks = join(check['scenario'] for r in rules for check in r['checks'])
+    return f'给决定人的风险告知（{recipients}）｜风险 {risk}｜金钱影响：{cost}｜合规待核实：{compliance}｜计划检验：{checks}'
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('file', type=Path)
     parser.add_argument('--handoff', action='store_true')
+    parser.add_argument('--notice', action='store_true', help='输出回复首段的风险告知')
     parser.add_argument('--require-kind', choices=sorted(KINDS), action='append', default=[])
     args = parser.parse_args()
     try:
-        errors = validate(json.loads(args.file.read_text(encoding='utf-8')), args.handoff, args.require_kind)
+        data = json.loads(args.file.read_text(encoding='utf-8'))
+        errors = validate(data, args.handoff, args.require_kind)
     except (OSError, ValueError) as exc:
         errors = [f'{args.file}：无法读取有效 JSON：{exc}']
     if errors:
         parser.exit(1, '\n'.join(errors) + '\n')
-    print('计费规则格式校验通过')
+    print(notice(data['rules']) if args.notice else '计费规则格式校验通过')
 
 
 if __name__ == '__main__':

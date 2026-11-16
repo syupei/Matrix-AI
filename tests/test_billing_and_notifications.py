@@ -36,6 +36,11 @@ class InstalledChecks(unittest.TestCase):
         self.assertIn('缺少 charge', missing.stderr)
         self.assertIn('缺少 refund', missing.stderr)
         self.assertEqual(0, self.run_script(script, data, '--require-kind', 'auto_renew').returncode)
+        notice = self.run_script(script, data, '--require-kind', 'auto_renew', '--notice')
+        self.assertEqual(0, notice.returncode, notice.stderr)
+        for label in ('给决定人的风险告知（产品决定人）', '风险 F1', '金钱影响：到期扣费',
+                      '合规待核实：核对通知期限', '计划检验：到期前取消'):
+            self.assertIn(label, notice.stdout)
         self.assertIn('rules[0].status', self.run_script(script, data, '--handoff').stderr)
         rule.update(status='approved', pending={})
         errors = self.run_script(script, data, '--handoff')

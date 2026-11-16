@@ -1,7 +1,7 @@
 {
   "package": "matrix-ai-v0.36",
   "baseline": "matrix-ai-v0.35",
-  "candidate_hash": "7e94ce38c5d843d40f56381e54cd475c57c85d3fff82fd988276d0c4caa9f541",
+  "candidate_hash": "309910ebf52a1341f63795ed56bc0fb83ecee2c1d691390aff5de4256de1de34",
   "suite_hash": "d2c68b82cb228599d2be35acf766ab6fa59bdda1253219e04d769255776a5a72",
   "inputs": {
     "evals/README.md": "ed1ffa1cee3472857da0762582737920310ab22111b8f7d493a4200a27849df1",
