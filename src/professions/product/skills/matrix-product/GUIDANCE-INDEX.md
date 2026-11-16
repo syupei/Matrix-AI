@@ -17,3 +17,5 @@
 | R10 | [结构化交付](references/structured-handoff.md) | P-6–7；基线变更 | |
 | T01 | [工作区模板](assets/product-workspace-template.md) | 建或补工作区文件 | |
 | L01 | [本专业的职级与对照](../../../matrix/professions/product/levels.md) | 标难度、定风险、给缺陷定级 | |
+
+计费、扣费、退款或自动续费 → [计费规则格式和校验](references/billing.md)。

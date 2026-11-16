@@ -108,6 +108,9 @@ class PublishingGateTests(unittest.TestCase):
   for item in self.data['cases']['intake']['candidate_evidence']:
    if item['path']==str(path.relative_to(self.root)):item['sha256']=p.sha(path)
   with self.assertRaises(ValueError):self.check()
+ def baseline_product_role(self):
+  names=('matrix-product','product-agent')
+  return next(role for role in names if self.baseline_role_files(role))
  def baseline_role_files(self,role):
   files=json.loads((p.ROOT/'release-manifests'/(self.data['baseline_ref']+'.json')).read_text())['files']
   return {k:v for k,v in files.items() if k.startswith('.agents/skills/'+role+'/')}
@@ -117,28 +120,28 @@ class PublishingGateTests(unittest.TestCase):
   for item in self.data['cases']['intake']['candidate_evidence']:
    if item['path']=='candidate-intake/run.json':item['sha256']=p.sha(run_path)
  def test_reuse_for_unchanged_role_passes(self):
-  self.reuse_intake('product-agent',self.baseline_role_files('product-agent'))
+  self.reuse_intake(self.baseline_product_role(),self.baseline_role_files(self.baseline_product_role()))
   with self.assertRaisesRegex(ValueError,'no verifiable read record'):self.check()
  def test_reuse_for_changed_role_blocks(self):
-  changed=self.baseline_role_files('product-agent');changed[next(iter(changed))]='f'*64;self.reuse_intake('product-agent',changed)
+  changed=self.baseline_role_files(self.baseline_product_role());changed[next(iter(changed))]='f'*64;self.reuse_intake(self.baseline_product_role(),changed)
   with self.assertRaisesRegex(ValueError,'no verifiable read record'):self.check()
  def test_reuse_from_other_source_blocks(self):
-  self.reuse_intake('product-agent',self.baseline_role_files('product-agent'),source='0'*64)
+  self.reuse_intake(self.baseline_product_role(),self.baseline_role_files(self.baseline_product_role()),source='0'*64)
   with self.assertRaisesRegex(ValueError,'baseline release'):self.check()
  def reuse_with_reads(self,read,files):
-  self.reuse_intake('product-agent',files);run_path=self.root/'candidate-intake/run.json';run=json.loads(run_path.read_text())
+  self.reuse_intake(self.baseline_product_role(),files);run_path=self.root/'candidate-intake/run.json';run=json.loads(run_path.read_text())
   import sys
   sys.path.insert(0,str(p.ROOT/'evals'))
   from read_records import extract
   events=[{'item':{'type':'command_execution','command':'cat '+ ' '.join('kit/'+x for x in read)}},{'type':'turn.completed'}]
   for t in run['cases'][0]['turns']:(run_path.parent/t['events']).write_text('\n'.join(json.dumps(e) for e in events))
-  run['cases'][0]['read_set']=extract(events,'codex exec',files,'.agents/skills/product-agent/SKILL.md')
+  run['cases'][0]['read_set']=extract(events,'codex exec',files,'.agents/skills/'+self.baseline_product_role()+'/SKILL.md')
   run['cases'][0]['read_files']=read;run_path.write_text(json.dumps(run))
   for item in self.data['cases']['intake']['candidate_evidence']:item['sha256']=p.sha(self.root/item['path'])
   for item in self.data['cases']['intake']['candidate_evidence']:
    if item['path']=='candidate-intake/run.json':item['sha256']=p.sha(run_path)
  def test_reuse_is_judged_by_the_files_the_case_read(self):
-  files=self.baseline_role_files('product-agent');kept,edited=sorted(files)[0],sorted(files)[-1]
+  files=self.baseline_role_files(self.baseline_product_role());kept,edited=sorted(files)[0],sorted(files)[-1]
   changed=dict(files);changed[edited]='f'*64  # a file of the role that this case did not read
   self.reuse_with_reads([kept],changed);self.assertTrue(self.check())
   self.reuse_with_reads([kept,edited],changed)
@@ -156,3 +159,9 @@ class PublishingGateTests(unittest.TestCase):
   self.build({'file':'0'*64});self.carried(previous=lambda c:c['baseline'].update({next(iter(c['baseline'])):0}))
   with self.assertRaisesRegex(ValueError,'carried scores changed'):self.check()
 if __name__=='__main__':unittest.main()
+
+
+class StartVersionTests(unittest.TestCase):
+ def test_stale_start_title_is_rejected(self):
+  self.assertIn('0.36',p.start_version_error('# Matrix-AI 0.34\n','matrix-ai/0.36'))
+  self.assertIsNone(p.start_version_error('# Matrix-AI 0.36\n','matrix-ai/0.36'))

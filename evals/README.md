@@ -73,3 +73,14 @@ Both archived 0.29 baselines (Claude 0.31 second round; Codex 0.31 final compari
 ### 2026-11-13 — P4 stage-line consolidation, before P2
 
 Stage-line selection is now a first-applicable table in USER-INTERACTION §7. CORE keeps its identical template and a link; TASK-GOVERNANCE keeps field meanings and links to the shared rule. The fallback scoring example above is committed before the full comparison. The existing `desk_status`, `pm_stage_record` and `review_partial_artifacts` inputs/criteria remain unchanged; their final model behavior is verified in P2, not inferred from text length or mechanism tests. The P3-reviewed baseline supplement is 19 turns per host: 18 turns across 17 new cases plus the changed `mi_config_fit` turn. Compatibility fixture preparation requires a checkout of this release repository with its pinned history available.
+
+### 2026-11-16 — 0.36 comparison and Claude tool traces
+
+The full comparison uses the published 0.35 kit. Its candidate replies, traces
+and project evidence supply the baseline; the scores from 0.35 vs 0.29 do not
+establish results for 0.36. Compare matched runner, model, effort and inputs.
+The frozen case suite, fixture inputs and criteria are unchanged. Blind
+scoring now pairs Claude tool calls with the observed returns, masks project
+paths and explicit kit versions, and reports unmatched calls as unobserved.
+It does not invent an exit code. Keep the original bytes for evidence and
+look up persisted files or readbacks when the rule requires them.

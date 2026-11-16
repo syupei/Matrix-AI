@@ -85,8 +85,16 @@ def host_runtime_errors(rel,text):
  if rel=='START.md':return []
  return ['host command or environment in runtime source: '+rel+': '+m.group(0) for m in HOST_RUNTIME.finditer(text)]
 
+def start_version_error(text, package):
+ title=next(iter(text.splitlines()),'')
+ version=package.split('/',1)[1]
+ expected='# Matrix-AI '+version
+ if title!=expected:return f'START.md first line must be {expected!r} for package {package!r}; found {title!r}'
+
 def check_sources():
  files=source_files();src=layout();errors=[];links=0
+ mismatch=start_version_error(src['START.md'].read_text(),json.loads((ROOT/'package.json').read_text())['package'])
+ if mismatch:errors.append(mismatch)
  dirs={str(Path(r).parent) for r in files}
  dirs|={str(Path(d).parents[i]) for d in list(dirs) for i in range(len(Path(d).parts))}
  for rel in files:

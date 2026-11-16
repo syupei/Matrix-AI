@@ -19,6 +19,7 @@
 """
 import argparse, hashlib, json, random, re, shutil
 from pathlib import Path
+from read_records import claude_tools, project_directory
 
 SUITE = Path(__file__).resolve().parent / 'cases/suite.json'
 
@@ -37,45 +38,84 @@ def load(files):
     return merged
 
 
-def tool_audit(path):
-    """Small, ordered facts from actual traces; no model reasoning or duplicate rule dumps."""
-    events = []
-    for n, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1):
-        event = json.loads(line)
-        item = event.get('item', {})
-        if event.get('type') != 'item.completed':
-            continue
-        kind = item.get('type')
-        if kind == 'command_execution':
-            record = {k: item.get(k) for k in ['id','type','command','exit_code']}
-            record['output_chars'] = len(item.get('aggregated_output') or '')
-        elif kind in {'file_change', 'mcp_tool_call'}:
-            record = {k: v for k, v in item.items() if k not in {'result','error'}}
-            record['error'] = bool(item.get('error') or (isinstance(item.get('result'), dict) and item['result'].get('isError')))
-        else:
-            continue
-        events.append(dict(line=n, **record))
-    return dict(raw_sha256=hashlib.sha256(path.read_bytes()).hexdigest(), events=events,
-                limitation='Command status and file-change facts only; full outputs remain in raw evidence. Do not infer missing operations.')
+def claude_audit(events):
+    """Pair each tool call with the actual result envelope, keeping call order."""
+    calls, results = {}, {}
+    for number, event in enumerate(events, 1):
+        content = event.get('message', {}).get('content', [])
+        blocks = content if isinstance(content, list) else []
+        if event.get('type') in {'tool_use', 'tool_result'}:
+            blocks = [event]
+        for block in blocks:
+            if isinstance(block, dict) and block.get('type') == 'tool_result':
+                results[block.get('tool_use_id')] = block
+        for call in claude_tools([event]):
+            if call.get('id') and call['name'] not in {'SubagentHandback'}:
+                calls.setdefault(call['id'], (number, call))
+    root = project_directory(events, [c for _, c in calls.values()], None)
+    for identity, (line, call) in calls.items():
+        name, args = call['name'], call.get('input', {})
+        result = results.get(identity)
+        output = result.get('content') if result is not None else None
+        record = {'line': line, 'id': identity, 'type': 'tool_call', 'tool': name,
+                  'status': 'unobserved' if result is None else ('error' if result.get('is_error') else 'returned')}
+        for key in ('file_path', 'path', 'pattern', 'command', 'offset', 'limit'):
+            if key in args:
+                record[key] = args[key]
+        # Never attribute a numeric exit code to a result that did not provide one.
+        yield record, output, root
+
+
+def audit_records(events):
+    if any(e.get('type') == 'item.completed' for e in events):
+        for line, event in enumerate(events, 1):
+            item = event.get('item', {})
+            if event.get('type') != 'item.completed':
+                continue
+            kind = item.get('type')
+            if kind == 'command_execution':
+                keys = ('id', 'type', 'command', 'exit_code')
+                yield dict(line=line, **{k: item.get(k) for k in keys}), item.get('aggregated_output'), None
+            elif kind in {'file_change', 'mcp_tool_call'}:
+                record = {k: v for k, v in item.items() if k not in {'result','error'}}
+                record['error'] = bool(item.get('error') or (isinstance(item.get('result'), dict) and item['result'].get('isError')))
+                yield dict(line=line, **record), item.get('result'), None
+    else:
+        yield from claude_audit(events)
+
+
+def blinded_value(value, root):
+    if isinstance(value, str):
+        if root and root != '/__matrix_project__':
+            value = value.replace(root, '<project>')
+            # The orchestration workspace can contain separate input/reply directories.
+            if '/work/' in root:
+                value = value.replace(root.rsplit('/work/', 1)[0], '<evaluation>')
+        value = re.sub(r'/(?:private/)?var/folders/[^\s"\']+?/matrix-behavior-[^/\s"\']+', '<project>', value)
+        return re.sub(r'(?i)matrix-ai[ /-]v?0\.\d+(?:\.\d+)?', 'Matrix-AI <version>', value)
+    if isinstance(value, list):
+        return [blinded_value(item, root) for item in value]
+    if isinstance(value, dict):
+        return {k: blinded_value(item, root) for k, item in value.items()}
+    return value
 
 
 def write_tool_audit(trace, target):
-    """Keep exact tool returns separately so judges can inspect state without loading rule dumps."""
-    audit = tool_audit(trace)
-    outputs = []
-    for n, line in enumerate(trace.read_text(encoding='utf-8').splitlines(), 1):
-        event = json.loads(line)
-        item = event.get('item', {})
-        if event.get('type') != 'item.completed':
-            continue
-        if item.get('type') == 'command_execution':
-            outputs.append(dict(line=n, id=item.get('id'), output=item.get('aggregated_output')))
-        elif item.get('type') == 'mcp_tool_call':
-            outputs.append(dict(line=n, id=item.get('id'), result=item.get('result'), error=item.get('error')))
+    """Build audit and return files from raw traces of either runner."""
+    raw = trace.read_bytes()
+    events = [json.loads(line) for line in raw.splitlines() if line.strip()]
+    summary, outputs = [], []
+    for record, output, root in audit_records(events):
+        view = blinded_value(record, root)
+        view['output_chars'] = len(output) if isinstance(output, str) else None
+        summary.append(view)
+        if output is not None:
+            outputs.append({'line': record['line'], 'id': record.get('id'), 'output': blinded_value(output, root)})
     output_path = target.with_name(target.stem.replace('-tools', '-tool-outputs') + '.json')
     output_path.write_text(json.dumps(outputs, ensure_ascii=False) + '\n', encoding='utf-8')
-    audit['outputs_file'] = output_path.name
-    audit['limitation'] = 'Summary only; inspect outputs_file by event line/id for actual returns. Exit code alone does not prove whether a mutation persisted; verify artifacts and readback.'
+    audit = dict(raw_sha256=hashlib.sha256(raw).hexdigest(), events=summary, outputs_file=output_path.name,
+                 trace_status='available' if summary else 'no_observed_tool_events',
+                 limitation='Audit of recorded operations. Paths and kit-version strings are masked. Missing tool results are unobserved. Verify persisted state in artifacts and readback.')
     target.write_text(json.dumps(audit, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
 
 

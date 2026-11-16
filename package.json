@@ -1,15 +1,15 @@
 {
-  "package": "matrix-ai/0.35",
+  "package": "matrix-ai/0.36",
   "components": {
-    "matrix-front-desk": "0.10",
-    "matrix-project-management": "0.20",
-    "matrix-product": "0.32",
+    "matrix-front-desk": "0.11",
+    "matrix-project-management": "0.21",
+    "matrix-product": "0.33",
     "matrix-content-design": "0.12",
-    "matrix-experience-design": "0.29",
+    "matrix-experience-design": "0.30",
     "matrix-code-engineering-intake": "0.18",
-    "matrix-code-engineering-solution": "0.11",
-    "matrix-code-engineering-build": "0.10",
-    "matrix-quality-engineering": "0.11",
+    "matrix-code-engineering-solution": "0.12",
+    "matrix-code-engineering-build": "0.11",
+    "matrix-quality-engineering": "0.12",
     "matrix-collaboration": "0.17",
     "matrix-profession-builder": "0.5",
     "matrix-product-capability-model": "1.1"
@@ -68,5 +68,5 @@
     "platform-protocol/1",
     "isolated-runtime/0.1"
   ],
-  "baseline": "professional-agents-kit-v0.29"
+  "baseline": "matrix-ai-v0.35"
 }

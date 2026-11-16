@@ -463,6 +463,18 @@ class Independence(Fixture, unittest.TestCase):
         rid = 'CHECK-' + tid + '-' + str(self.n)
         self.call('launch_start', id=rid, purpose='check', task_id=tid, instance=self.t(tid)['checker'], model=model, session='SIM-' + rid, command=['SIM-cli'])
 
+    def test_review_preflight_flags_configured_same_model_without_starting(self):
+        self.work('F1', risk='F1', risk_reason='SIM 扣费')
+        before = pm.execute(self.root, {'op': 'status'})
+        result = pm.execute(self.root, {'op': 'review_preflight', 'task_id': 'F1', 'checker': 'code-engineering-003'})
+        self.assertTrue(result['requires_different_model'])
+        self.assertEqual(['code-engineering-002'], result['configured_same_model_producers'])
+        self.assertIn('configured_same_model', result['blocking_hints'])
+        other = pm.execute(self.root, {'op': 'review_preflight', 'task_id': 'F1', 'checker': 'quality-engineering-001'})
+        self.assertEqual([], other['blocking_hints'])
+        self.assertEqual('not_independent', other['independence'])
+        self.assertEqual(before['revision'], pm.execute(self.root, {'op': 'status'})['revision'])
+
     def test_same_model_check_is_not_independent_for_f1_and_blocks_closing(self):
         self.work('F1', risk='F1', risk_reason='SIM 扣费')
         self.platform_run('F1', 'SIM-small')

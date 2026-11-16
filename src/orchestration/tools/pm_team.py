@@ -16,7 +16,7 @@ _spec = importlib.util.spec_from_file_location('matrix_model_fit', Path(__file__
 model_fit = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(model_fit)
 
-READ_OPS = {'team', 'resolve_instance', 'model_performance'}
+READ_OPS = {'team', 'resolve_instance', 'model_performance', 'review_preflight'}
 INSTANCE_OPS = {'confirm_config', 'derive', 'retire_instance', 'relevel_instance', 'rename_instance'}
 WRITE_OPS = {'appoint', 'revoke_appointment', 'register_participation', 'participation_event', 'bind_participation'} | INSTANCE_OPS
 CONFIG, FIT = 'management/instance-config.json', 'management/model-fit.json'
@@ -521,6 +521,22 @@ def blockers(pm, root, db, tasks, tid, closing=False):
 def execute(pm, root, db, cmd):
     cfg, tasks = pm.config(db), pm.task_map(db)
     op, actor = cmd['op'], cmd.get('actor')
+    if op == 'review_preflight':
+        task = tasks.get(cmd.get('task_id'))
+        checker = cmd.get('checker')
+        instances = pm.integrity.records(db, 'instance')
+        pm.require(task is not None and pm.nonempty(checker) and checker in instances,
+                   'review_preflight requires a registered task_id and checker')
+        producers, made, _, _, needs_other = requirement(pm, root, task, instances)
+        candidate = instances[checker]
+        expected = candidate.get('model')
+        same = sorted(p['id'] for p in made if expected and p.get('model') == expected)
+        return {'task_id': task['id'], 'checker': checker, 'requires_different_model': needs_other,
+                'configured_checker_model': expected, 'configured_same_model_producers': same,
+                'blocking_hints': (['same_instance'] if checker in producers else []) +
+                                  (['configured_same_model'] if needs_other and same else []),
+                'independence': independence(pm, root, db, task, checker),
+                'note': '配置仅用于派发预检；独立检验以实际运行回执为准。'}
     if op == 'model_performance':
         return model_fit.performance(pm, db, cmd.get('since'))
     if op == 'resolve_instance':
