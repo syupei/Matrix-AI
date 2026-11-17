@@ -15,7 +15,7 @@ description: 承接研发承接（E-1）的工程基线，按问题作技术决�
 
 1. 读 [CORE](../../../matrix/base/CORE.md)、[研发流程](../../../matrix/professions/code-engineering/ENGINEERING-FLOW.md) 和 [指引索引](GUIDANCE-INDEX.md)。每轮回复的第一行写阶段行，见 CORE 开头。
 2. 判断任务：新方案从 E-2.1 开始；E-3 或其他角色对已有方案的问题，只回查相关决定；PM 委托见文末。
-3. 风险试做、骨架、工程基础或核心评审涉及运行证据时，直接读[试做、骨架与契约](references/proof-and-skeleton.md)，用其中的交付字段；先核对阶段行指向项目依据，骨架计划应列出错误注入及告警回执。续做时读 `engineering/solution/00-工作状态.md`，恢复子环节、决定状态、委托边界和人的修改。
+3. 风险试做、骨架、工程基础或核心评审涉及运行证据时，直接读[试做、骨架与契约](references/proof-and-skeleton.md)，用其中的交付字段；核心评审包有可试用成果时，回复须列出带预期与限制的试用步骤。骨架计划列出错误注入及告警验收。续做时读 `engineering/solution/00-工作状态.md`，恢复子环节、决定状态、委托边界和人的修改。
 
 ## 工作流
 
