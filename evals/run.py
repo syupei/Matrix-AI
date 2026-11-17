@@ -5,6 +5,7 @@ Results are ungraded raw evidence; no canned response is treated as model behavi
 import argparse,hashlib,json,os,re,shutil,subprocess,tempfile,time,importlib.util
 from pathlib import Path
 from read_records import extract
+from operation_evidence import check as check_operation, snapshot
 
 def fingerprint(root):
  return hashlib.sha256(json.dumps({str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.rglob('*')) if p.is_file() and '__pycache__' not in p.parts and p.name!='MANIFEST.json'},sort_keys=True).encode()).hexdigest()
@@ -34,6 +35,7 @@ def main():
     if case.get('fixture_sha256')!=digest:raise ValueError('fixture changed; update suite')
     fspec=importlib.util.spec_from_file_location('fixed_fixture',fixture);fmod=importlib.util.module_from_spec(fspec);fspec.loader.exec_module(fmod)
     fmod.populate(work.resolve(),case['id']);record['fixture_sha256']=digest
+   operation_kind = {"scope": "draft", "batch": "feedback"}.get(case["id"])
    session=None
    for n,user in enumerate(case['turns']):
     start=f'kit/{entry}' if entry else f'kit/.agents/skills/{role}/SKILL.md'
@@ -51,6 +53,7 @@ def main():
     else:
      cmd=['claude','-p','--output-format','stream-json','--verbose','--permission-mode','acceptEdits']
      cmd+=(['--model',args.model] if args.model else [])+(['--effort',args.effort] if args.effort else [])
+    before = snapshot(work) if operation_kind else None
     started=time.time()
     with events.open('w') as stdout,err.open('w') as stderr:
      result=subprocess.run(cmd,input=prompt,text=True,stdout=stdout,stderr=stderr,timeout=480,cwd=str(work))
@@ -64,6 +67,11 @@ def main():
      session=started_event['thread_id']
     reply=last.read_text();history.extend([{'role':'user','text':user},{'role':'assistant','text':reply}])
     record['turns'].append({'user':user,'reply':last.name,'events':events.name,'project_root':str(work),'seconds':round(time.time()-started,2),'sha256':hashlib.sha256(last.read_bytes()).hexdigest()})
+    if operation_kind:
+     recorded_events = [json.loads(line) for line in events.read_text().splitlines() if line.strip()]
+     after = snapshot(work)
+     audit = check_operation(work, operation_kind, reply, recorded_events, before, after)
+     record['turns'][-1]['operation_evidence'] = dict(audit, before=before, after=after)
     print(case['id'],n,'completed',flush=True)
    # The kit files this case read, from its traces: its reply may be carried over later only while they are unchanged.
    # Resolve relative paths against this isolated evaluated project.

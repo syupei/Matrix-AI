@@ -49,6 +49,23 @@ def location(root, name):
     return target
 
 
+def reply_receipt(root, kind, name, marker):
+    target = location(root, name)
+    parts = Path(name).parts
+    if kind == 'draft':
+        require(len(parts) >= 3 and parts[:2] == ('product', 'specs'),
+                '草稿须在 product/specs/ 内')
+    else:
+        require(len(parts) >= 2 and parts[0] in {'product', 'shared'},
+                '反馈须在 product/ 或 shared/ 内')
+    require(target.is_file(), '待核对的项目记录不存在: ' + name)
+    data = target.read_bytes()
+    require(nonempty(marker) and marker in data.decode('utf-8'),
+            '记录内容未找到指定标题或条目 ID: ' + marker)
+    return {'format': 'product-reply-receipt/1', 'kind': kind, 'path': name,
+            'marker': marker, 'sha256': digest(data)}
+
+
 def load_json(path):
     # Reject duplicate keys; silently retaining the last value could hide scope changes.
     def unique(pairs):
@@ -395,11 +412,18 @@ def main():
             p.add_argument('--json', action='store_true')
         if command == 'handoff':
             p.add_argument('--role', required=True)
+    p = commands.add_parser('reply-receipt')
+    p.add_argument('--kind', choices=['draft', 'feedback'], required=True)
+    p.add_argument('--path', required=True)
+    p.add_argument('--marker', required=True, help='草稿标题或反馈条目 ID')
     args = parser.parse_args()
     try:
         root = Path(args.root).resolve()
         require(root.is_dir(), '项目根目录不存在')
         status = 0
+        if args.command == 'reply-receipt':
+            print(json_text(reply_receipt(root, args.kind, args.path, args.marker)), end='')
+            return 0
         if args.command == 'capture':
             text = json_text(capture(root, args.source))
         elif args.command == 'draft':
