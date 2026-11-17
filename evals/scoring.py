@@ -136,6 +136,9 @@ def blind(a):
                 shutil.copy2(reply, target / reply.name)
             for trace in sorted(source.glob(cid + '-[0-9]*.jsonl')):
                 write_tool_audit(trace, target / (trace.stem + '-tools.json'))
+            for observation in sorted(source.glob(cid + '-[0-9]*.operation.json')):
+                data = blinded_value(json.loads(observation.read_text(encoding='utf-8')), None)
+                (target / observation.name).write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
             if (source / (cid + '-artifacts')).is_dir():
                 shutil.copytree(source / (cid + '-artifacts'), target / (cid + '-artifacts'), dirs_exist_ok=True)
     Path(a.labels).write_text(json.dumps(labels, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')

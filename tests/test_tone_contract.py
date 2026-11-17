@@ -28,10 +28,11 @@ class ToneContractTest(unittest.TestCase):
         self.profile=dict(schema=tone.practice.SCHEMA,version='1',scopes=[scope(tone,appearance_target='yes',direct_manipulation='yes')])
         self.put('human.md','I confirm this direction')
         self.data=dict(version='1',genre='route game',profile='游戏与玩乐',tone='warm',core_loop='choose and move',
-                       references=[dict(name=f'Ref {i}',borrows='operate the token',observed='not observed') for i in range(2)],
+                       references=[dict(name=f'Ref {i}',source=f'Guide, section {i}',borrows='operate the token',observed='not observed') for i in range(2)],
                        avoid=['forms as the main scene'],
-                       samples=[dict(moment=f'm{i%4}',text=f'Sample {i}') for i in range(6)],
-                       parts=dict(brief=self.brief,scene=self.scene,samples=self.samples,screenshot=self.png,practice_profile=self.put('practice.json',json.dumps(self.profile))),
+                       samples=[dict(moment=f'm{i%4}',text=f'Sample {i}',consequence='Resolve the selection') for i in range(6)],
+                       parts=dict(brief=self.brief,scene=self.scene,preview=self.scene,samples=self.samples,screenshot=self.png,
+                                  practice_profile=self.put('practice.json',json.dumps(self.profile))),
                        confirmation=dict(person='owner',quote='I confirm this direction',source='human.md'))
         self.fit=dict(outcome='passed',mode='independent',checker='checker',producer='maker',artifacts=[self.scene],
                       screenshot=self.png,viewport='1280x800',capture='browser',genre_fit='fits loop',
@@ -114,3 +115,58 @@ class ToneContractTest(unittest.TestCase):
         result = subprocess.run([sys.executable,'-B',str(p),'--project',str(self.root)],
                                 text=True,capture_output=True,check=True)
         self.assertTrue(json.loads(result.stdout)['allowed'])
+
+    def draft_delivery(self):
+        contract = self.contract()
+        p = KIT/'.agents/skills/matrix-product/scripts/tone_contract.py'
+        result = subprocess.run([sys.executable,'-B',str(p),'--project',str(self.root),
+                                 '--contract',contract['path'],'--draft'], text=True,capture_output=True)
+        return result.returncode, json.loads(result.stdout)
+
+    def test_draft_cli_returns_validated_files_without_approval(self):
+        self.data.pop('confirmation')
+        code, result = self.draft_delivery()
+        self.assertEqual(code, 0)
+        self.assertEqual(result['delivery']['format'], 'direction-delivery/1')
+        self.assertEqual(result['delivery']['status'], 'draft_pending_confirmation')
+        self.assertEqual(result['delivery']['direction_reference'], result['direction_reference'])
+        self.assertEqual(result['delivery']['preview'], {k:self.scene[k] for k in ('path','sha256')})
+        self.assertEqual(result['delivery']['capture']['kind'], 'screenshot')
+        self.assertEqual(result['delivery']['capture']['sha256'], self.png['sha256'])
+        (self.root/self.scene['path']).unlink()
+        code, result = self.draft_delivery()
+        self.assertNotEqual(code, 0)
+        self.assertFalse(result['allowed'])
+        self.assertNotIn('delivery', result)
+
+    def test_draft_without_capture_rejects_completion_until_actual_human_record(self):
+        self.data['parts'].pop('screenshot')
+        self.data['capture_unavailable'] = 'Browser capture unavailable'
+        code, result = self.draft_delivery()
+        self.assertNotEqual(code, 0)
+        self.assertNotIn('delivery', result)
+        self.data['parts']['manual_review'] = self.put('viewport.md','Reviewer saw the current selection in the preview')
+        code, result = self.draft_delivery()
+        self.assertEqual(code, 0)
+        self.assertEqual(result['delivery']['capture']['kind'], 'human')
+        self.assertEqual(result['delivery']['capture']['limitation'], 'Browser capture unavailable')
+
+    def test_draft_rejects_fake_capture_with_image_signature(self):
+        self.data['parts']['screenshot'] = self.put('fake.png', PIXEL[:8] + b'Screenshot pending')
+        code, result = self.draft_delivery()
+        self.assertNotEqual(code, 0)
+        self.assertIn('actual rendered screenshot', result['error'])
+        self.assertNotIn('delivery', result)
+
+    def test_draft_rejects_unfinished_preview_sources_and_sample_consequences(self):
+        preview = self.put('placeholder.html','Preview will be made later')
+        self.data['parts']['preview'] = preview
+        code, result = self.draft_delivery()
+        self.assertNotEqual(code, 0)
+        self.assertIn('preview', result['error'])
+        self.data['parts']['preview'] = self.scene
+        source = self.data['references'][0].pop('source')
+        self.assertIn('source', self.draft_delivery()[1]['error'])
+        self.data['references'][0]['source'] = source
+        self.data['samples'][0].pop('consequence')
+        self.assertIn('consequence', self.draft_delivery()[1]['error'])

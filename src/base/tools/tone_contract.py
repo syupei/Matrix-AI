@@ -47,9 +47,19 @@ def verify_ref(root, ref):
 
 def picture(path):
     with path.open('rb') as handle:
-        magic = handle.read(12)
-    return (magic.startswith((b'\x89PNG\r\n\x1a\n', b'\xff\xd8\xff')) or
-            (magic.startswith(b'RIFF') and magic[8:] == b'WEBP'))
+        header = handle.read(33)
+        if header.startswith(b'\x89PNG\r\n\x1a\n'):
+            if (len(header) != 33 or header[8:16] != b'\x00\x00\x00\x0dIHDR'
+                    or not all(int.from_bytes(header[i:i+4], 'big') for i in (16, 20))):
+                return False
+            handle.seek(-12, 2)
+            return handle.read() == b'\x00\x00\x00\x00IEND\xaeB`\x82'
+        if header.startswith(b'\xff\xd8\xff') and len(header) == 33:
+            handle.seek(-2, 2)
+            return handle.read() == b'\xff\xd9'
+    return (len(header) == 33 and header[:4] == b'RIFF' and header[8:12] == b'WEBP'
+            and header[12:16] in {b'VP8 ', b'VP8L', b'VP8X'}
+            and int.from_bytes(header[4:8], 'little') + 8 == path.stat().st_size)
 
 
 def read(root, ref):
@@ -69,6 +79,16 @@ def profile(root, data):
     return result
 
 
+def check_preview(root, ref):
+    path = verify_ref(root, ref)
+    content = path.read_text(encoding='utf-8')
+    if path.suffix.lower() == '.svg':
+        rendered_source = re.search(r'<svg(?:\s|>)', content, flags=re.I)
+    else:
+        rendered_source = path.suffix.lower() in {'.html', '.htm'} and re.search(r'<[a-z][\w-]*(?:\s|>)', content, flags=re.I)
+    require(rendered_source, 'actual HTML or SVG direction preview required')
+
+
 def validate(root, ref, *, confirmed=True):
     root = Path(root).resolve()
     data = read(root, ref)
@@ -76,24 +96,27 @@ def validate(root, ref, *, confirmed=True):
             'version, genre, profile, tone and core_loop required')
     examples = data.get('references', [])
     require(isinstance(examples, list) and 2 <= len(examples) <= 3 and all(
-        isinstance(x, dict) and all(text(x.get(k)) for k in ('name', 'borrows', 'observed')) for x in examples),
-        'two to three references with borrowed detail and observation status required')
+        isinstance(x, dict) and all(text(x.get(k)) for k in ('name', 'source', 'borrows', 'observed')) for x in examples),
+        'two to three references with source, borrowed detail and observation status required')
     require(len({x['name'].strip().casefold() for x in examples}) == len(examples), 'reference names must be distinct')
     avoid = data.get('avoid', [])
     require(isinstance(avoid, list) and avoid and all(text(x) for x in avoid), 'at least one direction to avoid required')
     parts = data.get('parts', {})
-    require(isinstance(parts, dict) and {'brief', 'scene', 'samples', 'practice_profile'} <= parts.keys(),
-            'brief, scene, samples and practice_profile parts required')
+    require(isinstance(parts, dict) and {'brief', 'scene', 'preview', 'samples', 'practice_profile'} <= parts.keys(),
+            'brief, scene, preview, samples and practice_profile parts required')
     for part in parts.values():
         require(isinstance(part, dict) and text(part.get('version')), 'each part requires a version')
         verify_ref(root, part)
+    check_preview(root, parts['preview'])
+    sample_file = verify_ref(root, parts['samples'])
+    require(text(sample_file.read_text(encoding='utf-8')), 'direction samples file is empty')
     check_capture(root, parts, data.get('capture_unavailable'))
     current = profile(root, data)
     motion = any(row['features'][name]['value'] == 'yes' for row in current['scopes'] for name in practice.MOTION)
     if motion:
         samples = data.get('samples', [])
-        require(isinstance(samples, list) and all(isinstance(x, dict) and text(x.get('moment')) and text(x.get('text')) for x in samples),
-                'samples must name a moment and text')
+        require(isinstance(samples, list) and all(isinstance(x, dict) and all(text(x.get(k)) for k in
+                ('moment', 'text', 'consequence')) for x in samples), 'samples must name a moment, text and consequence')
         require(len({x['text'].strip() for x in samples}) >= 6 and len({x['moment'].strip() for x in samples}) >= 4,
                 'interactive timing requires six distinct samples across four moments')
     if confirmed:
@@ -117,6 +140,24 @@ def check_capture(root, record, unavailable):
 def direction_binding(ref, data):
     content = {name: value for name, value in data.items() if name != 'confirmation'}
     return {'path': ref, 'version': data['version'], 'direction_sha256': practice.digest(content)}
+
+
+def direction_delivery(data):
+    """Project the validated draft into a receipt for the user-facing handoff."""
+    parts = data['parts']
+    preview = parts['preview']
+    kind = 'screenshot' if 'screenshot' in parts else 'human'
+    capture = parts['screenshot' if kind == 'screenshot' else 'manual_review']
+    return {
+        'format': 'direction-delivery/1',
+        'direction_reference': direction_binding(DEFAULT_PATH, data),
+        'artifacts': [{'part': name, **{key: ref[key] for key in ('path', 'version', 'sha256')}}
+                      for name, ref in sorted(parts.items())],
+        'preview': {key: preview[key] for key in ('path', 'sha256')},
+        'capture': {'kind': kind, 'path': capture['path'], 'sha256': capture['sha256'],
+                    'limitation': data.get('capture_unavailable') if kind == 'human' else None},
+        'status': 'draft_pending_confirmation',
+    }
 
 
 def check_fit(root, record, artifacts, contract=None, *, pre_confirmation=False):
@@ -154,6 +195,28 @@ def check_fit(root, record, artifacts, contract=None, *, pre_confirmation=False)
     return data
 
 
+def check_fit_comparison(root, record, direction, schema):
+    fields = schema['fields']
+    require(all(text(record.get(key)) for key in fields), 'record the reference viewport and representative comparison state')
+    current = re.fullmatch(r'([1-9][0-9]*)\s*[x×]\s*([1-9][0-9]*)', record['viewport'].strip(), flags=re.I)
+    reference = re.fullmatch(r'([1-9][0-9]*)\s*[x×]\s*([1-9][0-9]*)',
+                             record['reference_viewport'].strip(), flags=re.I)
+    require(current and reference and current.groups() == reference.groups(),
+            'use the same numeric viewport for reviewed and direction views')
+    parts = direction['parts']
+    if 'screenshot' in parts:
+        key = schema['reference'][0]
+        part = parts['screenshot']
+    else:
+        require(record['mode'] == 'human', 'direction without capture requires actual human comparison')
+        key = schema['reference'][1]
+        part = parts['manual_review']
+    ref = record.get(key)
+    require(isinstance(ref, dict) and all(ref.get(field) == part[field] for field in ('path', 'sha256')),
+            'fit comparison must use the current direction reference: ' + key)
+    verify_ref(root, ref)
+
+
 def confirmed_contract(root, ref):
     require(isinstance(ref, dict) and set(ref) == {'path', 'version', 'sha256'}
             and ref.get('path') == DEFAULT_PATH, 'reference the current tone contract and its version')
@@ -165,7 +228,7 @@ def confirmed_contract(root, ref):
 
 def direction_review(root, data, record):
     binding = direction_binding(DEFAULT_PATH, data)
-    reviewed = [data['parts'][key] for key in ('scene', 'samples', 'practice_profile')]
+    reviewed = [data['parts'][key] for key in ('scene', 'preview', 'samples', 'practice_profile')]
     fit = check_fit(root, record, reviewed, binding, pre_confirmation=True)
     if fit['mode'] == 'human':
         require(fit['checker'] == data['confirmation']['person'], 'human viewport reviewer must match the P-1 confirmer')
@@ -241,6 +304,7 @@ def check_stage(root, state, artifacts, requirements=None, *, phase='complete'):
     triggered = []
     for sid, rows in enabled.items():
         checked = {}
+        fit_paths = set()
         for key in rows:
             if key not in keys:
                 continue
@@ -255,7 +319,12 @@ def check_stage(root, state, artifacts, requirements=None, *, phase='complete'):
                     target = next((checked[name] for name in
                                    ('implementation_walkthrough', 'asset_anchors', 'scene_structure', 'appearance_target')
                                    if name in checked), artifacts)
-                check_fit(root, verify_ref(root, entry).relative_to(root).as_posix(), target, ref)
+                path = verify_ref(root, entry).relative_to(root).as_posix()
+                require(path not in fit_paths, 'skeleton and increment require separate fit review records')
+                fit_paths.add(path)
+                fit = check_fit(root, path, target, ref)
+                if 'comparison' in definition:
+                    check_fit_comparison(root, fit, data, definition['comparison'])
             else:
                 entry = evidence_ref(state, key, sid)
                 checked[key] = check_record(root, key, sid, entry, ref)
@@ -277,6 +346,7 @@ def main():
     result = {'allowed': True, 'version': record['version']}
     if args.draft:
         result['direction_reference'] = direction_binding(DEFAULT_PATH, record)
+        result['delivery'] = direction_delivery(record)
     print(json.dumps(result, ensure_ascii=False))
     return 0
 

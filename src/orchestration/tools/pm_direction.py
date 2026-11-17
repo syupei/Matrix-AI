@@ -15,6 +15,7 @@ TASKS = (
     ('fit', 'fit_checker', '检查做法档与方向样张贴合', ('compose',), 'product/reviews/方向贴合.json'),
 )
 PROFILE_OUTPUT = 'product/specs/项目做法档.json'
+PREVIEW_OUTPUT = 'design/preview.html'
 PRODUCERS = ('product', 'experience-design', 'content-design', 'code-engineering', 'quality-engineering')
 
 
@@ -95,7 +96,7 @@ def execute(pm, root, db, cmd):
     output_by_id = {suffix:out for suffix,_,_,_,out in TASKS}
     rec = dict(id=key, tasks=[key + '-' + suffix for suffix in output_by_id], milestone=key,
                downstream=downstream, profile=cmd['profile'], example=example,
-               brief=brief_path, outputs=output_by_id, practice_profile=PROFILE_OUTPUT,
+               brief=brief_path, outputs=output_by_id, practice_profile=PROFILE_OUTPUT, preview=PREVIEW_OUTPUT,
                reserved_roles=['art-production'], fit_checker=assigned['fit_checker'],
                producer=assigned['product'], masters={role: assigned[role] for role in PRODUCERS})
     pm.integrity.save(pm, db, 'direction_sample', rec)
@@ -106,7 +107,10 @@ def execute(pm, root, db, cmd):
                     checker=assigned['task_checker'], goal=title, next_action=title,
                     inputs=[output_by_id[d] for d in deps] or [brief_path], outputs=[output],
                     criteria=['按方向样张确认范围交回并提供证据'], dependencies=[key+'-'+d for d in deps])
+        if suffix == 'scene':
+            task['outputs'].append(PREVIEW_OUTPUT)
         if suffix == 'compose':
+            task['inputs'].append(PREVIEW_OUTPUT)
             task['outputs'].append(PROFILE_OUTPUT)
         if suffix == 'fit':
             task['inputs'].append(PROFILE_OUTPUT)
@@ -139,6 +143,8 @@ def confirm_milestone(pm, root, db, task):
     current = tone.validate(root, tone.DEFAULT_PATH)
     pm.require(current['profile'] == rec['profile'] and current['parts']['practice_profile']['path'] == rec['practice_profile'],
                'the direction contract must include the registered project practice profile')
+    pm.require(current['parts']['preview']['path'] == rec.get('preview', PREVIEW_OUTPUT),
+               'the direction contract must include the assigned preview')
     for part in ('brief', 'scene', 'samples', 'feasibility', 'acceptance'):
         pm.require(current['parts'].get(part, {}).get('path') == rec['outputs'][part],
                    'include the assigned professional direction contribution: ' + part)
@@ -168,7 +174,9 @@ def record_confirmation(pm, root, db, task, cmd):
     tone = pm.admission.load_gate().tone
     draft = tone.validate(root, rec['outputs']['compose'], confirmed=False)
     binding = tone.direction_binding(tone.DEFAULT_PATH, draft)
-    required = [draft['parts'][key] for key in ('scene', 'samples', 'practice_profile')]
+    pm.require(draft['parts']['preview']['path'] == rec.get('preview', PREVIEW_OUTPUT),
+               'the direction draft must include the assigned preview')
+    required = [draft['parts'][key] for key in ('scene', 'preview', 'samples', 'practice_profile')]
     fit = tone.check_fit(root, rec['outputs']['fit'], required, binding, pre_confirmation=True)
     checker = cmd.get('person') if fit['mode'] == 'human' else rec['fit_checker']
     pm.require(fit['checker'] == checker and fit['producer'] == rec['producer'],

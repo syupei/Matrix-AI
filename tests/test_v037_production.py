@@ -97,6 +97,8 @@ class ProductionTest(Fixture, unittest.TestCase):
                       'fit_checker':'quality-engineering-002','task_checker':'PM'})
         self.assertEqual(result['direction_sample']['reserved_roles'],['art-production'])
         self.assertEqual(self.t('direction-scene')['dependencies'],['direction-brief'])
+        self.assertIn('design/preview.html',self.t('direction-scene')['outputs'])
+        self.assertIn('design/preview.html',self.t('direction-compose')['inputs'])
         self.assertEqual(self.t('direction-samples')['dependencies'],['direction-brief'])
         self.assertEqual(self.t('direction')['dependencies'],['direction-fit'])
         self.assertEqual([t['id'] for t in pm.execute(self.root, {'op':'status'})['tasks'] if t['human_required']],['direction'])

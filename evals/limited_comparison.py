@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from run import fingerprint
+from operation_evidence import DIRECTION_CASES
 from scoring import needs_recheck
 from visual_evidence import IMAGE_MAGIC
 
@@ -79,6 +80,11 @@ def run_record(out, side, case, suite_hash, expected=None):
         entries = [json.loads(line) for line in (folder / trace).read_text(encoding='utf-8').splitlines() if line.strip()]
         require(any(row.get('type') == COMPLETION[runner] and not row.get('is_error') for row in entries),
                 'model turn did not complete: ' + prefix)
+        observation = turn.get('operation_evidence')
+        sidecar = f'{prefix}/{cid}-{index}.operation.json'
+        if sidecar in files or (run.get('operation_evidence_schema') == 1 and cid in DIRECTION_CASES | {'scope', 'batch'}):
+            require(isinstance(observation, dict) and sidecar in files and read(out / sidecar) == observation,
+                    'missing or modified operation evidence: ' + prefix)
     artifacts = f'{prefix}/{cid}-artifacts/'
     actual = {path.removeprefix(prefix + '/'): digest for path, digest in files.items() if path.startswith(artifacts)}
     require(record.get('artifacts') == actual, 'missing or modified run artifacts: ' + prefix)
@@ -205,10 +211,15 @@ def summarize(args, suite_path, release_manifests):
     recorded = read(work / INPUTS)
     require(inputs == {key: recorded.get(key) for key in inputs}, 'scores are bound to different paired inputs')
     scores = summarize_scores(work, cases)
+    operation_observations = []
     for cid, by_side in inputs['runs'].items():
         for side, saved in by_side.items():
             scores['cases'][cid].update({side + '_run': saved['run'], side + '_evidence': [
                 {'path': path, 'sha256': digest} for path, digest in saved['evidence'].items()]})
+            for path, digest in saved['evidence'].items():
+                if path.endswith('.operation.json'):
+                    operation_observations.append({'case': cid, 'side': side, 'path': path, 'sha256': digest,
+                                                   'errors': read(out / path)['errors']})
     ids = [case['id'] for case in cases]
     omitted = [case['id'] for case in suite if case['id'] not in ids]
     scoring_files = [work / name for name in (INPUTS, 'labels.json', 'merged.json', 'recheck.json', 'second.json', 'combined.json')]
@@ -226,6 +237,7 @@ def summarize(args, suite_path, release_manifests):
                    'environment': inputs['environment'], 'selected_cases': ids, 'not_run_cases': omitted,
                    'coverage': {'suite_cases': len(suite), 'paired_cases': len(ids), 'not_run': len(omitted)},
                    'scoring_files': saved_scores | raw_scores,
+                   'operation_observations': operation_observations,
                    'limitations': ['Only the listed subset was executed, once per case and side.',
                                    'Fixtures and their confirmations are synthetic. Visual and playtest claims are limited to observed evidence.',
                                    'For human review of a limited comparison only. No release decision or full-baseline eligibility.'],

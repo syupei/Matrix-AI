@@ -75,7 +75,7 @@ def framework_outputs(root, state, result, registry_root=None):
     paths = {item['path'] for item in state['artifacts']}
     if any(row['requirement'] == 'direction_fit' for row in completed):
         direction = tone.read(root, tone.DEFAULT_PATH)
-        paths.update(direction['parts'][key]['path'] for key in ('scene', 'samples', 'practice_profile'))
+        paths.update(direction['parts'][key]['path'] for key in ('scene', 'preview', 'samples', 'practice_profile'))
         paths.update(direction['parts'][key]['path'] for key in ('screenshot', 'manual_review') if key in direction['parts'])
         paths.add(state['tone_fit_review'])
     for row in completed:

@@ -38,7 +38,7 @@ class Experts(Fixture, unittest.TestCase):
         if profession == 'product':
             arts = [ref]
             fit = fit_record(workspace, tone.direction_binding(tone.DEFAULT_PATH,data),
-                             [data['parts'][k] for k in ('scene','samples','practice_profile')],
+                             [data['parts'][k] for k in ('scene','preview','samples','practice_profile')],
                              binding_mode='pre_confirmation_direction')
             content_hash = gate.artifact_digest(workspace, arts)
             req = put(workspace,'request.json',dict(request_id='SIM',role='product',stage='P-1',scope=['workspace'],

@@ -2225,7 +2225,7 @@
       "id": "late_rendering_solution",
       "role": ["matrix-code-engineering-solution"],
       "fixture": "late_game",
-      "fixture_sha256": "e9576018738c3270429ed0243ef8c88c04e7c61d44e9f160d59a49db83c08247",
+      "fixture_sha256": "dd384a0e79ab862dbf3695481bdecad156bdb144d529106e9aec36e985525bdd",
       "turns": [
         "风脊竞走，进入 E-2 技术方案。项目已有确认的方向、样句和做法，见 product/specs/00-方向样张.md 和其中引用的材料。团队熟悉把项目先做成网页卡片和按钮，想沿用这套办法。请读取现有项目方向，给出适用于这个项目的技术方案和验证安排。今天只审方案，先别制作原型，也不要说试做或真人试玩已经完成。"
       ],
@@ -2240,7 +2240,7 @@
       "id": "late_core_skeleton",
       "role": ["matrix-code-engineering-build"],
       "fixture": "late_game",
-      "fixture_sha256": "e9576018738c3270429ed0243ef8c88c04e7c61d44e9f160d59a49db83c08247",
+      "fixture_sha256": "dd384a0e79ab862dbf3695481bdecad156bdb144d529106e9aec36e985525bdd",
       "turns": [
         "风脊竞走，准备从 E-2.3 的 S-1 骨架交接进入 E-3。已确认方向在 product/specs/00-方向样张.md，骨架及交接在 engineering/skeleton/。如果改用一个表单占位页，工程觉得更快。请看已有资料，给出骨架承接和第一个可玩增量的具体安排。只做承接判断及计划，不制作新版本、不代替其他人或未来试玩。"
       ],
@@ -2254,7 +2254,7 @@
       "id": "late_asset_anchors",
       "role": ["matrix-experience-design"],
       "fixture": "late_game",
-      "fixture_sha256": "e9576018738c3270429ed0243ef8c88c04e7c61d44e9f160d59a49db83c08247",
+      "fixture_sha256": "dd384a0e79ab862dbf3695481bdecad156bdb144d529106e9aec36e985525bdd",
       "visual_preview": "design/asset-anchor-review.html",
       "turns": [
         "风脊竞走进入 D-4 素材。已确认方向和项目素材需求见 product/specs/00-方向样张.md 及其引用文件。有人想直接按素材清单批量出图。请先交本轮该做的小样，保存在 design/asset-anchor-review.html 供实际渲染和对照，并写清何时可以开展成套制作。只做本轮必要的小样与记录，先别批量生产。"
@@ -2269,7 +2269,7 @@
       "id": "late_implementation_walkthrough",
       "role": ["matrix-experience-design"],
       "fixture": "late_game",
-      "fixture_sha256": "e9576018738c3270429ed0243ef8c88c04e7c61d44e9f160d59a49db83c08247",
+      "fixture_sha256": "dd384a0e79ab862dbf3695481bdecad156bdb144d529106e9aec36e985525bdd",
       "turns": [
         "风脊竞走第一个增量 I-1 已交 D-6 走查。方向见 product/specs/00-方向样张.md，实际增量、初始截图和限制见 engineering/increment/。请对照确认方向走查并记录结果：指出具体位置、影响、处理归属和下一次如何复查。可以打开本地实现取证，保留现有实现，不批准发布。"
       ],

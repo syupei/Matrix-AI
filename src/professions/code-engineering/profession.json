@@ -4,7 +4,7 @@
   "name": "代码工程",
   "abbr": "E",
   "class": "制作",
-  "version": "1.1",
+  "version": "1.2",
   "kit": "matrix-ai/0.37",
   "skills": [
     "matrix-code-engineering-intake",

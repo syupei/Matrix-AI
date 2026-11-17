@@ -104,7 +104,62 @@ class PracticeStages(unittest.TestCase):
         state['practice_evidence']['skeleton_fit']={'workspace':fit}
         with self.assertRaisesRegex(ValueError,'stale or missing tone contract'):
             gate.check(self.root,state)
-        fit = fit_record(self.root,state['tone_contract'],[self.artifact],mode='same_instance',checker='maker')
+        reference = tone.read(self.root,tone.DEFAULT_PATH)['parts']['screenshot']
+        fit = fit_record(self.root,state['tone_contract'],[self.artifact],mode='same_instance',checker='maker',
+                         reference_screenshot=reference, reference_viewport='1280×800',
+                         comparison_state='Initial selection with keyboard focus on the start square')
+        state['practice_evidence']['skeleton_fit']['workspace']=fit
+        self.assertTrue(gate.check(self.root,state)['allowed'])
+
+    def test_skeleton_and_increment_require_separate_comparable_views(self):
+        state = self.state('E-3.2','E-3.3',[scope(tone,appearance_target='yes')])
+        state['role'] = 'build'
+        contract = state['tone_contract']
+        self.add_record(state,'core_scene_skeleton',screenshot=put(self.root,'core.png',PIXEL))
+        reference = tone.read(self.root,tone.DEFAULT_PATH)['parts']['screenshot']
+        view = dict(reference_screenshot=reference,reference_viewport='1280×800',
+                    comparison_state='Start round three and leave the route selection open')
+        fit = fit_record(self.root,contract,[self.artifact], **view)
+        state['practice_evidence']['skeleton_fit']={'workspace':fit}
+        with self.assertRaisesRegex(ValueError,'missing practice evidence: increment_fit'):
+            gate.check(self.root,state)
+        state['practice_evidence']['increment_fit']={'workspace':fit}
+        with self.assertRaisesRegex(ValueError,'separate fit review records'):
+            gate.check(self.root,state)
+        for extra, message in (
+            (dict(view,reference_viewport='1024x768'),'same numeric viewport'),
+            (dict(view,comparison_state=''),'representative comparison state'),
+            (dict(view,reference_screenshot=put(self.root,'unrelated.png',PIXEL)), 'current direction reference'),
+        ):
+            with self.subTest(message=message):
+                increment = fit_record(self.root,contract,[self.artifact],record_path='increment-fit.json', **extra)
+                state['practice_evidence']['increment_fit']['workspace'] = increment
+                with self.assertRaisesRegex(ValueError,message):
+                    gate.check(self.root,state)
+        increment = fit_record(self.root,contract,[self.artifact],record_path='increment-fit.json', **view)
+        state['practice_evidence']['increment_fit']['workspace'] = increment
+        self.assertTrue(gate.check(self.root,state)['allowed'])
+
+    def test_human_skeleton_comparison_uses_current_direction_viewport_record(self):
+        state = self.state('E-2.3','E-2.4',[scope(tone,appearance_target='yes')])
+        data = tone.read(self.root,tone.DEFAULT_PATH)
+        direction_review = put(self.root,'direction-view.md','Synthetic human view of the direction selection')
+        data['parts'].pop('screenshot')
+        data['parts']['manual_review'] = direction_review
+        data['capture_unavailable'] = 'Direction capture unavailable'
+        state['tone_contract'] = put(self.root,tone.DEFAULT_PATH,'# Direction\n```tone-contract\n'
+                                     + json.dumps(data) + '\n```\n')
+        manual = put(self.root,'skeleton-view.md','Reviewer saw the same initial selection at desktop width')
+        self.add_record(state,'rendering_choice')
+        self.add_record(state,'appearance_proof',capture_unavailable='No capture channel',manual_review=manual)
+        self.add_record(state,'core_scene_skeleton',capture_unavailable='No capture channel',manual_review=manual)
+        common = dict(mode='human',capture_unavailable='No capture channel',manual_review=manual,
+                      reference_viewport='1280x800',comparison_state='Initial selection')
+        fit = fit_record(self.root,state['tone_contract'],[self.artifact], **common)
+        state['practice_evidence']['skeleton_fit']={'workspace':fit}
+        with self.assertRaisesRegex(ValueError,'reference_manual_review'):
+            gate.check(self.root,state)
+        fit = fit_record(self.root,state['tone_contract'],[self.artifact],reference_manual_review=direction_review, **common)
         state['practice_evidence']['skeleton_fit']['workspace']=fit
         self.assertTrue(gate.check(self.root,state)['allowed'])
 

@@ -3,7 +3,9 @@
 import importlib.util
 import json
 from pathlib import Path
+import shlex
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -92,20 +94,24 @@ class AuthorHandover(unittest.TestCase):
         parts = {
             'brief': put(public, 'product/specs/方向简报.md', 'SIMULATED brief'),
             'scene': put(public, scene, '<body>SIMULATED board</body>'),
+            'preview': put(public, probe.SCENE, '<body>SIMULATED board</body>'),
             'samples': put(public, 'content/场内样句.md', 'SIMULATED samples'),
             'screenshot': {'path': 'design/preview.png', 'version': '1',
                            'sha256': probe.sha(public / 'design/preview.png')},
             'practice_profile': put(public, probe.PROFILE, {'schema': 'matrix-practice-profile/1',
-                                                            'version': '1', 'scopes': [scope(gate.tone, 'race')]}),
+                                                            'version': '1', 'scopes': [scope(gate.tone, 'race', direct_manipulation='yes')]}),
         }
         source = 'product/reviews/合成P-1审阅输入.md'
         tone = dict(version='1', genre='SIM', profile='SIM', tone='SIM', core_loop='SIM',
-                    references=probe.late_game.REFERENCES, avoid=['Skip the board'], parts=parts,
+                    references=[dict(name=row['name'], source=row['source'], borrows='SIM', observed='SIM unvisited')
+                                for row in probe.REFERENCES], avoid=['Skip the board'], parts=parts,
+                    samples=[dict(moment=moment, text=text, consequence=consequence)
+                             for moment, text, consequence in probe.late_game.SAMPLES],
                     confirmation=dict(person='SIM', source=source, quote=probe.QUOTE))
         contract = put(public, probe.CONTRACT, '```tone-contract\n' + json.dumps(tone, ensure_ascii=False) + '\n```\n')
         fit = dict(outcome='passed', mode='same_instance', checker=probe.AUTHOR, producer=probe.AUTHOR,
                    tone_contract=gate.tone.direction_binding(probe.CONTRACT, tone),
-                   binding_mode='pre_confirmation_direction', artifacts=[parts[key] for key in ('scene', 'samples', 'practice_profile')],
+                   binding_mode='pre_confirmation_direction', artifacts=[parts[key] for key in ('scene', 'preview', 'samples', 'practice_profile')],
                    screenshot=parts['screenshot'], viewport='1280x800', capture='SIM', genre_fit='SIM',
                    application_drift='SIM', copy_fit='SIM')
         put(public, probe.FIT, fit)
@@ -117,16 +123,29 @@ class AuthorHandover(unittest.TestCase):
         put(public, review+'response.json', dict(request_id='SIM', actor='user', choice='confirm', scope=['race'],
                                                  artifact_sha256=digest, source=source, quote=probe.QUOTE))
         put(public, review+'conversation.md', 'SIM P-1 → P-2')
+        self.delivery = [gate.tone.direction_delivery(tone)]
         put(public, probe.STAGE_STATE, dict(role='product', current='P-1', next='P-2', blockers=[], scope=['race'],
                                           artifacts=artifacts, tone_contract=contract, tone_fit_review=probe.FIT,
                                           request=review+'request.json', response=review+'response.json',
                                           conversation_check=review+'conversation.md'))
 
     def handover(self):
-        return probe.author_handover(self.pm, self.project, self.out, self.public, 'SIM-RUN')
+        return probe.author_handover(self.pm, self.project, self.out, self.public, 'SIM-RUN', self.delivery)
 
     def test_fixed_scene_can_be_handed_over_after_shared_gate(self):
         self.candidate()
+        shutil.copytree(KIT / 'matrix/base/tools', self.project / 'matrix/base/tools')
+        wrapper = self.project / probe.PRODUCT_TONE_WRAPPER
+        wrapper.parent.mkdir(parents=True)
+        shutil.copyfile(KIT / probe.PRODUCT_TONE_WRAPPER, wrapper)
+        for relative in (probe.TONE_TOOL, probe.PRODUCT_TONE_WRAPPER):
+            with self.subTest(script=relative):
+                command = [sys.executable, '-B', str(self.project / relative),
+                           '--project', str(self.public), '--contract', probe.CONTRACT, '--draft']
+                receipt = subprocess.run(command, capture_output=True, text=True, check=True)
+                shell_command = shlex.join(['/bin/zsh', '-lc', shlex.join(command)])
+                self.assertEqual(self.delivery, probe.author_delivery(
+                    [self.command_event(shell_command, receipt.stdout)], self.project, self.public))
         with patch.object(probe, 'pm_call') as call:
             paths = self.handover()
         self.assertEqual(paths, [self.public / name for name in probe.PUBLIC_FILES])
@@ -134,6 +153,26 @@ class AuthorHandover(unittest.TestCase):
         self.assertEqual(call.call_args.kwargs['evidence'],
                          [path.relative_to(self.project).as_posix() for path in paths])
         self.assertIn(probe.SCENE, probe.read_json(self.out / 'gate-precheck.json')['required_outputs'])
+
+    def command_event(self, command, output, code=0):
+        return {'type': 'item.completed', 'item': {'type': 'command_execution',
+                'command': command, 'exit_code': code, 'aggregated_output': output}}
+
+    def test_echoed_json_wrong_installed_path_or_scope_is_not_an_author_receipt(self):
+        self.candidate()
+        output = json.dumps({'allowed': True, 'delivery': self.delivery[0]})
+        command = [sys.executable, '-B', str(self.project / probe.TONE_TOOL),
+                   '--project', str(self.public), '--contract', probe.CONTRACT, '--draft']
+        echo = 'echo ' + shlex.quote(shlex.join(command)) + '; echo ' + shlex.quote(output)
+        alternate = [
+            self.command_event(echo, output),
+            self.command_event(shlex.join(command) + ' && echo ' + shlex.quote(output), output),
+            self.command_event(shlex.join([*command[:2], str(self.public / 'tone_contract.py'), *command[3:]]), output),
+            self.command_event(shlex.join([*command[:4], str(self.project), *command[5:]]), output),
+            self.command_event(shlex.join([*command[:6], 'product/specs/other.md', '--draft']), output),
+            self.command_event(shlex.join(command), output, code=1),
+        ]
+        self.assertEqual([], probe.author_delivery(alternate, self.project, self.public))
 
     def test_extra_scene_is_rejected_before_handover(self):
         self.candidate('product/specs/方向场景.md')
@@ -150,6 +189,16 @@ class AuthorHandover(unittest.TestCase):
         put(self.public, probe.STAGE_STATE, state)
         with patch.object(probe, 'pm_call') as call:
             with self.assertRaisesRegex(ValueError, r'undeclared framework output: \.\./outside.md'):
+                self.handover()
+            call.assert_not_called()
+
+    def test_extra_preview_is_rejected_before_handover(self):
+        self.candidate()
+        tone = self.gate.tone.read(self.public, probe.CONTRACT)
+        tone['parts']['preview'] = put(self.public, 'design/other.html', '<body>Different preview</body>')
+        put(self.public, probe.CONTRACT, '```tone-contract\n' + json.dumps(tone, ensure_ascii=False) + '\n```\n')
+        with patch.object(probe, 'pm_call') as call:
+            with self.assertRaisesRegex(ValueError, 'undeclared preview output'):
                 self.handover()
             call.assert_not_called()
 
@@ -179,3 +228,43 @@ class AuthorHandover(unittest.TestCase):
         self.assertEqual({row['requirement'] for row in gate['completed']},
                          {'tone_contract', 'direction_profile', 'direction_fit'})
         self.assertNotIn('workspace/public/matrix/professions/product/profession.json', call.call_args.kwargs['evidence'])
+
+
+    def test_direction_must_have_a_current_author_delivery_receipt(self):
+        self.candidate()
+        self.delivery[0]['status'] = 'stale'
+        with patch.object(probe, 'pm_call') as call:
+            with self.assertRaisesRegex(ValueError, 'no actual author --draft receipt'):
+                self.handover()
+            call.assert_not_called()
+
+    def test_reply_quote_cannot_drop_original_prefix(self):
+        self.candidate()
+        response = probe.read_json(self.public / 'product/reviews/response.json')
+        response['quote'] = response['quote'].split('：', 1)[1]
+        put(self.public, 'product/reviews/response.json', response)
+        with patch.object(probe, 'pm_call') as call:
+            with self.assertRaisesRegex(ValueError, 'verbatim synthetic input'):
+                self.handover()
+            call.assert_not_called()
+
+    def test_synthetic_preview_does_not_count_as_a_second_reference(self):
+        self.candidate()
+        tone = self.gate.tone.read(self.public, probe.CONTRACT)
+        tone['references'][1]['source'] = probe.SCENE
+        put(self.public, probe.CONTRACT, '```tone-contract\n' + json.dumps(tone, ensure_ascii=False) + '\n```\n')
+        with patch.object(probe, 'pm_call') as call:
+            with self.assertRaisesRegex(ValueError, 'two actual external game references'):
+                self.handover()
+            call.assert_not_called()
+
+    def test_copy_helper_preserves_fixture_bytes_and_source_quote(self):
+        self.candidate()
+        original = self.project / 'synthetic-input'
+        quote = '合成审阅输入：逐字保留！'
+        expected = ('# SIMULATED\r\n\r\n' + quote + '\r\n').encode('utf-8')
+        (original / probe.seed.REVIEW_SOURCE).write_bytes(expected)
+        result = probe.seed.copy_inputs(original, self.public)
+        self.assertEqual(expected, (self.public / probe.seed.REVIEW_OUTPUT).read_bytes())
+        self.assertEqual(quote, result['quote'])
+        self.assertEqual(probe.seed.REVIEW_OUTPUT, result['source'])

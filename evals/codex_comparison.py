@@ -2,7 +2,7 @@
 """A full behavior comparison run and scored on a model command line (Codex by default, or Claude with --runner
 claude), case by case in parallel and resumable. Runs and scorers of one comparison use the same runner.
 
-  codex_comparison.py run      --side baseline|candidate --kit KIT --out OUT [--jobs 4] [--model M] [--effort E] [--cases a,b]
+  codex_comparison.py run      --side baseline|candidate --kit KIT --out OUT [--jobs 4] [--model M] [--effort E] [--cases a,b] [--record-native]
   codex_comparison.py score    --out OUT --work WORK [--batch 7] [--jobs 3] [--model M] [--cases a,b]
   codex_comparison.py assemble --out OUT --work WORK --candidate-kit KIT --baseline-ref REF --reviewer TEXT
   codex_comparison.py limited-summary --out OUT --work WORK --cases a,b --candidate-kit KIT --baseline-ref REF --reviewer TEXT
@@ -87,6 +87,8 @@ def run(a):
         shutil.rmtree(folder, ignore_errors=True)
         argv = [sys.executable, '-B', str(EVALS / 'run.py'), '--source', str(Path(a.kit).resolve()), '--output', str(folder), '--case', case['id'],
                 '--runner', a.runner] + (['--model', a.model] if a.model else []) + (['--effort', a.effort] if a.effort else []) + (['--resume'] if a.resume else [])
+        if getattr(a, 'record_native', False):
+            argv.append('--record-native')
         todo.append((case['id'], argv, out / '_logs' / (case['id'] + '.log')))
     print(a.side, len(todo), 'cases to run', flush=True)
     result = pool(todo, a.jobs, a.side)
@@ -106,7 +108,7 @@ def flat(out, side, work):
         for f in folder.glob(case['id'] + '-*'):
             if f.is_dir():
                 shutil.copytree(f, target / f.name)
-            elif f.suffix in {'.md', '.jsonl'}:
+            elif f.suffix in {'.md', '.jsonl'} or f.name.endswith('.operation.json'):
                 shutil.copy2(f, target / f.name)
     return target
 
@@ -350,6 +352,7 @@ def main():
     r = sub.add_parser('run'); r.add_argument('--side', choices=['baseline', 'candidate'], required=True); r.add_argument('--kit', required=True)
     r.add_argument('--out', required=True); r.add_argument('--jobs', type=int, default=4); r.add_argument('--model'); r.add_argument('--effort'); r.add_argument('--cases')
     r.add_argument('--resume', action='store_true', help='later turns resume the first turn\'s session (pilot of E5)')
+    r.add_argument('--record-native', action='store_true', help='retain a fresh Codex native session for accounting')
     s = sub.add_parser('score'); s.add_argument('--out', required=True); s.add_argument('--work', required=True)
     s.add_argument('--batch', type=int, default=7); s.add_argument('--jobs', type=int, default=3); s.add_argument('--model'); s.add_argument('--cases', help='explicit approved subset; retains every normal recheck condition')
     m = sub.add_parser('assemble'); m.add_argument('--out', required=True); m.add_argument('--work', required=True)

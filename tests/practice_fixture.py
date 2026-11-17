@@ -37,11 +37,14 @@ def direction(root, tone, rows=None, *, label='Synthetic operations'):
         'samples': put(root, 'direction-copy.md', 'Synthetic copy samples'),
         'screenshot': put(root, 'direction.png', PIXEL),
     }
+    parts['preview'] = parts['scene']
     data = {
         'version': '1', 'genre': 'Synthetic project', 'profile': label, 'tone': 'Synthetic direction', 'core_loop': 'Enter and finish',
-        'references': [{'name': f'Synthetic reference {i}', 'borrows': 'Readable flow', 'observed': 'Fixture only'} for i in (1, 2)],
+        'references': [{'name': f'Synthetic reference {i}', 'source': f'Synthetic source {i}',
+                        'borrows': 'Readable flow', 'observed': 'Fixture only'} for i in (1, 2)],
         'avoid': ['Omit the main operation'], 'parts': parts,
-        'samples': [{'moment': f'Moment {i % 4}', 'text': f'Line {i}'} for i in range(6)],
+        'samples': [{'moment': f'Moment {i % 4}', 'text': f'Line {i}', 'consequence': 'Continue the synthetic task'}
+                    for i in range(6)],
         'confirmation': {'person': 'fixture-person', 'quote': 'Synthetic approval', 'source': 'synthetic-human.md'},
     }
     put(root, 'synthetic-human.md', 'Synthetic approval')
@@ -54,10 +57,12 @@ def practice_record(root, tone, contract, key, observed, sid='workspace', **extr
     return put(root, f'{key}-{sid}.json', record)
 
 
-def fit_record(root, contract, reviewed, **extra):
+def fit_record(root, contract, reviewed, *, record_path='fit.json', **extra):
     fit = dict(tone_contract=contract, outcome='passed', mode='independent', checker='fit', producer='maker',
                artifacts=reviewed, screenshot=put(root, 'fit.png', PIXEL),
                viewport='1280x800', capture='fixture', genre_fit='turn remains clear',
                application_drift='none in the fixture', copy_fit='text matched its moment')
     fit.update(extra)
-    return put(root, 'fit.json', fit)
+    if fit['mode'] == 'human':
+        fit.pop('screenshot')
+    return put(root, record_path, fit)

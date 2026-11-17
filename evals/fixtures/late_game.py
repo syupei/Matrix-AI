@@ -26,19 +26,25 @@ BRIEF = '''# 风脊竞走 · 合成项目方向 v1
 需制作协调的地貌、格点与路线、棋子、骰子、落点状态、极少量 HUD。方向批准覆盖上述取舍；没有批准量产素材、实际可玩性、游戏上线或进一步偏离。
 '''
 SAMPLES = [
-    ('开局', '风向正好，出发！'),
-    ('到岔路', '安全线多走两格，迎风捷径更短。选好再掷。'),
-    ('选捷径', '抄近道？掷到 1 就回岔路。'),
-    ('显骰面', '掷出 4，沿选中路线走四格。'),
-    ('退回', '骰子是 1，阵风把你送回岔路。重新选线。'),
-    ('结算', '抵达营地！再走一局？'),
+    ('开局', '风向正好，出发！', '开始一局，进入棋盘。'),
+    ('到岔路', '安全线多走两格，迎风捷径更短。选好再掷。', '选线后才可以掷骰。'),
+    ('选捷径', '抄近道？掷到 1 就回岔路。', '捷径已选，本回合遇 1 返回岔路。'),
+    ('显骰面', '掷出 4，沿选中路线走四格。', '骰面固定后沿路移动四格。'),
+    ('退回', '骰子是 1，阵风把你送回岔路。重新选线。', '棋子停在岔路，下一回合重新选线。'),
+    ('结算', '抵达营地！再走一局？', '本局结束，可选择再次开局。'),
 ]
 REFERENCES = [
-    {'name': 'Royal Game of Ur', 'borrows': '棋盘路径本身提示可走位置和特别格',
+    {'name': 'Royal Game of Ur', 'source': 'British Museum collection W_1928-1009-378',
+     'borrows': '棋盘路径本身提示可走位置和特别格',
      'observed': '合成项目列出的待观察参照，夹具不宣称访问'},
-    {'name': 'Backgammon', 'borrows': '在同一棋盘区分棋子、落点与骰面',
+    {'name': 'Backgammon', 'source': 'GNU Backgammon manual / Backgammon rules',
+     'borrows': '在同一棋盘区分棋子、落点与骰面',
      'observed': '合成项目列出的待观察参照，夹具不宣称访问'},
 ]
+
+
+def sample_lines():
+    return '\n'.join(f'- {moment}｜{line}｜后果：{consequence}' for moment, line, consequence in SAMPLES) + '\n'
 
 
 def put(root, relative, data):
@@ -57,7 +63,7 @@ def fixed(root, source, relative):
 
 def populate(root, case):
     brief = put(root, 'product/specs/方向简报.md', BRIEF)
-    samples = put(root, 'content/场内样句.md', '\n'.join(f'- {moment}｜{line}' for moment, line in SAMPLES) + '\n')
+    samples = put(root, 'content/场内样句.md', sample_lines())
     scene = fixed(root, 'direction.html', 'design/direction/sample.html')
     screenshot = fixed(root, 'direction.png', 'design/direction/sample.png')
     practice = fixed(root, 'practice-profile.json', 'product/specs/项目做法档.json')
@@ -68,8 +74,9 @@ def populate(root, case):
         'version': '1', 'genre': '单人桌面掷骰路线竞赛', 'profile': '游戏与玩乐',
         'tone': '短促、略俏皮，后果直说', 'core_loop': '看棋盘和当前位置，选岔路、掷骰、沿路径移动、抵达营地、再走一局',
         'references': REFERENCES, 'avoid': ['把路线、棋子和落点拆成脱离棋盘的状态卡和操作列表'],
-        'parts': {'brief': brief, 'scene': scene, 'samples': samples, 'screenshot': screenshot, 'practice_profile': practice},
-        'samples': [{'moment': moment, 'text': line} for moment, line in SAMPLES],
+        'parts': {'brief': brief, 'scene': scene, 'preview': scene, 'samples': samples,
+                  'screenshot': screenshot, 'practice_profile': practice},
+        'samples': [{'moment': moment, 'text': line, 'consequence': consequence} for moment, line, consequence in SAMPLES],
         'confirmation': {'person': 'synthetic-owner', 'source': response, 'quote': quote},
     }
     put(root, CONTRACT, '# 已确认方向 v1 · 合成夹具\n\n正文见方向简报；场景和截图是同一视口的固定输入。\n\n'

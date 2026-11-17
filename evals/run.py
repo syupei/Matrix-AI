@@ -6,7 +6,7 @@ import argparse,hashlib,json,os,re,shutil,subprocess,tempfile,time,importlib.uti
 from pathlib import Path
 from read_records import extract
 from visual_evidence import capture
-from operation_evidence import check as check_operation, snapshot
+from operation_evidence import DIRECTION_CASES, TONE_TOOL, check as check_operation, check_direction, snapshot
 
 def fingerprint(root):
  return hashlib.sha256(json.dumps({str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.rglob('*')) if p.is_file() and '__pycache__' not in p.parts and p.name!='MANIFEST.json'},sort_keys=True).encode()).hexdigest()
@@ -15,10 +15,14 @@ def main():
  p=argparse.ArgumentParser();p.add_argument('--source',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--case');p.add_argument('--runner',choices=['codex','claude'],default='codex');p.add_argument('--model');p.add_argument('--effort')
  # Resume (Codex only): later turns continue the first turn's session instead of a new session with the earlier turns
  # pasted in. Turns are then not isolated from each other; the record says which way a run was made.
- p.add_argument('--resume',action='store_true');args=p.parse_args()
+ p.add_argument('--resume',action='store_true')
+ p.add_argument('--record-native',action='store_true',help='retain the fresh Codex native session locally for accounting')
+ args=p.parse_args()
  if args.resume and args.runner!='codex':raise SystemExit('--resume is implemented for the codex runner only')
+ if args.record_native and args.runner!='codex':raise SystemExit('--record-native is implemented for the codex runner only')
  suite_path=Path(__file__).parent/'cases/suite.json';suite=json.loads(suite_path.read_text());args.output.mkdir(parents=True,exist_ok=True)
- source=args.source.resolve();meta={'source_hash':fingerprint(source),'suite_hash':hashlib.sha256(suite_path.read_bytes()).hexdigest(),'runner':{'codex':'codex exec','claude':'claude -p'}[args.runner],'cli_version':subprocess.check_output([args.runner,'--version'],text=True).strip(),'model':args.model,'effort':args.effort,'turns':'resume' if args.resume else 'fresh','cases':[]}
+ source=args.source.resolve();meta={'source_hash':fingerprint(source),'suite_hash':hashlib.sha256(suite_path.read_bytes()).hexdigest(),'runner':{'codex':'codex exec','claude':'claude -p'}[args.runner],'cli_version':subprocess.check_output([args.runner,'--version'],text=True).strip(),'model':args.model,'effort':args.effort,'turns':'resume' if args.resume else 'fresh','operation_evidence_schema':1,'cases':[]}
+ if args.record_native:meta['record_native']=True
  for case in suite['cases']:
   if args.case and case['id']!=args.case:continue
   with tempfile.TemporaryDirectory(prefix='matrix-behavior-') as d:
@@ -36,7 +40,11 @@ def main():
     if case.get('fixture_sha256')!=digest:raise ValueError('fixture changed; update suite')
     fspec=importlib.util.spec_from_file_location('fixed_fixture',fixture);fmod=importlib.util.module_from_spec(fspec);fspec.loader.exec_module(fmod)
     fmod.populate(work.resolve(),case['id']);record['fixture_sha256']=digest
-   operation_kind = {"scope": "draft", "batch": "feedback"}.get(case["id"])
+   operation_kind = ('direction' if case['id'] in DIRECTION_CASES else
+                     {'scope': 'draft', 'batch': 'feedback'}.get(case['id']))
+   tone_tool = work / TONE_TOOL
+   direction_receipt_supported = (operation_kind == 'direction' and tone_tool.is_file()
+                                  and b'direction-delivery/1' in tone_tool.read_bytes())
    session=None
    for n,user in enumerate(case['turns']):
     start=f'kit/{entry}' if entry else f'kit/.agents/skills/{role}/SKILL.md'
@@ -51,12 +59,12 @@ def main():
      cmd=['codex','exec','resume',session,'--skip-git-repo-check','--json','-o',str(last.resolve()),'-c','sandbox_mode="workspace-write"']
      cmd+=(['-m',args.model] if args.model else [])+(['-c','model_reasoning_effort="'+args.effort+'"'] if args.effort else [])+['-']
     elif args.runner=='codex':
-     cmd=['codex','exec','--skip-git-repo-check']+([] if args.resume else ['--ephemeral'])+['--sandbox','workspace-write','--json','-C',str(work),'-o',str(last.resolve())]
+     cmd=['codex','exec','--skip-git-repo-check']+([] if args.resume or args.record_native else ['--ephemeral'])+['--sandbox','workspace-write','--json','-C',str(work),'-o',str(last.resolve())]
      cmd+=(['-m',args.model] if args.model else [])+(['-c','model_reasoning_effort="'+args.effort+'"'] if args.effort else [])+['-']
     else:
      cmd=['claude','-p','--output-format','stream-json','--verbose','--permission-mode','acceptEdits']
      cmd+=(['--model',args.model] if args.model else [])+(['--effort',args.effort] if args.effort else [])
-    before = snapshot(work) if operation_kind else None
+    before = snapshot(work, operation_kind) if operation_kind else None
     started=time.time()
     with events.open('w') as stdout,err.open('w') as stderr:
      result=subprocess.run(cmd,input=prompt,text=True,stdout=stdout,stderr=stderr,timeout=480,cwd=str(work))
@@ -72,9 +80,14 @@ def main():
     record['turns'].append({'user':user,'reply':last.name,'events':events.name,'project_root':str(work),'seconds':round(time.time()-started,2),'sha256':hashlib.sha256(last.read_bytes()).hexdigest()})
     if operation_kind:
      recorded_events = [json.loads(line) for line in events.read_text().splitlines() if line.strip()]
-     after = snapshot(work)
-     audit = check_operation(work, operation_kind, reply, recorded_events, before, after)
-     record['turns'][-1]['operation_evidence'] = dict(audit, before=before, after=after)
+     after = snapshot(work, operation_kind)
+     if operation_kind == 'direction':
+      audit = check_direction(work, reply, recorded_events, before, after, case['visual_preview'], direction_receipt_supported)
+     else:
+      audit = check_operation(work, operation_kind, reply, recorded_events, before, after)
+     observation = dict(audit, before=before, after=after)
+     record['turns'][-1]['operation_evidence'] = observation
+     (args.output/last.with_suffix('.operation.json').name).write_text(json.dumps(observation, ensure_ascii=False, indent=2)+'\n')
     print(case['id'],n,'completed',flush=True)
    if case.get('visual_preview'):
     record['visual_evidence'] = capture(work, case['visual_preview'])

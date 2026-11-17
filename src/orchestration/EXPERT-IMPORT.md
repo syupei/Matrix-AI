@@ -27,7 +27,7 @@
 
 ## 逐阶段适配与报告
 
-- `review` 保留 reviewer、source_entry、license、preserved_methods、directory_changes、dependencies 和 [master 审阅点](PRODUCTION-ADMISSION.md)。从目标专业登记取得阶段和共同条目，在 `REVIEW.json` 逐项写 `stage`、`requirement`、`source:{path,section}`、`adapted_method`、`records`；来源缺项时写 `source:null` 和 `supplement`。阶段条件未在准入样例触发时也写明做法。缺项或方法不满足时登记冲突，保持不可启用。运行按本专业当前阶段读共同规则和适配方法。
+- `review` 保留 reviewer、source_entry、license、preserved_methods、directory_changes、dependencies 和 [master 审阅点](PRODUCTION-ADMISSION.md)。从目标专业登记取得阶段和共同条目，在 `REVIEW.json` 逐项写 `stage`、`requirement`、`source:{path,section}`、`adapted_method`、`records`；来源缺项时写 `source:null` 和 `supplement`。阶段条件未在准入样例触发时也写明做法。缺项或方法不满足时登记冲突，保持不可启用。运行按本专业当前阶段读共同规则和适配方法。产品 P-1 按[方向样张](DIRECTION-SAMPLE.md)核验预览和交付回执。
 - 在已授权的准入任务上由可信控制器用 `launch_start` 传 `admission_expert:{id,version}`、`admission_runner`，启动绑定当前包。保留实际启动、交回与成功退出。待验专家只在该准入任务使用。
 - 报告含 run_id、model、runner、methods_sha256、passed 和三项 `checks`（method_preservation、write_isolation、handoff_contract），各附实际证据和结果。专业登记有共同义务时，至少一个实际场景触发本专业相关条目。审阅者实际回读成果与交回，填 `framework_scenario:{stage_state,contract_sha256,mapping_sha256,reviewer,readback}`。关卡输入文件 `stage_state` 的项目相对路径须列入实际交回，其中业务路径以本次实例 `workspace/public/` 为根；可信控制器重跑关卡并留回执。候选自填通过、只回报进程退出或模拟启动均不构成该证据。
 - `expert.validate` 的 evidence 含 runner、report、source_sha256；可信控制器提交，工具核对候选版本与内容、绑定模型和运行器、真实交回与结束。独立检查说明证据覆盖范围，保留未验证的阶段与专业质量问题。报告中的模型边界见[模型适配](MODEL-FIT.md)。

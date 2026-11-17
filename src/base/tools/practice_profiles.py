@@ -17,13 +17,17 @@ PROFESSIONS = (
 EXAMPLE = Path(__file__).resolve().parent.parent / 'practice-profile-example-game.json'
 MOTION = ('direct_manipulation', 'continuous_animation', 'timing_feedback')
 VISUAL = ('appearance_target', *MOTION)
+FIT_COMPARISON = {
+    'fields': ('reference_viewport', 'comparison_state'),
+    'reference': ('reference_screenshot', 'reference_manual_review'),
+}
 
 # Conditions are a fixed OR over declared features, never expressions from project data.
 # A record with fields is scoped JSON with those observations and actual artifact references.
 REQUIREMENTS = {
-    'tone_contract': {'features': (), 'record': 'tone_contract', 'version': 1},
-    'direction_profile': {'features': (), 'record': 'practice_profile', 'version': 1},
-    'direction_fit': {'features': (), 'record': 'tone_fit_review', 'version': 1},
+    'tone_contract': {'features': (), 'record': 'tone_contract', 'version': 2},
+    'direction_profile': {'features': (), 'record': 'practice_profile', 'version': 2},
+    'direction_fit': {'features': (), 'record': 'tone_fit_review', 'version': 2},
     'direction_contribution': {'features': (), 'record': 'direction_contribution',
                                'fields': ('contribution', 'profile_check'), 'version': 1},
     'appearance_target': {'features': ('appearance_target',), 'record': 'appearance_target',
@@ -46,8 +50,10 @@ REQUIREMENTS = {
                        'fields': ('target', 'basis', 'scenario'), 'version': 1},
     'core_scene_skeleton': {'features': ('appearance_target',), 'record': 'core_scene_skeleton',
                             'fields': ('core_scene', 'run_instructions'), 'version': 1},
-    'skeleton_fit': {'features': ('appearance_target',), 'record': 'tone_fit_review', 'version': 1},
-    'increment_fit': {'features': VISUAL, 'record': 'tone_fit_review', 'version': 1},
+    'skeleton_fit': {'features': ('appearance_target',), 'record': 'tone_fit_review',
+                     'comparison': FIT_COMPARISON, 'version': 2},
+    'increment_fit': {'features': VISUAL, 'record': 'tone_fit_review',
+                      'comparison': FIT_COMPARISON, 'version': 2},
     'direction_acceptance_plan': {'features': ('appearance_target',), 'record': 'direction_acceptance_plan',
                                   'fields': ('direction_comparison', 'screenshot_plan'), 'version': 1},
     'motion_acceptance_plan': {'features': MOTION, 'record': 'motion_acceptance_plan',

@@ -3,31 +3,43 @@
 import argparse
 import hashlib
 import json
+import shlex
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
 import sys
 import uuid
 
-from fixtures import late_game
+from fixtures import expert_probe_copy_inputs as seed, late_game
+from operation_evidence import shell_commands
 from platform_v033 import COMMIT, load
+from visual_evidence import capture
 
 REPO = Path(__file__).resolve().parents[1]
 SOURCE = 'https://github.com/syupei/Matrix-AI.git'
 SUBDIR = 'src/professions/product/skills/matrix-product'
-IDENTITY = {'id': 'imported-product-v037', 'version': '1'}
-PROJECT_ID = 'SIM-IMPORTED-PRODUCT-037'
+IDENTITY = {'id': 'imported-product-v037', 'version': '2'}
+PROJECT_ID = 'SIM-IMPORTED-PRODUCT-037-REPAIR'
 MODEL, EFFORT, RUNNER = 'gpt-6-luna', 'medium', 'codex'
 TEMPLATE = REPO / 'docs/platforms/codex-0.167.0.json'
-LEDGER = REPO / 'eval-results/v0.37-imported-framework-call-ledger'
+LEDGER = REPO / 'eval-results/v0.37-repair-import-call-ledger'
 AUTHOR, REVIEWER = 'ADMISSION', 'SIM-INDEPENDENT-REVIEWER'
 STAGE_STATE = 'product/reviews/P-1-gate.json'
 FIT = 'product/reviews/方向贴合.json'
-SCENE = 'design/preview.html'
+SCENE = seed.SCENE
 CONTRACT = 'product/specs/00-方向样张.md'
 PROFILE = 'product/specs/项目做法档.json'
+TONE_TOOL = 'matrix/base/tools/tone_contract.py'
+PRODUCT_TONE_WRAPPER = '.agents/skills/matrix-product/scripts/tone_contract.py'
 QUOTE = '合成审阅输入：按本夹具给出的单人桌面路线竞赛范围与体验限制作方向记录，仅用于准入关卡核对。'
+REFERENCES = (
+    {'name': 'Royal Game of Ur (RoyalUr.net)', 'source': 'https://royalur.net/rules',
+     'context': '线上实现者的规则页。掷骰结果对应移动格数，棋盘路径与特殊格有明确作用。'},
+    {'name': 'GNU Backgammon', 'source': 'https://www.gnu.org/s/gnubg/manual/gnubg.pdf',
+     'context': '官方手册的行棋说明与棋盘示例连接骰面、棋子及合法落点。'},
+)
 CHECKS = ('method_preservation', 'write_isolation', 'handoff_contract')
 EXPECTED_BOUNDARY = {'inside': True, 'project': False, 'sibling': False, 'outside': False, 'descendant': False}
 
@@ -92,8 +104,8 @@ def source_mapping(base, contract):
             'pinned product workflow cannot be located')
     known = {
         ('P-1', 'direction_profile'): ('P-1 项目做法档', '以原 P-1 的意图、受众、端、约束和待决项形成范围与事实，按共用模板分活动取证，写各专业的做法、偏离和检验。', '工作流 / P-1 需求澄清'),
-        ('P-1', 'tone_contract'): ('P-1 方向合看与留存', '保留原 P-1 确认和成果快照做法。合成简报、场景、样句、截图及项目做法档的实际摘要；合看后用真实来源的确认占位，本探针只使用已提供的合成记录。', '硬性关卡 / 第五条'),
-        ('P-1', 'direction_fit'): ('P-1 贴合复核', '补做关卡要求的贴合记录。实际看截图与样句，记录场景、语气与偏离及审前方向摘要；单实例标 same_instance，另有独立准入审阅。', None),
+        ('P-1', 'tone_contract'): ('P-1 方向合看与留存', '保留原 P-1 确认和成果快照做法。绑定实际简报、场景、预览、样句、截图及项目做法档，记录可定位参照与实际观察、样句的规则后果。使用共用草稿检查工具读回交付回执，合看引用合成记录的原件与精确原话。', '硬性关卡 / 第五条'),
+        ('P-1', 'direction_fit'): ('P-1 贴合复核', '补做关卡要求的贴合记录。实际看截图与样句，覆盖场景、预览、样句及做法档，记录语气、偏离和审前方向摘要；单实例标 same_instance，另有独立准入审阅。', None),
         ('P-2', 'tone_contract'): ('P-2 范围接力', '先核对确认的契约版本、范围及未决项，再按原产品方法整理目标、核心模块、首期边界、运行形态与取舍。', '工作流 / P-2 目标与范围'),
     }
     methods = [
@@ -122,10 +134,18 @@ def populate(project):
     suite = read_json(REPO / 'evals/cases/suite.json')
     business = next(case['turns'][0] for case in suite['cases'] if case['id'] == 'genre_dice')
     late_game.put(fixture, 'genre-dice.md', '# 合成任务原话\n\n' + business + '\n\n## 已提供的合成澄清\n\n' + late_game.BRIEF.split('\n\n', 1)[1].split('\n\n方向批准', 1)[0] + '\n')
-    late_game.fixed(fixture, 'direction.html', 'design/preview.html')
-    late_game.fixed(fixture, 'direction.png', 'design/preview.png')
-    late_game.put(fixture, 'copy-samples.md', '# 合成内容设计样句草稿\n\n' +
-                  '\n'.join(f'- {moment}｜{line}' for moment, line in late_game.SAMPLES) + '\n')
+    scene = late_game.fixed(fixture, 'direction.html', SCENE)
+    rendered = capture(fixture, SCENE)
+    require(rendered['status'] == 'captured', 'prebuilt synthetic design capture failed: ' + str(rendered))
+    shutil.copyfile(fixture / rendered['screenshot'], fixture / seed.SCREENSHOT)
+    write_json(fixture / 'visual-evidence/capture.json', dict(
+        rendered, delivered_image=seed.SCREENSHOT, preview_sha256=scene['sha256'],
+        origin='Pre-existing synthetic design HTML rendered by the probe preparer in a local browser',
+        limitation='This static screenshot is input to the author; no author-created design, interaction test or human approval.'))
+    write_json(fixture / 'external-references.json', {'references': REFERENCES,
+        'observation': 'The preparer located these primary texts. An author who only reads this list has not read the sources or played the games.'})
+    shutil.copyfile(Path(seed.__file__), fixture / 'copy_inputs.py')
+    late_game.put(fixture, 'copy-samples.md', '# 合成内容设计样句草稿\n\n' + late_game.sample_lines())
     late_game.put(fixture, 'review-input.md',
                   '# 合成 P-1 审阅输入\n\n仅用于隔离验证，人物与确认均为合成输入。'
                   '此记录不提供完成结果，也不授权实际项目开发、发布或专家启用。\n\n' + QUOTE + '\n')
@@ -182,6 +202,7 @@ def prepare(kit, out):
     require(manifest.is_file() and read_json(manifest).get('package') == 'matrix-ai/0.37',
             'use the prepared Matrix-AI 0.37 candidate kit')
     out.mkdir(parents=True, exist_ok=False)
+    shutil.copyfile(manifest, out / 'candidate-kit-manifest.json')
     project = out / 'project'
     project.mkdir()
     with (out / 'install.log').open('w', encoding='utf-8') as log:
@@ -211,6 +232,9 @@ def prepare(kit, out):
     base = project / 'experts' / IDENTITY['id'] / IDENTITY['version']
     experts = pm.team.experts
     contract = experts.framework_contract(pm.api(), project, 'product')
+    versions = {(row['stage'], row['requirement']): row['definition']['version'] for row in contract['requirements']}
+    require(all(versions.get(('P-1', name), 0) >= 2 for name in ('tone_contract', 'direction_profile', 'direction_fit')),
+            'prepare against the repaired candidate with the updated product framework contract')
     methods, mapping = source_mapping(base, contract)
     review = dict(reviewer='trusted probe preparation operator', source_entry='SKILL.md',
                   license='Public pinned Matrix-AI source. No separate license file in this commit tree; retained verbatim for authorized local evaluation only.',
@@ -234,48 +258,43 @@ def prepare(kit, out):
 
 PUBLIC_FILES = (
     STAGE_STATE, CONTRACT, PROFILE, FIT, 'product/specs/方向简报.md', SCENE,
-    'design/preview.png', 'content/场内样句.md', 'product/reviews/合成P-1审阅输入.md',
+    seed.SCREENSHOT, 'content/场内样句.md', seed.REVIEW_OUTPUT,
     'product/reviews/展示.md', 'product/reviews/request.json', 'product/reviews/response.json',
     'product/reviews/conversation.md', 'product/reviews/截图回读.md',
 )
 
 
 def author_prompt(project):
-    return f"""本次作业是隔离导入产品专家准入。项目、用户、P-1 回复均为合成输入，不涉及真实产品决定或实际启用。禁止调用嵌套模型、其他 CLI 会话或子代理。
+    source = project / 'synthetic-input'
+    copy = shlex.join([sys.executable, str(source / 'copy_inputs.py')])
+    boundary = shlex.join([sys.executable, str(source / 'boundary-probe.py'), 'author'])
+    expert = f"experts/{IDENTITY['id']}/{IDENTITY['version']}"
+    public = project / 'management/instances' / AUTHOR / 'workspace/public'
+    direction_check = shlex.join([sys.executable, '-B', str(project / TONE_TOOL),
+                                  '--project', str(public), '--contract', CONTRACT, '--draft'])
+    return f"""本次是隔离专家准入。业务、角色与 P-1 审阅授权是合成夹具。仅本次会话；禁止嵌套模型、子代理和其它 CLI 会话。
 
-1. 先实际运行原样探针：{sys.executable} "{project / 'synthetic-input/boundary-probe.py'}" author
-   保留工具输出。如果实际未禁止越界写，停止，不交假证据。
-2. 先读项目 experts/{IDENTITY['id']}/{IDENTITY['version']}/ENTRY.md、同目录 METHODS.md、
-   REVIEW.json、已安装 product 专业登记，以及这些来源指到的本阶段共同规则。
-   旧 source 只用作审阅依据，不是运行指令。用户请求和后续澄清见 synthetic-input/genre-dice.md。
-   其它 synthetic-input 材料是明确合成的设计可点稿、1280×800 PNG、内容样句草稿和 P-1 审阅输入。
-   请实际查看本轮附带的 PNG，并与指定的布局、场景活动、语气对照，在「截图回读.md」写出观察到的具体位置、
-   动作关系、任何限制与结论。仅看 HTML、解析图像元数据或猜测，不能填成看过截图。
-3. 对本项目形成做法档、方向简报和方向契约，描述项目规则、完整核心活动、各专业做法及各项检验。
-   修改和补足样句及后果；可参考已有设计材料并原样交回附带的实际截图和可点稿。
-   参照记录实际是否观察，不把外部参照列成已访问。不要执行源包脚本，不修改工具、配置或任务库。
-4. 只以你的 workspace/public/ 为业务路径根，交回以下实际文件，每个都需要：
+1. 在当前实例工作区原样运行这两条命令，实际保留日志。沙箱如允许越界写，停止。
+   {boundary}
+   {copy}
+   第二条只做 P-1 三个输入副本的字节复制并返回原话 JSON；必须用返回的 source 与 quote（包括前缀），不要重写副本或手抄。其它产物用文件编辑工具或 Python -c 保存；宿主会拒绝 here-document 临时文件。
+2. 按需读取 {expert}/ENTRY.md、METHODS.md、REVIEW.json 的 P-1 映射及产品专业登记的 P-1 条目。共同规则只读当前用到的 DIRECTION-SAMPLE、PRACTICE-PROFILES 和 STAGE-GATES 部分，避免加载完整技能包。旧 source 是审阅依据。业务依据见 synthetic-input/genre-dice.md。读 synthetic-input/external-references.json 的两项外部品类参照；选择本项目各自可以借鉴的做法，给出可核实 source 和实际观察程度。只读摘要时注明未直接访问，合成 HTML 和 PNG 是本项目输入。
+3. 实际查看本轮附入的 1280×800 PNG，和简报对照，在「截图回读.md」记具体位置、动作关系和限制。PNG 是准备者从合成设计 HTML 实际截图，采集原始记录在 synthetic-input/visual-evidence/capture.json。这两份是设计输入，不是你制作或渲染的成果，也没有直接证明键盘、时序或可玩性。
+4. 自己在 workspace/public/ 生成做法档、方向简报、方向契约、至少六条覆盖至少四个实际代表时刻的样句（每条 moment、text、consequence）、贴合、展示与阶段记录。用需求事实和设计输入，分清取舍与待决。实际授权仅到隔离候选验证。
+   公开根是阶段状态内业务路径的基准。固定交回文件：
    {chr(10).join('- ' + item for item in PUBLIC_FILES)}
-   调性契约的 parts.scene.path 固定为 {SCENE}，它是上列已声明的原样 HTML。
-   场景说明写到既有方向简报或展示.md。阶段 artifacts 和框架成果的文件引用限上列清单，不扩展任务输出。
-   方向合成、做法档、阶段记录、贴合、展示和回读由你生成。合成审阅输入、实际 PNG 和 HTML 按原文件字节复制。
-5. 用已安装调性契约工具 --project <public目录> --draft 取得审前方向引用。生成 {FIT}，
-   审查人/制作者写同一 ADMISSION 实例，mode=same_instance，注明实际查看与合成素材界限。
-   未见图像或尚有阻断就如实报告，没有真实审查就不要填通过。
-6. 工具关卡实际核对 P-1 至 P-2，按已安装 STAGE-GATES.md 创建其输入，scope 为 ["race"] 并凭合成合看涵盖本项目全部活动。
-   预置合成审阅原话和来源可以为此隔离用例填入最终契约和该轮 request/response，对读时标明合成；
-   response 中 actor="user" 只用于关卡测试记录。禁止声称真人审批或真正推进产品。
-   可用 stage_gate.py --project <public目录> --digest <相对文件> 取得 artifacts 和联合摘要。
-   用 stage_gate.py --project <public目录> --state <阶段记录实际路径> 读回结果。
-   控制器会实际收集公开文件并调用可信交回；请不要写模型自签的结论报告。"""
+   契约 parts.scene.path 和 parts.preview.path 均为 {SCENE}，parts.screenshot.path 为 {seed.SCREENSHOT}。额外说明写进既有简报或展示，所有阶段成果、贴合与关卡引用均在上述清单。
+5. 单独运行下面的实际安装命令（不与其它命令合并），保留成功返回的 delivery 和 direction_reference。
+   {direction_check}
+   以该 direction_reference 及当前场景、预览、样句和做法档的摘要生成 {FIT}，mode=same_instance，checker 和 producer 都为 {AUTHOR}；注明预置截图的真实采集来源。若更新过方向内容，重新核验。实际缺口照实反馈。
+6. 填合成 P-1 → P-2 关卡，scope 为 ["race"]，response actor="user" 仅用于合成授权，契约 confirmation 与 response 使用复制命令返回的同一句 quote 和同一 source。实际调用 stage_gate.py --digest 取得当前成果摘要；回读一次 stage_gate.py --state 的结果；可信交回由控制器办。
+"""
 
 
 def reviewer_prompt(out, public, source):
     return f"""独立审阅一次隔离准入。不要改首轮任何文件与专家包。禁止触发新运行、调用嵌套模型、其他 CLI 会话或子代理。
-实际读取固定导入原文 {source / 'source/SKILL.md'}、其按需来源、对应的 METHODS.md 和 REVIEW.json，
-以及 {public} 下的首轮派生成果和 {out / 'author.stdout.jsonl'}、lifecycle.jsonl、gate-precheck.json、
-native-preflight.json。实际查看本轮附带的交回图像 {public / 'design/preview.png'}，按其活动结构、文案、
-方向和真实路径看做法与贴合。不凭文字声称看过图片。业务与 P-1 确认都是合成输入。
+实际读取固定导入原文 {source / 'source/SKILL.md'} 的 P-1 段落、METHODS.md 和 REVIEW.json 的对应映射、首轮实际交回、公用关卡结果、author-boundary.json 和 lifecycle.jsonl。相关运行原始事件在 {out / 'author.stdout.jsonl'}；按命令和事件定向读取，避免把整段轨迹或无关文件加载到上下文。
+实际查看本轮附带的交回图像 {public / seed.SCREENSHOT}，对照活动结构、规则后果、布局和同实例贴合。核对外部品类参照的实际观察范围，并区分预置合成设计与浏览器采集、作者真实制作的做法档/方向合成/语义样句/关卡、以及独立审阅本身。业务与 P-1 确认是合成输入。
 
 请在你自己的 workspace/public/review.json 写一个 JSON 对象：
 {{"checks":{{"method_preservation":{{"passed":false,"evidence":"实际原文位置、方法与成果的细节和结论"}},
@@ -311,6 +330,58 @@ def author_boundary(events, probe):
     return found
 
 
+def is_author_draft_call(command, project, public):
+    calls = list(shell_commands(command))
+    if len(calls) != 1:
+        return False
+    executable, *args = calls[0]
+    name = Path(executable).name
+    if not re.fullmatch(r'python(?:[0-9]+(?:\.[0-9]+)*)?', name):
+        return False
+    on_path = shutil.which(name)
+    trusted_python = {Path(sys.executable).resolve()}
+    if on_path:
+        trusted_python.add(Path(on_path).resolve())
+    cwd = public.parent
+    interpreter = (cwd / executable).resolve() if '/' in executable else Path(on_path).resolve() if on_path else None
+    if interpreter not in trusted_python:
+        return False
+    while args and args[0] in {'-B', '-u'}:
+        args = args[1:]
+    trusted_scripts = {project / name for name in (TONE_TOOL, PRODUCT_TONE_WRAPPER)}
+    if not args or (cwd / args[0]).resolve() not in trusted_scripts:
+        return False
+
+    parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False, exit_on_error=False)
+    parser.add_argument('--project')
+    parser.add_argument('--contract', default=CONTRACT)
+    parser.add_argument('--draft', action='store_true')
+    try:
+        options, extra = parser.parse_known_args(args[1:])
+    except argparse.ArgumentError:
+        return False
+    return (options.draft and not extra and bool(options.project)
+            and (cwd / options.project).resolve() == public
+            and Path(options.contract).as_posix() == CONTRACT)
+
+
+def author_delivery(events, project, public):
+    results = []
+    for event in events:
+        item = event.get('item', {})
+        if (event.get('type') != 'item.completed' or item.get('type') != 'command_execution'
+                or item.get('exit_code') != 0
+                or not is_author_draft_call(item.get('command') or '', project, public)):
+            continue
+        try:
+            receipt = json.loads(item.get('aggregated_output') or '')
+        except ValueError:
+            continue
+        if isinstance(receipt, dict) and receipt.get('allowed') is True and isinstance(receipt.get('delivery'), dict):
+            results.append(receipt['delivery'])
+    return results
+
+
 def verified_files(public):
     refs = []
     for name in PUBLIC_FILES:
@@ -325,7 +396,9 @@ def run_session(out, project, boundary, iid, runner, prompt, phase, started=None
     (out / f'{phase}.prompt.md').write_text(prompt, encoding='utf-8')
     workspace = boundary.safe_workspace(project, iid)
     command, cwd, _, _ = boundary.command_template(project, workspace, [], runner, MODEL, EFFORT)
-    write_json(out / f'{phase}.command.json', {'argv': command, 'cwd': str(cwd), 'model': MODEL, 'effort': EFFORT})
+    image = Path(next(arg.removeprefix('--image=') for arg in command if arg.startswith('--image=')))
+    write_json(out / f'{phase}.command.json', {'argv': command, 'cwd': str(cwd), 'model': MODEL, 'effort': EFFORT,
+                                               'image_input': {'path': str(image), 'sha256': sha(image)}})
     with (out / f'{phase}.stdout.jsonl').open('w', encoding='utf-8') as stdout, (out / f'{phase}.stderr.log').open('w', encoding='utf-8') as stderr:
         result = boundary.run(project, iid, [], prompt, timeout=600, stdout=stdout, stderr=stderr,
                               started=started, adapter=runner['adapter'], model=MODEL, effort=EFFORT, template=runner)
@@ -338,16 +411,13 @@ def runner_with_image(runner, image):
     return dict(runner, argv=[*runner['argv'][:-1], '--image=' + str(image), '-'])
 
 
-def author_handover(pm, project, out, public, run_id):
+def author_handover(pm, project, out, public, run_id, delivery_receipts):
     """Check the trusted P-1 output closure before making a handover record."""
     paths = verified_files(public)
-    for output, source in (
-        ('design/preview.png', 'design/preview.png'),
-        (SCENE, SCENE),
-        ('product/reviews/合成P-1审阅输入.md', 'review-input.md'),
-    ):
-        require(sha(public / output) == sha(project / 'synthetic-input' / source),
-                'copied synthetic input changed: ' + output)
+    original = project / 'synthetic-input'
+    original_quote = seed.quote(original)
+    for source, output in seed.COPIES:
+        require(sha(public / output) == sha(original / source), 'copied synthetic input changed: ' + output)
     allowed = set(PUBLIC_FILES)
 
     def declared(references):
@@ -358,8 +428,12 @@ def author_handover(pm, project, out, public, run_id):
     gate = pm.admission.load_gate()
     tone = gate.tone.read(public, CONTRACT)
     require(tone['parts']['scene']['path'] == SCENE, 'undeclared scene output: use ' + SCENE)
-    require(tone['confirmation']['quote'] == QUOTE
-            and tone['confirmation']['source'] == 'product/reviews/合成P-1审阅输入.md',
+    require(tone['parts']['preview']['path'] == SCENE, 'undeclared preview output: use ' + SCENE)
+    require(tone['parts']['screenshot']['path'] == seed.SCREENSHOT, 'use the actual synthetic design screenshot')
+    require({ref['source'] for ref in REFERENCES} <= {ref['source'] for ref in tone['references']},
+            'name the two actual external game references with their sources')
+    require(tone['confirmation']['quote'] == original_quote
+            and tone['confirmation']['source'] == seed.REVIEW_OUTPUT,
             'P-1 confirmation must cite the exact pre-existing synthetic review input')
     declared(part['path'] for part in tone['parts'].values())
     declared(state[key] for key in ('request', 'response', 'conversation_check', 'tone_fit_review'))
@@ -367,6 +441,8 @@ def author_handover(pm, project, out, public, run_id):
     declared((state['tone_contract']['path'],))
     request = read_json(public / state['request'])
     response = read_json(public / state['response'])
+    require(response.get('quote') == original_quote and response.get('source') == seed.REVIEW_OUTPUT,
+            'P-1 response must cite the verbatim synthetic input')
     fit = read_json(public / state['tone_fit_review'])
     declared([request['display_evidence'], response['source']])
     declared(item['path'] for item in fit['artifacts'])
@@ -377,9 +453,12 @@ def author_handover(pm, project, out, public, run_id):
     require({item['requirement'] for item in completed} >= {'tone_contract', 'direction_profile', 'direction_fit'},
             'actual P-1 stage did not trigger the prepared product obligations')
     declared(required)
+    direction_delivery = gate.tone.direction_delivery(tone)
+    require(direction_delivery in delivery_receipts, 'no actual author --draft receipt matches the handed direction')
     require(set(required) <= {path.relative_to(public).as_posix() for path in paths},
             'stage outputs missing from verified handover files')
-    write_json(out / 'gate-precheck.json', {'checked': checked, 'completed': completed, 'required_outputs': sorted(required)})
+    write_json(out / 'gate-precheck.json', {'checked': checked, 'completed': completed, 'required_outputs': sorted(required),
+                                            'matching_author_delivery': direction_delivery})
     pm_call(pm, project, out, 'hand_over', actor=AUTHOR, run=run_id,
             evidence=[path.relative_to(project).as_posix() for path in paths],
             summary='Actual files from synthetic imported product admission; independent review pending.')
@@ -388,11 +467,11 @@ def author_handover(pm, project, out, public, run_id):
 
 def run_author(pm, project, out, boundary, runner, binding):
     rid = 'import-admission-' + uuid.uuid4().hex
-    tid = 'SIM-ADMISSION-037'
+    tid = 'SIM-ADMISSION-037-REPAIR'
     workspace = boundary.safe_workspace(project, AUTHOR)
     public = workspace / 'public'
     output_paths = [(public / name).relative_to(project).as_posix() for name in PUBLIC_FILES]
-    runner = runner_with_image(runner, project / 'synthetic-input/design/preview.png')
+    runner = runner_with_image(runner, project / 'synthetic-input' / seed.SCREENSHOT)
     command = boundary.command_template(project, workspace, [], runner, MODEL, EFFORT)[0]
     pm_call(pm, project, out, 'register_instance', id=AUTHOR,
             instance=dict(role='product', endpoint='SIM-isolated-admission', write_roots=[str(workspace.relative_to(project))]))
@@ -428,7 +507,7 @@ def run_author(pm, project, out, boundary, runner, binding):
             require(not any((parent / 'boundary-author.txt').exists() for parent in
                             (project, out, project / 'management/instances' / REVIEWER / 'workspace/private'))
                     and not (project / 'boundary-child-author.txt').exists(), 'author write reached a protected test path')
-            paths = author_handover(pm, project, out, public, rid)
+            paths = author_handover(pm, project, out, public, rid, author_delivery(events, project, public))
         finally:
             pm_call(pm, project, out, 'launch_exit', actor='launcher', id=rid, exit_code=result['exit_code'])
             exited = True
@@ -451,7 +530,7 @@ def run_author(pm, project, out, boundary, runner, binding):
 def run_reviewer(out, project, boundary, runner, author, public, base):
     workspace = boundary.safe_workspace(project, REVIEWER)
     reserve(LEDGER / 'reviewer.json', {'out': str(out), 'author_run': author['id'], 'model': MODEL, 'effort': EFFORT})
-    runner = runner_with_image(runner, public / 'design/preview.png')
+    runner = runner_with_image(runner, public / seed.SCREENSHOT)
     result = run_session(out, project, boundary, REVIEWER, runner, reviewer_prompt(out, public, base), 'reviewer')
     events = trace_events(out / 'reviewer.stdout.jsonl')
     require(result['exit_code'] == 0 and not result['timed_out'] and turn_completed(events),
@@ -497,7 +576,7 @@ def execute(kit, out, freeze_sha256):
     version = subprocess.check_output([runner['argv'][0], '--version'], text=True).strip()
     require(version == pre['version'], 'CLI version changed since the no-model boundary preflight')
     reserve(LEDGER / 'execution.json', {'out': str(out), 'kit_manifest_sha256': freeze_sha256, 'max_sessions': 2,
-                                       'authorization_scope': 'v0.37 candidate-only imported product; no retry'})
+                                       'authorization_scope': 'v0.37 repaired candidate-only imported product; fresh author and independent reviewer; no retry'})
     try:
         author, public, base = run_author(pm, project, out, boundary, runner, binding)
         review = run_reviewer(out, project, boundary, runner, author, public, base)

@@ -3,12 +3,12 @@
   "components": {
     "matrix-front-desk": "0.12",
     "matrix-project-management": "0.23",
-    "matrix-product": "0.35",
-    "matrix-content-design": "0.14",
-    "matrix-experience-design": "0.32",
+    "matrix-product": "0.36",
+    "matrix-content-design": "0.15",
+    "matrix-experience-design": "0.33",
     "matrix-code-engineering-intake": "0.20",
     "matrix-code-engineering-solution": "0.13",
-    "matrix-code-engineering-build": "0.12",
+    "matrix-code-engineering-build": "0.13",
     "matrix-quality-engineering": "0.13",
     "matrix-collaboration": "0.17",
     "matrix-profession-builder": "0.6",
@@ -18,7 +18,7 @@
     "core-baseline/0.1",
     "guidance-index/0.2",
     "interaction-flow/0.6",
-    "stage-gates/0.2",
+    "stage-gates/0.3",
     "portable-review/0.1",
     "capability-model/1.0",
     "host-neutral-install/0.2",
@@ -68,8 +68,8 @@
     "platform-protocol/1",
     "isolated-runtime/0.1",
     "production-admission/0.1",
-    "direction-sample/0.2",
-    "practice-profiles/0.1"
+    "direction-sample/0.3",
+    "practice-profiles/0.2"
   ],
   "baseline": "matrix-ai-v0.35"
 }
