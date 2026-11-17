@@ -58,6 +58,13 @@ class Fixture:
                     inputs=['SIM v1'], outputs=['SIM output'], criteria=['SIM correct'], next_action='SIM next ' + tid)
         data.update(kw)
         data.setdefault('executor', data['owner'])
+        if data.get('kind', 'work') == 'work':
+            if data['owner'].startswith('code-engineering-'):
+                data.setdefault('practice_stage', {'role':'engineering','current':'E-1.2','scope':['SIM interface model']})
+            elif data['owner'].startswith('product-'):
+                data.setdefault('practice_stage', {'role':'product','current':'P-4','scope':['SIM login behavior']})
+            elif data['owner'].startswith('quality-engineering-'):
+                data.setdefault('practice_stage', {'role':'quality','current':'Q-2','scope':['SIM login verification']})
         return self.call('create', 'PM' if parent is None else self.t(parent)['owner'], task=data)
 
     def mutate(self, op, tid, actor=None, **kw):

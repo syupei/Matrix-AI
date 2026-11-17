@@ -13,6 +13,7 @@
 - `intake_review` 由该 master 写 `id`、`outcome`（approved 或 changes_requested）、`conclusion`、`resolved_risks`、`resolved_conflicts`、`open_items` 和 `human_required`。还存在风险或冲突时保持审阅中。清单无事项时明确为空。
 - `intake_admit` 由 PM 记录 `id`，需要人审时附有权决定人的 `person` 与实际 `quote`。`intake_status` 返回记录和待 PM 处理的反馈。
 - 依赖外部材料或跨专业基线的生产任务，`inputs` 列实际路径，`admitted_inputs` 列当前版本的 ID，`stage_transition` 指向上游有效确认的关卡记录。关卡的成果摘要须覆盖绑定版本。产品基线型研发承接须核对产品流程最终确认。负责人创建任务和平台启动时使用同一核对，工具提示负责处理的人。可共享结果写在任务卡 `outputs` 的明确路径内，目录以 `/` 结尾。
-- 导入包适配审阅填写 `review.review_points`，每项含 `who: master` 与 `what`。缺少审阅点无法启用或绑定到新的执行任务。
+- 导入包适配审阅填写 `review.review_points`，每项含 `who: master` 与 `what`。按[导入要求](EXPERT-IMPORT.md)核对审阅点、逐阶段适配与证据，启用、绑定与派发都须有效。
+- 内置与导入实例沿同一[阶段关卡](../base/STAGE-GATES.md)核对项目做法档和范围。任务 `practice_stage` 写 role、current、scope 与适用的 practice_scope、tone_contract、practice_evidence、upstream；派发只核对已有输入与前置记录，完成时用 `practice_completion` 指向本阶段检查输入文件。缺项暂停受影响范围。
 
 已运行任务通过现有变更机制复核；一条工具记录只证明核对了该来源与版本。宿主提供身份和写入边界。

@@ -3,8 +3,8 @@
   "id": "content-design",
   "name": "内容设计与审读",
   "class": "制作",
-  "version": "1.1",
-  "kit": "matrix-ai/0.32",
+  "version": "1.2",
+  "kit": "matrix-ai/0.37",
   "skills": [
     "matrix-content-design"
   ],
@@ -78,7 +78,14 @@
       "gives": "文案表版本"
     }
   ],
-  "inputs": [{"for": "CD-1", "needs": "product:P-1", "state": "confirmed", "when": "游戏与玩乐，当前调性契约"}],
+  "inputs": [
+    {
+      "for": "CD-1",
+      "needs": "product:P-1",
+      "state": "confirmed",
+      "when": "当前项目调性契约及活动范围"
+    }
+  ],
   "item_inputs": {
     "default": "by_risk",
     "stricter": []
@@ -117,5 +124,15 @@
     "single_next_step",
     "gap_self_with_risk"
   ],
-  "abbr": "CD"
+  "abbr": "CD",
+  "framework_requirements": {
+    "CD-1": {
+      "entry": [
+        "tone_contract"
+      ],
+      "complete": [
+        "direction_contribution"
+      ]
+    }
+  }
 }

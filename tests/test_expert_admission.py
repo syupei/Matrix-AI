@@ -36,7 +36,7 @@ class Admission(base.Fixture, unittest.TestCase):
             self.e.validate(pm.api(),self.root,self.report(run_id='MISSING'),operator='SIM-controller')
 
     def test_launch_binds_admission_to_exact_package_content(self):
-        self.package();self.staff();self.create('A')
+        self.package();self.staff();self.create('A',outputs=['management/instances/code-engineering-001/workspace/public/'])
         run=self.call('launch_start',id='SIM-new-run',purpose='start',task_id='A',instance='code-engineering-001',
                       model='SIM-big',session='SIM',command=['SIM-cli'],admission_expert=self.ident,admission_runner='SIM-runner')['record']
         self.assertEqual(self.e.admission_binding(pm.api(),self.root,self.ident),run['admission_expert'])
@@ -65,6 +65,35 @@ class Admission(base.Fixture, unittest.TestCase):
         self.assertEqual('SIMULATED enable authorization',m['enable_authorization']['quote'])
         with self.assertRaisesRegex(ValueError,'enable requires'):
             self.e.enable(pm.api(),self.root,self.ident,operator='SIM-controller')
+
+    def test_report_cannot_substitute_for_actual_handover_or_framework_gate(self):
+        self.package()
+        with pm.connect(self.root) as db:
+            original = pm.integrity.records(db,'launch')['SIM-admission']
+            pm.integrity.save(pm.api(),db,'launch',dict(original,handover=None))
+        with self.assertRaisesRegex(ValueError, 'hand over actual artifacts'):
+            self.e.validate(pm.api(),self.root,self.report(),operator='SIM-controller')
+        with pm.connect(self.root) as db:
+            pm.integrity.save(pm.api(),db,'launch',original)
+        params = self.report()
+        source = self.root/params['evidence']['report']
+        report=json.loads(source.read_text())
+        record=report['framework_scenario']['stage_state']
+        forged=self.root/record
+        state=json.loads(forged.read_text())
+        state.pop('practice_evidence')
+        forged.write_text(json.dumps(state))
+        original['handover']['files'][record] = self.e.digest(forged.read_bytes())
+        injected=forged.parent/'matrix/professions/code-engineering/profession.json'
+        injected.parent.mkdir(parents=True)
+        injected.write_text(json.dumps({
+            'id':'code-engineering','stage_flows':[{'key':'engineering','stages':['E-1.1','E-1.2']}],
+            'framework_requirements':{'E-1.1':{'complete':['tone_contract']}},
+        }))
+        with pm.connect(self.root) as db:
+            pm.integrity.save(pm.api(),db,'launch',original)
+        with self.assertRaisesRegex(ValueError,'missing practice evidence: direction_contribution'):
+            self.e.validate(pm.api(),self.root,params,operator='SIM-controller')
 
     def test_git_is_https_only_without_redirects_and_rejects_colliding_paths(self):
         calls=[]

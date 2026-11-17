@@ -486,6 +486,15 @@ def blockers(pm, root, db, tasks, tid, closing=False):
         issue = instance_fit_issue(pm, root, db, inst)
         if issue:
             out.append({'code': 'model_fit_review', 'task': tid, 'action': issue})
+    instances = pm.integrity.records(db, 'instance')
+    if t['state'] not in pm.TERMINAL or closing:
+        for iid in {t['owner'], t.get('executor')} - {None}:
+            entry = instances.get(iid, {})
+            if entry.get('expert', {}).get('id', 'builtin') != 'builtin':
+                try:
+                    experts.entry(pm, root, entry)
+                except (ValueError, OSError, KeyError, TypeError) as error:
+                    out.append({'code': 'expert_validation', 'task': tid, 'instance': iid, 'action': str(error)})
     appointments = pm.integrity.records(db, 'appointment')
     relevant = any(within(tid, a['root_tasks'], tasks) for a in appointments.values())
     if relevant:

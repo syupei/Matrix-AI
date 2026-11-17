@@ -2,10 +2,12 @@
 import importlib.util
 import json
 from pathlib import Path
+import shutil
 import unittest
 from unittest.mock import patch
 from test_pm_instances import Fixture, pm
 from kit import KIT
+from practice_fixture import direction, fit_record, practice_record, put, scope
 
 s=importlib.util.spec_from_file_location('expert_api_test', KIT/'matrix/orchestration/tools/platform_api.py')
 api=importlib.util.module_from_spec(s);s.loader.exec_module(api)
@@ -18,24 +20,112 @@ class Experts(Fixture, unittest.TestCase):
         self.e=pm.team.experts
         self.ident=dict(id='sim-expert',version='1')
 
-    def package(self, review_points=True, profession="code-engineering"):
+    def prepare_params(self, profession='code-engineering'):
         with patch.object(self.e,'fetch',return_value={'SKILL.md':b'SIM professional method','LICENSE':b'SIM permission'}):
             self.e.prepare(pm.api(),self.root,dict(self.ident,profession=profession,url='https://example.org/sim.git',commit='a'*40))
-        review=dict(reviewer='SIM',source_entry='SKILL.md',license='SIM permission',preserved_methods='SIM method',directory_changes='SIM destinations mapped',dependencies='none')
+        contract=self.e.framework_contract(pm.api(),self.root,profession)
+        mapping=[dict(stage=row['stage'],requirement=row['requirement'],source=dict(path='SKILL.md',section='SIM professional method'),
+                      adapted_method='Use SIM professional method',records=[row['definition']['record']]) for row in contract['requirements']]
+        review=dict(reviewer='SIM',source_entry='SKILL.md',license='SIM permission',preserved_methods='SIM method',
+                    directory_changes='SIM destinations mapped',dependencies='none',framework_mapping=mapping)
+        return dict(self.ident,methods='Use SIM professional method. Save under workspace/private/ or workspace/public/.',review=review)
+
+    def scenario(self, profession):
+        gate = pm.admission.load_gate()
+        tone = gate.tone
+        workspace = self.root/'management/instances/SIM-admission-instance/workspace/public'
+        ref, data = direction(workspace, tone)
+        if profession == 'product':
+            arts = [ref]
+            fit = fit_record(workspace, tone.direction_binding(tone.DEFAULT_PATH,data),
+                             [data['parts'][k] for k in ('scene','samples','practice_profile')],
+                             binding_mode='pre_confirmation_direction')
+            content_hash = gate.artifact_digest(workspace, arts)
+            req = put(workspace,'request.json',dict(request_id='SIM',role='product',stage='P-1',scope=['workspace'],
+                      artifact_sha256=content_hash,display_evidence='direction-brief.md'))
+            reply = put(workspace,'reply.json',dict(request_id='SIM',actor='user',choice='confirm',scope=['workspace'],
+                        artifact_sha256=content_hash,source=data['confirmation']['source']))
+            state = dict(role='product',current='P-1',next='P-2',artifacts=arts,request=req['path'],response=reply['path'],
+                         tone_fit_review=fit['path'])
+        else:
+            artifact = put(workspace,'output.md','SIM professional direction contribution')
+            record = practice_record(workspace,tone,ref,'direction_contribution',[artifact])
+            state = dict(role='engineering', current='E-1.1',next='E-1.2',artifacts=[artifact],
+                         practice_evidence={'direction_contribution':{'workspace':record}})
+        state.update(scope=['workspace'], blockers=[], tone_contract=ref, conversation_check='conversation.md')
+        put(workspace,state['conversation_check'],f"{state['current']} -> {state['next']}")
+        saved = put(workspace,'stage.json',state)
+        paths = {file.relative_to(self.root).as_posix():self.e.digest(file.read_bytes())
+                 for file in workspace.rglob('*') if file.is_file()}
+        return (workspace/saved['path']).relative_to(self.root).as_posix(),paths
+
+    def package(self, review_points=True, profession='code-engineering'):
+        params=Experts.prepare_params(self, profession)
         if review_points:
-            review['review_points']=[{'who':'master','what':'Review engineering baseline and open risks'}]
-        self.e.adapt(pm.api(),self.root,dict(self.ident,methods='Use SIM professional method. Save under workspace/private/ or workspace/public/.',review=review))
+            params['review']['review_points']=[{'who':'master','what':'Review engineering baseline and open risks'}]
+        self.e.adapt(pm.api(),self.root,params)
         base,m=self.e.read(pm.api(),self.root,self.ident)
         sha=self.e.digest((base/'METHODS.md').read_bytes())
-        self.write('sim-validation.json',dict(passed=True, methods_sha256=sha,runner='SIM-worker',run_id='SIM-admission',model='SIM-model',checks={k:dict(passed=True,evidence='SIMULATED only') for k in ('method_preservation','write_isolation','handoff_contract')}))
+        stage, paths = Experts.scenario(self, profession)
+        scenario = dict(stage_state=stage,contract_sha256=m['framework_contract_sha256'],mapping_sha256=m['framework_mapping_sha256'],
+                        reviewer='SIM-controller',readback='Synthetic fixture checked manually in the test')
+        self.write('sim-validation.json',dict(passed=True, methods_sha256=sha,runner='SIM-worker',run_id='SIM-admission',model='SIM-model',
+                     checks={k:dict(passed=True,evidence='SIMULATED only') for k in ('method_preservation','write_isolation','handoff_contract')},
+                     framework_scenario=scenario))
         with pm.connect(self.root) as db:
-            pm.integrity.save(pm.api(),db,'launch',dict(id='SIM-admission',task_id='SIM-admission-task',task_ids=['SIM-admission-task'],instance='SIM-admission-instance',purpose='start',started_at=pm.now(),after_seq=0,state='exited',exit_code=0,handed=True,running_at=pm.now(),finished_at=pm.now(),model='SIM-model',admission_runner='SIM-worker',admission_expert=self.e.admission_binding(pm.api(),self.root,self.ident)))
+            pm.integrity.save(pm.api(),db,'launch',dict(id='SIM-admission',task_id='SIM-admission-task',task_ids=['SIM-admission-task'],
+                             instance='SIM-admission-instance',purpose='start',started_at=pm.now(),after_seq=0,state='exited',exit_code=0,
+                             handed=True,running_at=pm.now(),finished_at=pm.now(),model='SIM-model',admission_runner='SIM-worker',
+                             handover=dict(files=paths,event_id='SIM-handover'),
+                             admission_expert=self.e.admission_binding(pm.api(),self.root,self.ident)))
         self.e.validate(pm.api(),self.root,dict(self.ident,evidence=dict(runner='SIM-worker',report='management/sim-validation.json',source_sha256=sha)),operator='SIM-controller')
         self.e.enable(pm.api(),self.root,dict(self.ident,person='SIM-person',quote='SIMULATED enable authorization'),operator='SIM-controller')
 
     def test_enable_requires_master_review_points(self):
         with self.assertRaisesRegex(ValueError,'master review points'):
             self.package(review_points=False)
+
+    def test_adaptation_blocks_missing_conflicting_or_duplicate_mapping(self):
+        params = self.prepare_params()
+        mapping = params['review']['framework_mapping']
+        for rows, message in ((mapping[:-1], 'missing framework mapping'),
+                              ([*mapping, mapping[0]], 'duplicate framework mapping'),
+                              ([dict(mapping[0], records=['irrelevant_entry']), *mapping[1:]], 'required framework record')):
+            with self.subTest(message=message):
+                params['review']['framework_mapping'] = rows
+                adapted = self.e.adapt(pm.api(), self.root, params)
+                self.assertEqual('blocked', adapted['state'])
+                self.assertIn(message, ' '.join(adapted['unresolved']))
+                with self.assertRaisesRegex(ValueError, 'validated expert'):
+                    self.e.enable(pm.api(), self.root, self.ident)
+
+    def test_contract_changes_under_enabled_package_but_skill_revisions_do_not(self):
+        self.package()
+        registry_dir = self.root/'matrix/professions'
+        shutil.copytree(KIT/'matrix/professions', registry_dir)
+        path = registry_dir/'code-engineering/profession.json'
+        registry = json.loads(path.read_text())
+        registry.update(version='19.1', standards=['Updated built-in professional practice'])
+        path.write_text(json.dumps(registry))
+        self.assertEqual(self.ident['id'], self.e.binding(pm.api(), self.root, 'code-engineering', self.ident)['id'])
+        registry['framework_requirements']['E-2.1']['complete'] = ['rendering_choice']
+        path.write_text(json.dumps(registry))
+        with self.assertRaisesRegex(ValueError,'framework contract changed'):
+            self.e.binding(pm.api(),self.root,'code-engineering',self.ident)
+        with self.assertRaisesRegex(ValueError,'framework contract changed'):
+            self.e.enable(pm.api(),self.root,dict(self.ident,person='SIM-person',quote='SIM'),operator='SIM-controller')
+
+    def test_same_practice_dispatch_prerequisites_for_imported_and_builtin_experts(self):
+        self.package()
+        self.staff(self.config())
+        tone = pm.admission.load_gate().tone
+        contract, _ = direction(self.root,tone,[scope(tone,appearance_target='yes')])
+        stage = dict(role='solution',current='E-2.3',scope=['workspace'],tone_contract=contract)
+        for iid in ('code-engineering-001','code-engineering-002'):
+            with self.subTest(instance=iid):
+                self.create(iid,owner=iid,project_level=False,practice_stage=stage)
+                with self.assertRaisesRegex(ValueError,'missing practice evidence: rendering_choice'):
+                    self.mutate('transition',iid,state='running',reason='start',execution_receipt='SIM')
 
     def test_imported_product_master_still_requires_input_admission(self):
         self.write('expert-professions.json', dict(schema='matrix-expert-professions/1', professions=['product'],

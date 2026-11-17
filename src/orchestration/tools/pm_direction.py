@@ -6,12 +6,16 @@ from datetime import datetime
 READ_OPS = {'human_attention_status'}
 WRITE_OPS = {'direction_sample', 'human_attention'}
 TASKS = (
-    ('brief', 'product', '品类与参照简报', (), 'product/specs/方向简报.md'),
+    ('brief', 'product', '活动范围与参照简报', (), 'product/specs/方向简报.md'),
     ('scene', 'experience-design', '渲染核心场景', ('brief',), 'design/核心场景样张.md'),
-    ('samples', 'content-design', '关键时刻样句', ('brief',), 'content/玩法样句.md'),
-    ('compose', 'product', '合成方向样张', ('scene', 'samples'), 'product/specs/00-方向样张.md'),
-    ('fit', 'fit_checker', '检查品类贴合', ('compose',), 'product/reviews/品类贴合.json'),
+    ('samples', 'content-design', '关键情境样句', ('brief',), 'content/方向样句.md'),
+    ('feasibility', 'code-engineering', '核对运行条件', ('brief',), 'engineering/方向可达性.md'),
+    ('acceptance', 'quality-engineering', '拟定体验检验方式', ('brief',), 'engineering/qa/方向检验.md'),
+    ('compose', 'product', '合成项目做法档与方向样张', ('scene', 'samples', 'feasibility', 'acceptance'), 'product/specs/方向样张草稿.md'),
+    ('fit', 'fit_checker', '检查做法档与方向样张贴合', ('compose',), 'product/reviews/方向贴合.json'),
 )
+PROFILE_OUTPUT = 'product/specs/项目做法档.json'
+PRODUCERS = ('product', 'experience-design', 'content-design', 'code-engineering', 'quality-engineering')
 
 
 def attention(pm, root, db, cfg, cmd):
@@ -55,7 +59,11 @@ def execute(pm, root, db, cmd):
     brief_path = cmd.get('brief')
     pm.require(pm.nonempty(key) and pm.nonempty(brief_path), 'direction sample id and clarified brief required')
     pm.integrity.file_hash(pm, root, brief_path)
-    pm.require(cmd.get('profile') == '游戏与玩乐', 'direction sample template is for the game practice profile')
+    pm.require(pm.nonempty(cmd.get('profile')), 'record a display label for the project practice profile')
+    tone = pm.admission.load_gate().tone
+    example = cmd.get('example')
+    if example is not None:
+        pm.require(example == tone.practice.load_example()['id'], 'unknown practice profile example')
     pm.require(pm.nonempty(cmd.get('combined_review_authorization')), 'record agreement to merge direction and P-1 review')
     pm.require(pm.nonempty(cmd.get('person')), 'record the deciding person for the combined P-1 review')
     roster = pm.roster(root)
@@ -63,14 +71,16 @@ def execute(pm, root, db, cmd):
         person = roster['people'].get(cmd['person'], {})
         pm.require(set(person.get('decides', ())) & {'product','project'}, 'product or project decision authority required')
     assigned = cmd.get('assigned', {})
-    expected = {'product','experience-design','content-design','fit_checker','task_checker'}
-    pm.require(isinstance(assigned, dict) and set(assigned) == expected and all(pm.nonempty(x) for x in assigned.values()), 'named product, design, content and independent checkers required')
+    expected = set(PRODUCERS) | {'fit_checker', 'task_checker'}
+    pm.require(isinstance(assigned, dict) and assigned.keys() == expected and all(pm.nonempty(x) for x in assigned.values()),
+               'name the professional masters and the independent checkers')
     instances = pm.integrity.records(db, 'instance')
-    for role in ('product','experience-design','content-design'):
+    for role in PRODUCERS:
         entry = instances.get(assigned[role], {})
         pm.require(entry.get('active') and entry.get('master') and entry.get('profession') == role,
                    'PM: route the missing ' + role + ' master through expertise-gap handling')
-    producers = {assigned[role] for role in ('product','experience-design','content-design')}
+        pm.team.experts.entry(pm, root, entry)
+    producers = {assigned[role] for role in PRODUCERS}
     pm.require(not producers & {assigned['fit_checker'],assigned['task_checker']} and assigned['fit_checker'] != assigned['task_checker'],
                'direction and task checkers must be independent of the producers and each other')
     pm.require(instances.get(assigned['fit_checker'], {}).get('active'), 'active direction fit checker required')
@@ -83,6 +93,12 @@ def execute(pm, root, db, cmd):
                    for tid in downstream), 'downstream tasks must be planned and managed by the PM')
     result = []
     output_by_id = {suffix:out for suffix,_,_,_,out in TASKS}
+    rec = dict(id=key, tasks=[key + '-' + suffix for suffix in output_by_id], milestone=key,
+               downstream=downstream, profile=cmd['profile'], example=example,
+               brief=brief_path, outputs=output_by_id, practice_profile=PROFILE_OUTPUT,
+               reserved_roles=['art-production'], fit_checker=assigned['fit_checker'],
+               producer=assigned['product'], masters={role: assigned[role] for role in PRODUCERS})
+    pm.integrity.save(pm, db, 'direction_sample', rec)
     # Register works first, then create their parent milestone and bind each row to it
     # in the same transaction. A failed child rolls back the whole operation.
     for suffix, role, title, deps, output in TASKS:
@@ -90,14 +106,18 @@ def execute(pm, root, db, cmd):
                     checker=assigned['task_checker'], goal=title, next_action=title,
                     inputs=[output_by_id[d] for d in deps] or [brief_path], outputs=[output],
                     criteria=['按方向样张确认范围交回并提供证据'], dependencies=[key+'-'+d for d in deps])
+        if suffix == 'compose':
+            task['outputs'].append(PROFILE_OUTPUT)
+        if suffix == 'fit':
+            task['inputs'].append(PROFILE_OUTPUT)
         if suffix == 'fit':
             task['project_level'] = False  # independent execution is not profession direction ownership
         created = pm.execute(root, dict(op='create', actor=cmd['actor'], event_id=cmd['event_id']+':'+suffix, task=task), _db=db)
         result.append(created['task']['id'])
     milestone = dict(id=key, kind='stage', title='方向样张与 P-1 合并审阅', owner=assigned['product'],
                      checker=assigned['task_checker'], goal='采用方向样张与 P-1 澄清结论',
-                     next_action='向决定人合并展示样张与 P-1 结论', inputs=[brief_path, output_by_id['fit']],
-                     outputs=[output_by_id['compose']], criteria=['保留已确认调性契约与人审依据'],
+                     next_action='向决定人合并展示做法档、样张与 P-1 结论', inputs=[brief_path, PROFILE_OUTPUT, output_by_id['fit']],
+                     outputs=[tone.DEFAULT_PATH], criteria=['保留已确认调性契约与人审依据'],
                      dependencies=[key+'-fit'], human_required=True, slots=0,
                      people={'decide':[cmd['person']]}, source=cmd['combined_review_authorization'])
     pm.execute(root, dict(op='create', actor=cmd['actor'], event_id=cmd['event_id']+':milestone', task=milestone), _db=db)
@@ -108,9 +128,6 @@ def execute(pm, root, db, cmd):
         actor = task['owner'] if tid in result else cfg['pm_actor']
         pm.execute(root, dict(op='update', actor=actor, event_id=cmd['event_id']+':bind:'+tid, task_id=tid,
                               expected_revision=task['revision'], changes=changes, reason='方向样张任务链'), _db=db)
-    rec = dict(id=key, tasks=result, milestone=key, downstream=downstream, profile=cmd['profile'],
-               reserved_roles=['art-production'], fit_checker=assigned['fit_checker'], producer=assigned['product'])
-    pm.integrity.save(pm, db, 'direction_sample', rec)
     return {'direction_sample':rec}
 
 
@@ -120,13 +137,43 @@ def confirm_milestone(pm, root, db, task):
         return
     tone = pm.admission.load_gate().tone
     current = tone.validate(root, tone.DEFAULT_PATH)
-    fit_ref = 'product/reviews/品类贴合.json'
-    reviewed = [current['parts'][key] for key in ('scene','samples')]
-    fit = tone.check_fit(root, fit_ref, reviewed)
+    pm.require(current['profile'] == rec['profile'] and current['parts']['practice_profile']['path'] == rec['practice_profile'],
+               'the direction contract must include the registered project practice profile')
+    for part in ('brief', 'scene', 'samples', 'feasibility', 'acceptance'):
+        pm.require(current['parts'].get(part, {}).get('path') == rec['outputs'][part],
+                   'include the assigned professional direction contribution: ' + part)
+    current_profile = tone.profile(root, current)
+    if rec.get('example') is not None:
+        pm.require(any((row.get('example') or {}).get('id') == rec['example'] for row in current_profile['scopes']),
+                   'retain the adopted example and explain changes in the project profile')
+    for role, iid in rec['masters'].items():
+        pm.admission.master(pm, root, db, iid, role)
+    pm.require(rec.get('reviewed_direction') == tone.direction_binding(tone.DEFAULT_PATH, current),
+               'confirmed direction differs from the reviewed draft')
+    fit = tone.direction_review(root, current, rec['outputs']['fit'])
     approved = task.get('human_review') or {}
     expected_checker = approved.get('person') if fit['mode']=='human' else rec['fit_checker']
     pm.require(fit['checker'] == expected_checker and fit['producer'] == rec['producer'],
                'use the assigned fit checker or the documented human viewport review')
     pm.require(approved.get('person') == current['confirmation']['person']
-               and approved.get('quote') == current['confirmation']['quote'],
+               and approved.get('quote') == current['confirmation']['quote']
+               and approved.get('source') == current['confirmation']['source'],
                'direction contract confirmation must match the combined human review')
+
+
+def record_confirmation(pm, root, db, task, cmd):
+    rec = pm.integrity.records(db, 'direction_sample').get(task['id'])
+    if not rec or cmd['outcome'] != 'approved':
+        return
+    tone = pm.admission.load_gate().tone
+    draft = tone.validate(root, rec['outputs']['compose'], confirmed=False)
+    binding = tone.direction_binding(tone.DEFAULT_PATH, draft)
+    required = [draft['parts'][key] for key in ('scene', 'samples', 'practice_profile')]
+    fit = tone.check_fit(root, rec['outputs']['fit'], required, binding, pre_confirmation=True)
+    checker = cmd.get('person') if fit['mode'] == 'human' else rec['fit_checker']
+    pm.require(fit['checker'] == checker and fit['producer'] == rec['producer'],
+               'direction fit review must use the assigned checker or the person who viewed the rendered scene')
+    reply = tone.file(root, cmd['source']).read_text(encoding='utf-8')
+    pm.require(cmd['quote'] in reply, 'direction confirmation quote must appear in the recorded reply')
+    rec['reviewed_direction'] = binding
+    pm.integrity.save(pm, db, 'direction_sample', rec)

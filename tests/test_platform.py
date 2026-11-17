@@ -92,6 +92,8 @@ class Project:
         data = dict(id=tid, parent=parent, title='SIM ' + tid, owner='product-001', executor='product-001', checker='PM', goal='SIMULATED',
                     inputs=['input.md'], outputs=['SIM output'], criteria=['SIM correct'], next_action='SIM next')
         data.update(kw)
+        if data.get('kind', 'work') == 'work':
+            data.setdefault('practice_stage', {'role':'product','current':'P-3','scope':['SIM object rules']})
         return self.call('create', actor, task=data)
 
     def t(self, tid):

@@ -140,8 +140,11 @@ class DeliveryExits(unittest.TestCase):
         self.scope()
         self.add('experience-design-001')
         tasks = {'CODE': 'code-engineering-001', 'QA': 'quality-engineering-001', 'ART': 'experience-design-001'}
+        stages = {'CODE': ('build','E-3.3'), 'QA': ('quality','Q-2'), 'ART': ('design','D-5')}
         for tid, owner in tasks.items():
-            self.create(tid, owner=owner, checker='product-001')
+            role, phase = stages[tid]
+            self.create(tid, owner=owner, checker='product-001',
+                        practice_stage={'role':role,'current':phase,'scope':['SIM login delivery']})
         with self.assertRaisesRegex(pm.TaskError, 'another profession'):
             self.bind('R-LOGIN-07', 'production:code-engineering', 'QA')
         with self.assertRaisesRegex(pm.TaskError, 'unknown member or exit'):

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-Hans">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>风脊竞走 · 已确认方向样张</title>
+<style>
+  * { box-sizing: border-box }
+  body { margin: 0; background: #081c2b; color: #fff4d9; font: 18px system-ui, sans-serif }
+  main { position: relative; max-width: 1280px; margin: auto; overflow: hidden }
+  svg { width: 100%; height: auto; display: block }
+  .caption { position: absolute; top: 7%; left: 6% }
+  h1 { margin: 0 0 .2em; font-size: 54px; letter-spacing: .12em }
+  p { margin: 0; color: #d1e4de }
+  .controls { position: absolute; bottom: 7%; right: 6%; display: grid; gap: 10px; justify-items: end }
+  .dice { display: grid; place-items: center; width: 88px; height: 70px; border-radius: 18px;
+          background: #f6b760; color: #1d2932; font-size: 30px; font-weight: bold }
+</style>
+<main>
+  <svg viewBox="0 0 1280 800" role="img" aria-label="青蓝山脊，玩家棋子在可辨的岔路前，安全线和金色捷径重新汇合至营地">
+    <defs>
+      <linearGradient id="sky" x2=".6" y2="1" gradientUnits="objectBoundingBox">
+        <stop stop-color="#081c2b"/><stop offset="1" stop-color="#366561"/>
+      </linearGradient>
+    </defs>
+    <rect width="1280" height="800" fill="url(#sky)"/>
+    <path d="M0 466l174-129 184 80 184-188 195 127 181-165 362 175v434H0Z" fill="#244d55"/>
+    <path d="M0 666l198-155 108 37 89-173 207-59 150 65 148-89 180 122 200-44v430H0Z" fill="#2d5e62"/>
+    <g fill="none" stroke="#93b6a9" stroke-width="2" opacity=".35">
+      <path d="M0 683l229-131 114 43 100-175 187-60 113 62 161-86 175 122 201-32"/>
+      <path d="M0 720l249-117 119 43 109-181 146-56 122 63 163-80 190 116 182-27"/>
+      <path d="M0 756l262-102 121 42 122-173 118-62 129 59 157-66 182 107 189-23"/>
+    </g>
+    <path d="M175 653 288 584 408 539 515 420 667 448 811 372 971 327 1070 225" fill="none"
+          stroke="#132c39" stroke-width="36" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M175 653 288 584 408 539 515 420 667 448 811 372 971 327 1070 225" fill="none"
+          stroke="#f7e9be" stroke-width="12" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M408 539 586 583 751 518 811 372" fill="none" stroke="#132c39" stroke-width="27" stroke-linejoin="round"/>
+    <path d="M408 539 586 583 751 518 811 372" fill="none" stroke="#f6b760" stroke-width="9" stroke-dasharray="15 8"/>
+    <g fill="#f7e9be" stroke="#173540" stroke-width="4">
+      <circle cx="175" cy="653" r="13"/><circle cx="288" cy="584" r="13"/>
+      <circle cx="515" cy="420" r="13"/><circle cx="591" cy="434" r="13"/><circle cx="667" cy="448" r="13"/>
+      <circle cx="739" cy="410" r="13"/>
+      <circle cx="811" cy="372" r="13"/><circle cx="971" cy="327" r="13"/>
+      <circle cx="1070" cy="225" r="13"/>
+    </g>
+    <g fill="#f6b760" stroke="#173540" stroke-width="4">
+      <circle cx="586" cy="583" r="13"/><circle cx="751" cy="518" r="13"/>
+      <path d="M1070 225v-65l42 12-42 13" stroke-linejoin="round"/>
+    </g>
+    <g stroke="#173540" stroke-width="5">
+      <circle cx="408" cy="539" r="26" fill="#f6b760"/>
+      <path d="M408 530c-10-8-21-25-21-35a21 21 0 0 1 42 0c0 10-11 27-21 35Z" fill="#ecf6df"/>
+      <circle cx="408" cy="495" r="6" fill="#173540" stroke="none"/>
+    </g>
+    <g fill="#fff4d9" font-family="system-ui, sans-serif" font-size="24" font-weight="700">
+      <text x="130" y="704">山脚</text><text x="455" y="382">安全线</text>
+      <text x="564" y="641">迎风捷径</text><text x="1100" y="240">营地</text>
+    </g>
+  </svg>
+  <header class="caption"><h1>风脊竞走</h1><p>第 3 回合 · 棋子停在岔路</p></header>
+  <footer class="controls"><span class="dice">掷骰</span><p>选中棋盘上的岔路后掷骰</p></footer>
+</main>
+</html>

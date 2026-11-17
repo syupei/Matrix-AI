@@ -4,8 +4,8 @@
   "name": "代码工程",
   "abbr": "E",
   "class": "制作",
-  "version": "1.0",
-  "kit": "matrix-ai/0.32",
+  "version": "1.1",
+  "kit": "matrix-ai/0.37",
   "skills": [
     "matrix-code-engineering-intake",
     "matrix-code-engineering-solution",
@@ -242,5 +242,71 @@
     "list_instance",
     "report_up_executor",
     "gap_security_report"
-  ]
+  ],
+  "framework_requirements": {
+    "E-2.1": {
+      "entry": [
+        "tone_contract"
+      ]
+    },
+    "E-2.2": {
+      "entry": [
+        "tone_contract"
+      ],
+      "complete": [
+        "rendering_choice",
+        "appearance_proof",
+        "playable_prototype",
+        "load_test_plan"
+      ]
+    },
+    "E-2.3": {
+      "entry": [
+        "tone_contract",
+        "rendering_choice",
+        "appearance_proof",
+        "playable_prototype"
+      ],
+      "complete": [
+        "core_scene_skeleton",
+        "skeleton_fit"
+      ]
+    },
+    "E-2.4": {
+      "entry": [
+        "tone_contract",
+        "rendering_choice",
+        "appearance_proof",
+        "playable_prototype",
+        "load_test_plan",
+        "core_scene_skeleton",
+        "skeleton_fit"
+      ]
+    },
+    "E-3.1": {
+      "entry": [
+        "tone_contract",
+        "core_scene_skeleton",
+        "skeleton_fit"
+      ]
+    },
+    "E-3.2": {
+      "entry": [
+        "tone_contract",
+        "core_scene_skeleton",
+        "skeleton_fit"
+      ],
+      "complete": [
+        "increment_fit"
+      ]
+    },
+    "E-1.1": {
+      "entry": [
+        "tone_contract"
+      ],
+      "complete": [
+        "direction_contribution"
+      ]
+    }
+  }
 }

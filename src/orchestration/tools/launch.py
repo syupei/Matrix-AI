@@ -122,6 +122,9 @@ def packet(pm, root, rid, purpose, inst, tasks, stops, all_tasks=None, managed=F
         back = t.get('sent_back')
         body += ['## 任务 ' + t['id'] + '：' + t['title'], '', '- 目标：' + t['goal'], '- 输入：' + bullet(t['inputs']), '- 成果：' + bullet(t['outputs']),
                  '- 判据：' + bullet(t['criteria']), '- 下一步：' + t['next_action']]
+        if t.get('practice_stage'):
+            body += ['- 当前专业阶段与前置记录：' + json.dumps(t['practice_stage'], ensure_ascii=False),
+                     '- 阶段完成记录交回路径：' + str(t.get('practice_completion') or '向派发者核对')]
         upstream = upstream_context(pm, t, all_tasks or {x['id']: x for x in tasks})
         if upstream:
             body += ['', '## 上游交付与决定（任务库快照）',

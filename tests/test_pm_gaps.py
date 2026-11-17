@@ -71,6 +71,10 @@ class Fixture:
                     inputs=['SIM v1'], outputs=['SIM output'], criteria=['SIM correct'], next_action='SIM next ' + tid)
         data.update(kw)
         data.setdefault('executor', data['owner'])
+        if data['owner'].startswith('code-engineering-'):
+            data.setdefault('practice_stage', {'role':'engineering','current':'E-1.2','scope':['SIM domain model and exceptions']})
+        elif data['owner'].startswith('product-'):
+            data.setdefault('practice_stage', {'role':'product','current':'P-3','scope':['SIM product rules']})
         return self.call('create', 'PM' if parent is None else self.t(parent)['owner'], task=data)
 
     def mutate(self, op, tid, actor=None, **kw):

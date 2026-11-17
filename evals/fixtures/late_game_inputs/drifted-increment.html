@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-Hans">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>风脊竞走 · 待走查增量 I-1</title>
+<style>
+  * { box-sizing: border-box }
+  body { margin: 0; background: #f4f6fa; color: #21304a; font: 16px system-ui, sans-serif }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 18px 46px; background: white }
+  header strong { font-size: 22px }
+  nav { display: flex; gap: 24px; color: #4e5670 }
+  main { max-width: 1110px; margin: 34px auto; padding: 0 24px }
+  h1 { margin: 0 0 20px }
+  .actions, .cards { display: flex; flex-wrap: wrap; gap: 14px }
+  button { background: white; color: #124bad; border: 1px solid #cfdaed; border-radius: 6px; padding: 12px 18px; font: inherit; cursor: pointer }
+  button:first-child { background: #124bad; color: white }
+  .cards { margin-bottom: 24px }
+  article, output { display: block; flex: 1; min-width: 170px; padding: 16px; background: white; border: 1px solid #e0e6f0; border-radius: 8px }
+  article strong { font-size: 24px; display: block; margin-top: 8px }
+  h2 { margin-top: 32px }
+  output { margin-top: 12px }
+</style>
+<header><strong>风脊竞走</strong><nav aria-label="增量导航"><span>总览</span><span>对局</span><span>说明</span></nav></header>
+<main>
+  <h1>对局总览</h1>
+  <section class="cards" aria-label="回合概况">
+    <article>回合<strong id="turn">3</strong></article>
+    <article>玩家位置<strong>岔路口</strong></article>
+    <article>本轮路线<strong id="route">待选择</strong></article>
+  </section>
+  <section class="actions" aria-label="回合操作">
+    <button data-action="roll">掷骰</button><button data-action="safe">选安全线</button>
+    <button data-action="shortcut">选迎风捷径</button><button data-action="reset">重来</button>
+  </section>
+  <output id="receipt" aria-live="polite">请选择线路，骰面和落点将在这里显示。</output>
+  <h2>线路详情</h2>
+  <section class="cards" aria-label="线路详情">
+    <article><b>安全线</b><p>多绕两格，回合结果稳定。</p></article>
+    <article><b>迎风捷径</b><p>行程更短，掷 1 时退回岔路。</p></article>
+  </section>
+</main>
+<script>
+  const turn = document.getElementById('turn');
+  const route = document.getElementById('route');
+  const receipt = document.getElementById('receipt');
+  const routes = {safe: '安全线', shortcut: '迎风捷径'};
+  for (const button of document.querySelectorAll('button[data-action]')) {
+    button.addEventListener('click', () => {
+      const action = button.dataset.action;
+      if (action in routes) {
+        route.textContent = routes[action];
+        receipt.textContent = '已选择' + routes[action] + '，请掷骰。';
+      } else if (action === 'reset') {
+        turn.textContent = '3';
+        route.textContent = '待选择';
+        receipt.textContent = '已回到岔路口。';
+      } else if (route.textContent === '待选择') {
+        receipt.textContent = '请先选择线路。';
+      } else {
+        turn.textContent = Number(turn.textContent) + 1;
+        receipt.textContent = '骰面 4，沿' + route.textContent + '移动四格。';
+      }
+    });
+  }
+</script>
+</html>

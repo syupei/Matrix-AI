@@ -11,6 +11,7 @@
 | R05 | [发布、观察与交接](references/handoff.md) | E-4.3；写交接包时 | |
 | X01 | [技术评审与委托边界](../matrix-code-engineering-solution/references/technical-review.md) | 越界、必须人审、新选型、改已确认决定时 | |
 | X02 | [缺陷分级](../../../matrix/base/RISK-DEFECT-LEVELS.md)（C22）；回归范围与复验由质量工程给出 | 判断能否发布 | |
+| X03 | [游戏研发](../../../matrix/professions/code-engineering/GAME-ENGINEERING.md) | E-3 本范围采用游戏研发做法 | |
 | T01 | [工作区模板](assets/build-workspace-template.md) | 建立 `engineering/build/` 时 | |
 | T02 | [发布工作区模板](assets/release-workspace-template.md) | 建立 `engineering/release/` 时 | |
 | L01 | [本专业的职级与对照](../../../matrix/professions/code-engineering/levels.md) | 标难度、定风险、给缺陷定级 | |

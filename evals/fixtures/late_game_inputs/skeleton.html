@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-Hans">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>风脊竞走 · E-2.3 核心场景骨架 S-1</title>
+<style>
+  body { margin: 0; background: #213f49; color: #fff1cb; font: 22px system-ui, sans-serif }
+  main { max-width: 1280px; margin: auto }
+  svg { width: 100%; height: auto; display: block }
+  text { fill: #fff1cb; font: 24px system-ui, sans-serif }
+</style>
+<main>
+  <svg viewBox="0 0 1280 800" role="img" aria-label="有棋子、骰子、安全线、迎风捷径和共同终点的可运行骨架">
+    <rect width="1280" height="800" fill="#213f49"/>
+    <text x="72" y="100">风脊竞走 · 骨架 S-1</text>
+    <text x="72" y="148">第 3 回合 · 岔路状态</text>
+    <path d="M180 650 390 540 518 420 668 442 810 372 1070 230" fill="none"
+          stroke="#f7e9be" stroke-width="13" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M390 540 585 585 748 520 810 372" fill="none" stroke="#f6b760" stroke-width="10"
+          stroke-dasharray="16 8"/>
+    <g fill="#f7e9be" stroke="#162b32" stroke-width="4">
+      <circle cx="180" cy="650" r="13"/><circle cx="518" cy="420" r="13"/><circle cx="593" cy="431" r="13"/>
+      <circle cx="668" cy="442" r="13"/><circle cx="739" cy="407" r="13"/><circle cx="810" cy="372" r="13"/>
+      <circle cx="1070" cy="230" r="13"/>
+    </g>
+    <g fill="#f6b760" stroke="#162b32" stroke-width="4">
+      <circle cx="585" cy="585" r="13"/><circle cx="748" cy="520" r="13"/>
+      <circle cx="390" cy="540" r="24"/>
+      <path d="M390 532c-10-8-21-25-21-35a21 21 0 0 1 42 0c0 10-11 27-21 35Z" fill="#ecf6df"/>
+      <rect x="1060" y="620" width="90" height="74" rx="15"/>
+    </g>
+    <text x="1084" y="667" style="fill:#213f49">掷骰</text>
+    <text x="457" y="386">安全线</text><text x="567" y="639">迎风捷径</text><text x="1036" y="191">营地</text>
+  </svg>
+</main>
+</html>

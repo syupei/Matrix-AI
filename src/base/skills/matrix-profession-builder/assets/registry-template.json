@@ -103,5 +103,6 @@
   "reporting": "<向 PM 汇报什么，包括需要主动告知人的事项>",
   "evals": [
     "<评测情境的标识>"
-  ]
+  ],
+  "framework_requirements": {}
 }

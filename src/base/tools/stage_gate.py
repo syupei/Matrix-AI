@@ -32,6 +32,64 @@ def load_flows(directory=PROFESSIONS):
 STAGES,REVIEW,CHAIN,AUTHORITY,UPSTREAM=load_flows()
 ROSTER='management/people.json'
 
+def framework(root, role, stage):
+    """Read the same framework declaration used for imported expert admission."""
+    directory = root / 'matrix/professions'
+    if not directory.is_dir():
+        directory = PROFESSIONS
+    for path in sorted(directory.glob('*/profession.json')):
+        registry = json.loads(path.read_text(encoding='utf-8'))
+        if any(flow['key'] == role for flow in registry.get('stage_flows', [])):
+            return registry['id'], tone.practice.stage_requirements(registry).get(stage, {})
+    raise ValueError('unknown professional flow: ' + role)
+
+def upstream_check(root, role, current, state, registry_root=None):
+    need = UPSTREAM.get((role, current))
+    if need:
+        if not state.get('upstream'):
+            raise ValueError('upstream review record required: %s %s' % need)
+        up = json.loads(checked_file(root, state['upstream']).read_text())
+        if (up.get('role'), up.get('current')) != need:
+            raise ValueError('upstream record is not the required review: %s %s' % need)
+        try:
+            check(root, up, conversation=False, registry_root=registry_root)
+        except (ValueError, KeyError, TypeError) as error:
+            raise ValueError('upstream review not confirmed or changed: ' + str(error)) from error
+    return need
+
+def check_entry(root, state):
+    root = Path(root).resolve()
+    role, stage = state['role'], state['current']
+    if stage not in STAGES.get(role, [])[:-1]:
+        raise ValueError('dispatch must name a registered professional stage')
+    profession, requirements = framework(root, role, stage)
+    upstream_check(root, role, stage, state)
+    triggered = tone.check_stage(root, state, [], requirements, phase='entry')
+    return {'profession': profession, 'triggered': triggered}
+
+def framework_outputs(root, state, result, registry_root=None):
+    """Files that demonstrate newly checked obligations produced by this stage."""
+    _, requirements = framework(registry_root or root, state['role'], state['current'])
+    completed = [row for row in result.get('framework', {}).get('triggered', [])
+                 if row['requirement'] in requirements.get('complete', ())]
+    paths = {item['path'] for item in state['artifacts']}
+    if any(row['requirement'] == 'direction_fit' for row in completed):
+        direction = tone.read(root, tone.DEFAULT_PATH)
+        paths.update(direction['parts'][key]['path'] for key in ('scene', 'samples', 'practice_profile'))
+        paths.update(direction['parts'][key]['path'] for key in ('screenshot', 'manual_review') if key in direction['parts'])
+        paths.add(state['tone_fit_review'])
+    for row in completed:
+        key, scope = row['requirement'], row['scope']
+        if key in {'tone_contract', 'direction_profile', 'direction_fit'}:
+            continue
+        ref = tone.evidence_ref(state, key, scope)
+        paths.add(ref['path'])
+        record = json.loads(tone.verify_ref(root, ref).read_text(encoding='utf-8'))
+        paths.update(item['path'] for item in record['artifacts'])
+        paths.update(record[key]['path'] for key in ('screenshot', 'manual_review') if key in record)
+        paths.update(item['path'] for item in record.get('anchors', ()))
+    return completed, paths
+
 def digest(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 def checked_file(root,ref):
     root=Path(root).resolve()
@@ -63,7 +121,7 @@ def deciding_person(root,role,reply):
     if not allowed&set(people[pid].get('decides',[])):raise ValueError('person has no decision authority for this flow or its upstream')
     return pid
 
-def check(root,state,conversation=True):
+def check(root,state,conversation=True,registry_root=None):
     root=Path(root).resolve();role=state['role'];stages=STAGES[role]
     current=state['current'];following=state['next']
     if current not in stages[:-1] or stages[stages.index(current)+1]!=following:raise ValueError('invalid or skipped stage transition')
@@ -77,7 +135,6 @@ def check(root,state,conversation=True):
         record=''.join(checked_file(root,ref).read_text(encoding='utf-8').split())
         if not any(current+arrow+following in record for arrow in ('→','->')):raise ValueError('conversation check record has no entry for '+current+' → '+following)
     content_hash=artifact_digest(root,state['artifacts'])
-    tone.check_stage(root,state,state['artifacts'])
     # Review/evidence files are projections of existing sources, not a new authority.
     delegated={};person=None
     if current in REVIEW[role] and state.get('delegated_decision'):
@@ -96,14 +153,12 @@ def check(root,state,conversation=True):
         if reply.get('request_id')!=req['request_id'] or reply.get('artifact_sha256')!=content_hash or set(reply.get('scope',[]))!=set(scope):raise ValueError('reply is stale or partially scoped')
         evidence=checked_file(root,reply['source'])
         if not evidence.read_text().strip():raise ValueError('response source is empty')
-    need=UPSTREAM.get((role,current))
-    if need:
-        if not state.get('upstream'):raise ValueError('upstream review record required: %s %s'%need)
-        up=json.loads(checked_file(root,state['upstream']).read_text())
-        if (up.get('role'),up.get('current'))!=need:raise ValueError('upstream record is not the required review: %s %s'%need)
-        try:check(root,up,conversation=False)
-        except (ValueError,KeyError,TypeError) as e:raise ValueError('upstream review not confirmed or changed: '+str(e))
+    need=upstream_check(root, role, current, state, registry_root)
+    profession, requirements = framework(registry_root or root, role, current)
+    triggered = tone.check_stage(root, state, state['artifacts'], requirements)
     result={'allowed':True,'role':role,'from':current,'to':following,'scope':scope,'artifact_sha256':content_hash,'limitation':'Validates records and files, not human identity or professional quality.'}
+    if triggered:
+        result['framework'] = {'profession': profession, 'triggered': triggered, 'tone_contract': state['tone_contract']}
     result.update(delegated)
     if current in REVIEW[role] and person:result['confirmed_by']=person
     if need:result['upstream']=state['upstream']

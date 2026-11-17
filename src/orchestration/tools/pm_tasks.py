@@ -233,7 +233,7 @@ def task_map(db):
             if d.get('replaces') in tasks:
                 tasks[d['replaces']]['_superseded_by'] = d['task_id']
     for task in tasks.values():
-        if task['state']=='done' and (task.get('admitted_inputs') or task.get('intake_review_id')):
+        if task['state']=='done' and (task.get('admitted_inputs') or task.get('intake_review_id') or task.get('practice_stage')):
             task['_current_gate'] = bool(admission.production_issues(api(), root, db, task, tasks))
     for scope in integrity.records(db, 'scope').values():
         if scope['root_task'] in tasks and integrity.scope_issues(api(), root, scope, tasks):
@@ -787,7 +787,7 @@ def execute(project, cmd, _db=None, _applying=None):
                 check_people(after, people)
                 problem = team.level_issue(api(), db, after) or team.master_issue(api(), db, cfg, after)
                 require(not problem, problem)
-                admission_issues = admission.production_issues(api(), root, db, after, tasks)
+                admission_issues = admission.production_issues(api(), root, db, after, tasks, phase='planning')
                 require(not admission_issues, canon(admission_issues))
             else:
                 tid = cmd['task_id']
@@ -815,7 +815,7 @@ def execute(project, cmd, _db=None, _applying=None):
                     if set(changes) & (admission.FIELDS | {'goal','inputs','outputs','criteria','dependencies'}):
                         instance = integrity.records(db, 'instance').get(actor, {})
                         executor = actor == before.get('executor') and not instance.get('master')
-                        governed = before.get('admitted_inputs') or before.get('intake_review_id')
+                        governed = before.get('admitted_inputs') or before.get('intake_review_id') or before.get('practice_stage')
                         if set(changes) & admission.FIELDS or governed or executor:
                             require(actor == after['manager'] or _applying, 'production changes must return to the PM; record production_feedback')
                         require(not governed or before['state'] != 'running', 'stop admitted production before changing its task scope')
@@ -956,6 +956,7 @@ def execute(project, cmd, _db=None, _applying=None):
                             require(ranks[prev['person']] <= ranks[person], 'upstream decision stands; record this view as feedback for the upstream decider')
                     elif person is not None:
                         require(nonempty(person) and (not people or person in people['people']), 'unknown deciding person')
+                    direction.record_confirmation(api(), root, db, after, cmd)
                     after['human_review'] = {k:cmd[k] for k in ['outcome','presented_ref','source','quote','scope']}
                     if person is not None:
                         after['human_review']['person'] = person
@@ -1015,10 +1016,12 @@ def execute(project, cmd, _db=None, _applying=None):
             if op == 'update' and 'evidence' in cmd['changes']:
                 admission.submission(api(), root, after, after['evidence'])
             if op == 'update' and set(cmd['changes']) & (admission.FIELDS | {'inputs'}) and (
-                    after.get('admitted_inputs') or before.get('admitted_inputs') or after.get('intake_review_id') or before.get('intake_review_id')):
+                    after.get('admitted_inputs') or before.get('admitted_inputs') or after.get('intake_review_id') or
+                    before.get('intake_review_id') or after.get('practice_stage') or before.get('practice_stage')):
                 require(not before.get('admitted_inputs') or after.get('admitted_inputs'), 'cannot drop admitted production inputs')
+                require(not before.get('practice_stage') or after.get('practice_stage'), 'cannot drop the production practice stage')
                 require(before.get('intake_review_id') == after.get('intake_review_id'), 'review purpose is immutable')
-                problems = admission.production_issues(api(), root, db, after, tasks)
+                problems = admission.production_issues(api(), root, db, after, tasks, phase='planning')
                 require(not problems, canon(problems))
             if op == 'transition' and after['state'] == 'done':
                 direction.confirm_milestone(api(), root, db, after)
@@ -1029,7 +1032,8 @@ def execute(project, cmd, _db=None, _applying=None):
             if op == 'transition' and after['state'] in {'running', 'done'}:
                 problems = integrity.blockers(api(), root, db, tasks, tid, closing=after['state']=='done', applying=_applying)
                 problems += team.blockers(api(), root, db, tasks, tid, closing=after['state']=='done')
-                problems += admission.production_issues(api(), root, db, after, tasks)
+                problems += admission.production_issues(api(), root, db, after, tasks,
+                                                        phase='complete' if after['state']=='done' else 'entry')
                 require(not problems, 'integrity gate: ' + canon(problems))
             for key in list(after):
                 if key.startswith('_'):

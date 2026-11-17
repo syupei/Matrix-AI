@@ -4,8 +4,8 @@
   "name": "质量工程",
   "abbr": "Q",
   "class": "保障与审查",
-  "version": "1.0",
-  "kit": "matrix-ai/0.32",
+  "version": "1.1",
+  "kit": "matrix-ai/0.37",
   "skills": [
     "matrix-quality-engineering"
   ],
@@ -118,5 +118,18 @@
     "team_qa_worker",
     "defect_minor_copy",
     "base_no_escalation_qa"
-  ]
+  ],
+  "framework_requirements": {
+    "Q-1": {
+      "entry": [
+        "tone_contract"
+      ],
+      "complete": [
+        "direction_contribution",
+        "direction_acceptance_plan",
+        "motion_acceptance_plan",
+        "load_acceptance_plan"
+      ]
+    }
+  }
 }

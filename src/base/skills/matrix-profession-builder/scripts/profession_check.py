@@ -25,6 +25,9 @@ BUDGET = {'SKILL.md': 3500, 'GUIDANCE-INDEX.md': 1500, 'level doc': 3000, 'share
 spec = importlib.util.spec_from_file_location('build_entry', HERE / 'build_entry.py')
 entry = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(entry)
+spec = importlib.util.spec_from_file_location('practice_profiles', ROOT / 'matrix/base/tools/practice_profiles.py')
+practice = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(practice)
 
 
 def links(path, problems, name):
@@ -134,6 +137,11 @@ def registry(path, problems, owners, flows, abbrs):
         if not set(flow.get('review', [])) <= set(stages):
             problems.append(f'{name}: stage flow {key} reviews a stage it does not have')
         flows[key] = (name, flow)
+
+    try:
+        practice.stage_requirements(r)
+    except (TypeError, ValueError, KeyError, AttributeError) as error:
+        problems.append(f'{name}: {error}')
 
     for skill in r.get('skills') or []:
         if skill in owners:

@@ -8,5 +8,6 @@
 | R02 | [检验与测量](references/verification.md) | Q-2、Q-3、Q-4 | |
 | R03 | [缺陷分级与回归](references/defects.md) | 发现问题与分级；改动后定回归范围 | |
 | X01 | 测试策略与技术方案一起定：按代码工程[登记](../../../matrix/professions/code-engineering/profession.json)的接口，流程见 C13 | Q-1 与技术方案一起定测试策略时 | |
+| R04 | [游戏质量](references/game-quality.md) | Q-1–Q-4 本范围采用游戏质量做法 | |
 | T01 | [工作区模板](assets/qa-workspace-template.md) | 建立 `engineering/qa/` 下的文件时 | |
 | L01 | [本专业的职级与对照](../../../matrix/professions/quality-engineering/levels.md) | 标难度、定风险、给缺陷定级 | |

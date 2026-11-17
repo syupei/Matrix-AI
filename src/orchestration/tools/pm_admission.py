@@ -9,7 +9,7 @@ import re
 
 READ_OPS = {'intake_status'}
 WRITE_OPS = {'intake_register', 'intake_submit', 'intake_review', 'intake_admit', 'production_feedback'}
-FIELDS = {'admitted_inputs', 'stage_transition', 'intake_review_id'}
+FIELDS = {'admitted_inputs', 'stage_transition', 'intake_review_id', 'practice_stage', 'practice_completion'}
 
 
 @lru_cache(maxsize=1)
@@ -102,13 +102,75 @@ def execute(pm, root, db, cmd):
     return {'input': rec}
 
 
-def production_issues(pm, root, db, task, tasks=None):
+def practice_check(pm, root, db, task, tasks, direction, phase):
+    if task['id'] in direction or task.get('intake_review_id'):
+        return
+    gate = load_gate()
+    state = task.get('practice_stage')
+    instances = pm.integrity.records(db, 'instance')
+    owner = instances.get(task['owner'], {})
+    executor = instances.get(task.get('executor'), {})
+    profession = owner.get('profession') or owner.get('role')
+    executing = executor.get('profession') or executor.get('role')
+    professions = {x for x in (profession, executing, task.get('role')) if x}
+    governed = {reg['id'] for reg in pm.team.registries(pm, root).values()
+                if reg.get('framework_requirements')}
+    inherited = False
+    if state is None:
+        parent = tasks.get(task.get('parent'), {})
+        if parent.get('practice_stage'):
+            state, inherited = parent['practice_stage'], True
+        else:
+            if phase != 'planning' and task.get('kind') == 'work':
+                sandbox_run = phase == 'entry' and any(
+                    run.get('admission_expert') and run['task_id'] == task['id'] and run['state'] in pm.platform.ACTIVE
+                    for run in pm.integrity.records(db, 'launch').values())
+                pm.require(sandbox_run or not professions & governed,
+                           'record the professional practice stage and current prerequisites')
+            return
+    pm.require(isinstance(state, dict) and set(state) <= {'role', 'current', 'scope', 'practice_scope', 'tone_contract',
+                                                          'practice_evidence', 'upstream'},
+               'practice_stage must contain the professional stage and its current prerequisite records')
+    role, current = state['role'], state['current']
+    pm.require(current in gate.STAGES.get(role, [])[:-1], 'practice_stage must name a registered professional stage')
+    stage_profession, requirements = gate.framework(root, role, current)
+    pm.require(professions & governed <= {stage_profession},
+               'practice_stage must match the assigned and executing professions')
+    scope = state.get('scope')
+    pm.require(pm.strings(scope) and scope and len(scope) == len(set(scope)), 'practice_stage needs a unique workflow scope')
+    if phase == 'planning':
+        return
+    gate.check_entry(root, state)
+    if phase != 'complete' or inherited:
+        return
+    ref = task.get('practice_completion')
+    if not ref and not requirements.get('complete') and task.get('kind') != 'stage':
+        return     # Finishing a work item does not advance its entire professional stage.
+    pm.require(pm.nonempty(ref) and ref in task['evidence'],
+               'hand over the current practice stage completion record')
+    completed = json.loads(gate.checked_file(root, ref).read_text(encoding='utf-8'))
+    pm.require(all(completed.get(key) == state.get(key) for key in ('role', 'current', 'scope', 'practice_scope')),
+               'practice stage completion must match the dispatched stage and scope')
+    pm.require(not state.get('tone_contract') or completed.get('tone_contract') == state['tone_contract'],
+               'practice stage completion must use the dispatched tone contract')
+    gate.check(root, completed)
+
+
+def production_issues(pm, root, db, task, tasks=None, phase='entry'):
+    tasks = tasks or {}
+    direction_samples = pm.integrity.records(db, 'direction_sample')
+    direction = {tid: record for record in direction_samples.values() for tid in [record['id'], *record['tasks']]}
+    try:
+        historical = phase == 'entry' and task['state'] in pm.TERMINAL
+        if not historical or task['state'] == 'done' and task.get('practice_stage'):
+            practice_check(pm, root, db, task, tasks, direction, 'complete' if historical else phase)
+    except (ValueError, KeyError, OSError, TypeError, AttributeError) as error:
+        return [pm.integrity.issue('practice_stage', task['id'], str(error), responsible=pm.config(db)['pm_actor'])]
     registered = pm.integrity.records(db, 'input_admission')
     latest = ref_latest(registered)
     ids = task.get('admitted_inputs', [])
     inputs = task.get('inputs', [])
     origin = task.get('origin') or {}
-    tasks = tasks or {}
     parent = tasks.get(task.get('parent'), {})
     # Explicit external paths and a parent's admitted versions cannot be bypassed
     # by dropping admissions from a newly derived task.
@@ -118,7 +180,7 @@ def production_issues(pm, root, db, task, tasks=None):
     requires.update(registered[i]['path'] for upstream_task in upstream for i in upstream_task.get('admitted_inputs', [])
                     if i in registered)
     role = task.get('role') or ''
-    if 'code-engineering' in role:
+    if 'code-engineering' in role and task['id'] not in direction:
         requires.update(path for path in paths if path.startswith('product/'))
     review_id = task.get('intake_review_id')
     if review_id:
@@ -168,7 +230,7 @@ def production_issues(pm, root, db, task, tasks=None):
 
 
 def submission(pm, root, task, paths):
-    if not (task.get('admitted_inputs') or task.get('intake_review_id')):
+    if not (task.get('admitted_inputs') or task.get('intake_review_id') or task.get('practice_completion')):
         return
     outputs = task.get('outputs', [])
     for path in paths:

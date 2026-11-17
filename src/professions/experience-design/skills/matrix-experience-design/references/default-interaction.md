@@ -41,4 +41,4 @@ D-1 在设计基础中定表达取向；D-2 只表达影响结构的进入、返
 
 参考来源：[Apple HIG Motion](https://developer.apple.com/design/human-interface-guidelines/motion)、[Playing haptics](https://developer.apple.com/design/human-interface-guidelines/playing-haptics)、[Playing audio](https://developer.apple.com/design/human-interface-guidelines/playing-audio)，仅作品质原则参考，不强制其外观、平台或技术栈；上列数值不是其官方规定。
 
-下表是工具与业务档的起始参数。游戏与玩乐档参看[活动场景](activity-centered.md)。
+下表给普通界面交互起始参数。采用游戏交互做法的范围参看[活动场景](activity-centered.md)。

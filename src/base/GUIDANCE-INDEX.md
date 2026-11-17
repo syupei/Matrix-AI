@@ -31,6 +31,7 @@
 | C24 | [实例](../orchestration/INSTANCES.md) | 写或改实例配置；派生；实例启动；派发、改派、检验与冲突；查看台账 | |
 | C25 | [议题](TOPICS.md) | 跨专业来回几轮或涉及多个专业；结论效力与共同约束；外部专业 | |
 | C26 | [共享知识索引](SHARED-INDEX.md) | 发布或更新多个专业依据的知识；把资料交给别的专业或外部执行者之前 | |
+| C27 | [项目做法档](PRACTICE-PROFILES.md) | P-1 方向样张；专业阶段应用或核对做法档 | |
 | C90 | [团队任职与执行](../orchestration/TEAM-EXECUTION.md) | 接入团队、收到任务包、派发或换实例 | |
 | C91 | [工具授权](../orchestration/TOOL-ACCESS.md) | 指定工具、外部调用、换工具或撤权 | |
 | C92 | [委托检查](DELEGATED-REVIEW.md) | 已有明确阶段委托 | |

@@ -20,4 +20,4 @@
 
 计费、扣费、退款或自动续费 → [计费规则格式和校验](references/billing.md)。
 
-方向样张或游戏与玩乐档 → [核心循环](references/game-loop.md)。
+P-1 建项目做法档与样张 → C27 与[方向样张](../../../matrix/orchestration/DIRECTION-SAMPLE.md)。P-1–P-7 本范围采用游戏产品做法 → [核心循环](references/game-loop.md)。

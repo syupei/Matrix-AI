@@ -95,6 +95,8 @@ def binding(pm, root, db, task, tasks):
         except (ValueError, OSError):
             pass  # an input described in words rather than a project file
     data = {k: task.get(k) for k in ['goal', 'inputs', 'outputs', 'criteria', 'dependencies', 'completion_requires', 'executor']}
+    if task.get('practice_stage'):
+        data['practice_stage'] = task['practice_stage']
     data.update(dependency_versions=[(d, tasks[d]['work_revision']) for d in task['dependencies'] if d in tasks],
                 appointment=(appointment or {}).get('revision'), files=files)
     return hashlib.sha256(pm.canon(data).encode()).hexdigest()
@@ -245,6 +247,7 @@ def start(pm, root, db, cfg, tasks, cmd, records):
     pm.require(purpose != 'start' or len(ids) == 1, 'a start run takes one task')
     inst = pm.integrity.records(db, 'instance').get(cmd.get('instance'))
     pm.require(inst and inst.get('active', True), 'active registered instance required')
+    pm.team.experts.entry(pm, root, inst)
     fit_issue = pm.team.instance_fit_issue(pm, root, db, inst)
     pm.require(not fit_issue, fit_issue)
     pm.require(not any(l['instance'] == inst['id'] for l in active(pm, db)), inst['id'] + ' is already running; one run per instance at a time')
@@ -275,8 +278,17 @@ def start(pm, root, db, cfg, tasks, cmd, records):
                  after_seq=db.execute('SELECT COALESCE(MAX(seq),0) FROM events').fetchone()[0])
     if cmd.get('admission_expert') is not None:
         pm.require(pm.nonempty(cmd.get('admission_runner')), 'admission runner identifier required')
-        value['admission_expert'] = pm.team.experts.admission_binding(pm, root, cmd['admission_expert'])
+        expert = pm.team.experts
+        _, package = expert.read(pm, root, cmd['admission_expert'])
+        pm.require(purpose == 'start' and (inst.get('profession') or inst['role']) == package['profession'],
+                   'admission must start a run for the candidate expert profession')
+        value['admission_expert'] = expert.admission_binding(pm, root, cmd['admission_expert'])
         value['admission_runner'] = cmd['admission_runner']
+        workspace = pm.local(root, 'management/instances/' + inst['id'] + '/workspace/public')
+        pm.require(task['outputs'] and all(pm.local(root, path).is_relative_to(workspace) for path in task['outputs']),
+                   'admission launch outputs must stay in the isolated public workspace')
+        value['admission_baseline'] = {path.relative_to(root).as_posix(): expert.digest(path.read_bytes())
+                                       for path in workspace.rglob('*') if path.is_file() and not path.is_symlink()}
     if cmd.get('log') is not None:
         pm.local(root, cmd['log'])
     pm.integrity.save(pm, db, 'launch', value)
@@ -472,6 +484,20 @@ def hand_over(pm, root, db, cfg, tasks, cmd):
     pm.require(task['state'] == 'running', task['id'] + ' is ' + task['state'] + ', not in progress')
     if op == 'hand_over':
         pm.require(pm.strings(cmd.get('evidence')) and cmd['evidence'], 'evidence: the paths of the result and its check')
+        if rec.get('admission_expert'):
+            workspace = pm.local(root, 'management/instances/' + actor + '/workspace/public')
+            submitted = {}
+            for name in cmd['evidence']:
+                path = pm.local(root, name)
+                pm.require(path.is_relative_to(workspace) and path.is_file() and path.stat().st_nlink == 1,
+                           'admission handover must contain isolated public output files')
+                pm.require(any(name == out or out.endswith('/') and name.startswith(out) for out in task['outputs']),
+                           'admission handover must stay within the task output scope')
+                pm.require(name == path.relative_to(root).as_posix(), 'admission handover requires canonical output paths')
+                sha = pm.integrity.file_hash(pm, root, name)
+                pm.require(rec['admission_baseline'].get(name) != sha, 'admission must hand over newly produced evidence: ' + name)
+                submitted[name] = sha
+            rec['handover'] = {'files': submitted, 'event_id': cmd['event_id']}
         fields = dict(state='waiting_review', evidence=cmd['evidence'], reason=cmd.get('summary') or 'self-check done',
                       stop_evidence='run ' + rec['id'] + ' handed over')
     else:
@@ -479,6 +505,8 @@ def hand_over(pm, root, db, cfg, tasks, cmd):
         fields = dict(state='blocked', reason=cmd['reason'], stop_evidence='run ' + rec['id'] + ' stopped blocked')
     result = pm.execute(root, dict(op='transition', actor=actor, event_id=cmd['event_id'] + ':' + op, task_id=task['id'],
                                    expected_revision=task['revision'], launch_id=rec['id'], op_via=op, **fields), _db=db)
+    if op == 'hand_over' and rec.get('admission_expert'):
+        pm.integrity.save(pm, db, 'launch', rec)
     return {'task': task['id'], 'state': result['task']['state'], 'run': rec['id']}
 
 

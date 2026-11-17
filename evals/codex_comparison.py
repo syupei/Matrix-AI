@@ -3,8 +3,9 @@
 claude), case by case in parallel and resumable. Runs and scorers of one comparison use the same runner.
 
   codex_comparison.py run      --side baseline|candidate --kit KIT --out OUT [--jobs 4] [--model M] [--effort E] [--cases a,b]
-  codex_comparison.py score    --out OUT --work WORK [--batch 7] [--jobs 3] [--model M]
+  codex_comparison.py score    --out OUT --work WORK [--batch 7] [--jobs 3] [--model M] [--cases a,b]
   codex_comparison.py assemble --out OUT --work WORK --candidate-kit KIT --baseline-ref REF --reviewer TEXT
+  codex_comparison.py limited-summary --out OUT --work WORK --cases a,b --candidate-kit KIT --baseline-ref REF --reviewer TEXT
   codex_comparison.py focus    --old DIR --new DIR --criteria FILE --work WORK [--batch 7] [--jobs 3] [--model M] [--seed N]
 
 run      one run.py process per case into OUT/<side>/<case>/; cases already complete are skipped, failures are listed.
@@ -12,6 +13,8 @@ score    blind copies (scoring.py blind), first scorers by batch, re-check list,
          Codex sessions following evals/scoring-brief.md and write only their output file.
 assemble the comparison JSON for tools/production.py: scores, re-checks, flags, observations, evidence with hashes.
 Disagreements between scorers are listed and stop here: a person decides them (rescored), as the gate requires.
+limited-summary writes comparison-limited.json for a strict subset of fresh paired runs, including unresolved
+         disagreements for human review. It does not establish a full comparison or a release-ready baseline.
 focus    a pilot after a change, not gate evidence: chosen criteria ({case: [criteria]}) of chosen cases, earlier replies
          (DIR/<case>/, scored as "baseline") against new ones ("candidate"), blind. The first scorer scores only those
          criteria; the second re-scores every new 0, every flag, and every new stage-line 1 the program check does not
@@ -71,8 +74,11 @@ def pool(commands, jobs, label):
 def run(a):
     out = Path(a.out) / a.side
     wanted = set(a.cases.split(',')) if a.cases else None
+    suite = cases()
+    if wanted is not None and not wanted <= {case['id'] for case in suite}:
+        raise ValueError('unknown run case ids')
     todo = []
-    for case in cases():
+    for case in suite:
         if wanted and case['id'] not in wanted:
             continue
         folder = out / case['id']
@@ -86,6 +92,8 @@ def run(a):
     result = pool(todo, a.jobs, a.side)
     failed = sorted(k for k, v in result.items() if v)
     print(json.dumps({'side': a.side, 'ran': len(result), 'failed': failed}, ensure_ascii=False), flush=True)
+    if wanted is not None and failed:
+        raise SystemExit(1)
 
 
 def flat(out, side, work):
@@ -182,9 +190,14 @@ def score(a):
     work.mkdir(parents=True, exist_ok=True)
     tool = [sys.executable, '-B', str(EVALS / 'scoring.py')]
     wanted = set(a.cases.split(',')) if a.cases else None
-    ids = [c['id'] for c in cases() if wanted is None or c['id'] in wanted]
+    suite = cases()
+    selected = [case for case in suite if wanted is None or case['id'] in wanted]
+    ids = [case['id'] for case in selected]
     if wanted is not None and set(ids) != wanted:
         raise ValueError('unknown scoring case ids')
+    if len(selected) < len(suite):
+        from limited_comparison import bind_scoring
+        bind_scoring(out, work, selected, sha(SUITE), a.runner, a.model, a.batch)
     if not (work / 'labels.json').is_file():
         subprocess.run(tool + ['blind', '--baseline', str(flat(out, 'baseline', work)), '--candidate', str(flat(out, 'candidate', work)),
                                '--cases', ','.join(ids), '--workspace', str(work / 'ws'), '--labels', str(work / 'labels.json'), '--seed', '31'], check=True)
@@ -251,6 +264,13 @@ def assemble(a):
         data['cases'][cid] = entry
     report.write_text(json.dumps(data, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
     print(json.dumps({'report': str(report), 'cases': len(data['cases']), 'rechecking': combined['summary']}, ensure_ascii=False))
+
+
+def limited_summary(a):
+    from limited_comparison import summarize
+    report, selected, omitted, rechecking = summarize(a, SUITE, EVALS.parent / 'release-manifests')
+    print(json.dumps({'report': str(report), 'paired_cases': selected, 'not_run': omitted,
+                      'rechecking': rechecking}, ensure_ascii=False))
 
 
 def scorers(work, prefix, groups, listed, title, model, jobs):
@@ -334,6 +354,9 @@ def main():
     s.add_argument('--batch', type=int, default=7); s.add_argument('--jobs', type=int, default=3); s.add_argument('--model'); s.add_argument('--cases', help='explicit approved subset; retains every normal recheck condition')
     m = sub.add_parser('assemble'); m.add_argument('--out', required=True); m.add_argument('--work', required=True)
     m.add_argument('--candidate-kit', required=True); m.add_argument('--baseline-ref', required=True); m.add_argument('--reviewer', required=True)
+    limited = sub.add_parser('limited-summary')
+    for name in ('out', 'work', 'cases', 'candidate-kit', 'baseline-ref', 'reviewer'):
+        limited.add_argument('--' + name, required=True)
     f = sub.add_parser('focus'); f.add_argument('--old', required=True); f.add_argument('--new', required=True); f.add_argument('--criteria', required=True)
     f.add_argument('--work', required=True); f.add_argument('--batch', type=int, default=7); f.add_argument('--jobs', type=int, default=3)
     f.add_argument('--model'); f.add_argument('--seed', type=int, default=32)
@@ -342,7 +365,7 @@ def main():
     a = ap.parse_args()
     global RUNNER
     RUNNER = getattr(a, 'runner', 'codex')
-    {'run': run, 'score': score, 'assemble': assemble, 'focus': focus}[a.command](a)
+    {'run': run, 'score': score, 'assemble': assemble, 'limited-summary': limited_summary, 'focus': focus}[a.command](a)
 
 
 if __name__ == '__main__':

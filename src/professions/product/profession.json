@@ -4,8 +4,8 @@
   "name": "产品",
   "abbr": "P",
   "class": "定义",
-  "version": "1.0",
-  "kit": "matrix-ai/0.32",
+  "version": "1.1",
+  "kit": "matrix-ai/0.37",
   "skills": [
     "matrix-product"
   ],
@@ -87,7 +87,14 @@
       "gives": "规则、验收与用户情境"
     }
   ],
-  "inputs": [{"for": "P-2", "needs": "product:P-1", "state": "confirmed", "when": "游戏与玩乐，当前调性契约"}],
+  "inputs": [
+    {
+      "for": "P-2",
+      "needs": "product:P-1",
+      "state": "confirmed",
+      "when": "当前项目调性契约及活动范围"
+    }
+  ],
   "item_inputs": {
     "default": "by_risk",
     "stricter": []
@@ -133,5 +140,19 @@
     "topic_external_legal",
     "topic_promote",
     "model_situations"
-  ]
+  ],
+  "framework_requirements": {
+    "P-1": {
+      "complete": [
+        "tone_contract",
+        "direction_profile",
+        "direction_fit"
+      ]
+    },
+    "P-2": {
+      "entry": [
+        "tone_contract"
+      ]
+    }
+  }
 }

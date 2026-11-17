@@ -77,6 +77,16 @@ class Fixture:
                     goal='SIMULATED delivery', inputs=['SIM v1'], outputs=['SIM output'], criteria=['SIM correct'], next_action='SIM next')
         data.update(kw)
         data.setdefault('executor', data['owner'])
+        if 'practice_stage' not in data and data.get('kind', 'work') == 'work':
+            with pm.connect(self.root, readonly=True) as db:
+                people = pm.integrity.records(db, 'instance')
+            assignee = people.get(data['executor'], {})
+            profession = assignee.get('profession') or assignee.get('role')
+            if profession == 'code-engineering':
+                # The fixture's default engineering work models synthetic interface inputs.
+                data['practice_stage'] = {'role': 'engineering', 'current': 'E-1.2', 'scope': ['SIM interface model']}
+            elif profession == 'product':
+                data['practice_stage'] = {'role': 'product', 'current': 'P-3', 'scope': ['SIM object rules']}
         return self.call('create', actor or ('PM' if parent is None else self.t(parent)['owner']), task=data)
 
     def mutate(self, op, tid, actor=None, **kw):

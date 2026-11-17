@@ -4,8 +4,8 @@
   "name": "交互与视觉设计",
   "abbr": "D",
   "class": "制作",
-  "version": "1.0",
-  "kit": "matrix-ai/0.32",
+  "version": "1.1",
+  "kit": "matrix-ai/0.37",
   "skills": [
     "matrix-experience-design"
   ],
@@ -82,7 +82,14 @@
       "gives": "设计规格与走查结论"
     }
   ],
-  "inputs": [{"for": "D-1", "needs": "product:P-1", "state": "confirmed", "when": "游戏与玩乐，当前调性契约"}],
+  "inputs": [
+    {
+      "for": "D-1",
+      "needs": "product:P-1",
+      "state": "confirmed",
+      "when": "当前项目调性契约及活动范围"
+    }
+  ],
   "item_inputs": {
     "default": "by_risk",
     "stricter": []
@@ -130,5 +137,47 @@
     "base_level_answer_design",
     "topic_perf",
     "model_design_template"
-  ]
+  ],
+  "framework_requirements": {
+    "D-1": {
+      "entry": [
+        "tone_contract"
+      ],
+      "complete": [
+        "direction_contribution",
+        "appearance_target",
+        "design_fit"
+      ]
+    },
+    "D-2": {
+      "entry": [
+        "tone_contract",
+        "appearance_target"
+      ],
+      "complete": [
+        "scene_structure",
+        "design_fit"
+      ]
+    },
+    "D-4": {
+      "entry": [
+        "tone_contract",
+        "appearance_target",
+        "scene_structure"
+      ],
+      "complete": [
+        "asset_anchors",
+        "asset_fit"
+      ]
+    },
+    "D-6": {
+      "entry": [
+        "tone_contract"
+      ],
+      "complete": [
+        "implementation_walkthrough",
+        "increment_fit"
+      ]
+    }
+  }
 }

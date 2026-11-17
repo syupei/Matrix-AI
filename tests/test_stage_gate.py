@@ -1,6 +1,7 @@
 import importlib.util,json,tempfile,unittest,hashlib,copy
 from pathlib import Path
 from kit import KIT
+from practice_fixture import direction, practice_record
 P=KIT/'matrix/base/tools/stage_gate.py'
 s=importlib.util.spec_from_file_location('gate',P);g=importlib.util.module_from_spec(s);s.loader.exec_module(g)
 class GateTests(unittest.TestCase):
@@ -22,6 +23,10 @@ class GateTests(unittest.TestCase):
   self.req={'request_id':'R1','role':'design','stage':'D-1','scope':['A'],'artifact_sha256':h,'display_evidence':'shown.md'}
   self.reply={'request_id':'R1','scope':['A'],'artifact_sha256':h,'actor':'user','choice':'confirm','source':'user.md'}
   self.state={'role':'design','current':'D-1','next':'D-2','scope':['A'],'blockers':[],'artifacts':artifacts,'request':'request.json','response':'response.json','conversation_check':'conversation.md'}
+  self.contract,_=direction(self.root,g.tone)
+  self.state['tone_contract']=self.contract
+  self.state['practice_evidence']={'direction_contribution':{'workspace':practice_record(
+   self.root,g.tone,self.contract,'direction_contribution',artifacts)}}
   self.write_conversation=True
  def run_check(self):
   (self.root/'request.json').write_text(json.dumps(self.req));(self.root/'response.json').write_text(json.dumps(self.reply))
@@ -89,7 +94,7 @@ class GateTests(unittest.TestCase):
   (self.root/'solution.md').write_text('core review package v1')
   arts=[{'path':'solution.md','sha256':g.digest(self.root/'solution.md')}];h=g.artifact_digest(self.root,arts)
   self.req.update(role='solution',stage='E-2.4',artifact_sha256=h);self.reply['artifact_sha256']=h
-  (self.root/'e2-gate.json').write_text(json.dumps({'role':'solution','current':'E-2.4','next':'complete','scope':['A'],'blockers':[],'artifacts':arts,'request':'request.json','response':'response.json'}))
+  (self.root/'e2-gate.json').write_text(json.dumps({'role':'solution','current':'E-2.4','next':'complete','scope':['A'],'blockers':[],'artifacts':arts,'request':'request.json','response':'response.json','tone_contract':self.contract}))
   self.state.update(role='build',current='E-3.1',next='E-3.2');self.state.pop('request');self.state.pop('response')
   with self.assertRaisesRegex(ValueError,'upstream'):self.run_check()  # no technical review record
   self.state['upstream']='e2-gate.json'

@@ -17,8 +17,8 @@
 | R11 | [工作状态](references/review-and-state.md) | 续做；记录确认；人的编辑 | |
 | R12 | [素材元素](references/assets.md) | D-2 占位；D-4–6 素材 | |
 | R13 | [实现走查](references/walkthrough.md) | 研发请求实现走查 | |
-| R14 | [外观目标](references/visual-target.md) | 风格词或样稿；D-4 锚点；画面做法与外观对照 | |
+| R14 | [外观目标](references/visual-target.md) | D-1 外观目标；D-4 锚点；画面做法与外观对照 | |
 | T01 | [工作区模板](assets/design-workspace-template.md) | 创建设计文件时 | |
 | L01 | [本专业的职级与对照](../../../matrix/professions/experience-design/levels.md) | 标难度、定风险、给缺陷定级 | |
 
-方向样张或游戏与玩乐档 → [活动场景](references/activity-centered.md)。
+按本范围做法档选读：样张任务或 D-1–D-3 游戏交互 → [活动场景](references/activity-centered.md)；D-1/D-4–D-6 游戏美术 → [美术](references/game-art.md)。

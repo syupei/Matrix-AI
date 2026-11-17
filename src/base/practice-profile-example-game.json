@@ -1,0 +1,83 @@
+{
+  "schema": "matrix-practice-profile/1",
+  "id": "board-race",
+  "version": "1",
+  "label": "游戏与玩乐｜两人掷骰路线竞赛合成示例",
+  "references": [
+    {
+      "name": "Royal Game of Ur",
+      "source": "https://www.britishmuseum.org/collection/object/W_1928-1009-378",
+      "borrows": "棋盘上可辨的路径与特别位置",
+      "observed": "列为待观察参照，制作前应打开来源"
+    },
+    {
+      "name": "Backgammon",
+      "source": "https://www.gnu.org/software/gnubg/manual/gnubg.html",
+      "borrows": "掷骰后选择走法及轮到谁的清楚反馈",
+      "observed": "列为待观察参照，制作前应打开来源"
+    }
+  ],
+  "scopes": [
+    {
+      "id": "race",
+      "description": "两人桌面短局，首次加入到选棋、掷骰、走格、结算和再来一局。",
+      "features": {
+        "scene_centered": {
+          "value": "yes",
+          "basis": "棋盘承担观察路线、移动棋子和理解局势的核心活动。"
+        },
+        "appearance_target": {
+          "value": "yes",
+          "basis": "看清路径、落点和占位，同时形成木质桌面、刻线棋盘与双色棋子的相容外观。"
+        },
+        "asset_family": {
+          "value": "yes",
+          "basis": "棋盘、棋子、骰面、落点、回合标记和光效须共享视觉层次。"
+        },
+        "direct_manipulation": {
+          "value": "yes",
+          "basis": "玩家选中棋子并点按或拖到可走的落点，也可用键盘完成同一选择。"
+        },
+        "continuous_animation": {
+          "value": "yes",
+          "basis": "骰子先摇再停、棋子沿可读路径移动；动画可中断或缩减。"
+        },
+        "timing_feedback": {
+          "value": "yes",
+          "basis": "先锁定结果、再显示骰面、突出落点与移动路径，随后交接回合。"
+        },
+        "traffic_peak": {
+          "value": "no",
+          "basis": "短局私密双人邀请，当前目标没有同期开场或公开活动峰值；目标改变时重审。"
+        }
+      },
+      "practices": {
+        "product": {
+          "approach": "围绕加入、掷骰、决定走法、结算、同席再来一局；解释追赶和公平来源。",
+          "pitfall": "一开始先做账号、排名、设置和管理后台，缩掉整局。",
+          "check": "从邀请开始跑完一局，双方知道为何能走、何时换手和谁获胜。"
+        },
+        "experience-design": {
+          "approach": "棋盘居中承载直接选择，周边提示回合和剩余动作；代表棋子、路径、骰面、落点先回场景看明暗和读法。",
+          "pitfall": "把落点拆成按钮列表，把棋盘退成卡片插画，骰面与棋子在深色背景下难辨。",
+          "check": "在目标窗口并排看锚点和渲染场景，检查轮到谁、当前动作和下一落点是否明确。"
+        },
+        "content-design": {
+          "approach": "按加入、等待、瞄准落点、规则限制、反超、结算等时刻写场内短句。",
+          "pitfall": "用工作记录式措辞，或游玩前强制阅读整页规则。",
+          "check": "把句子放回画面和触发时刻，核对规则后果、长度及误操作后的可行动性。"
+        },
+        "code-engineering": {
+          "approach": "比较可访问 DOM 与画布渲染；独立处理输入、权威结果和表现，试做骰子和棋子片段并安排可玩回合。",
+          "pitfall": "让画面状态决定结果，先定常用框架再删掉手感；中途断线无法重演。",
+          "check": "在目标设备跑外观和手感试做，记录帧预算、动画中断、载入降级与恢复。"
+        },
+        "quality-engineering": {
+          "approach": "对标截图和录屏；按掷骰、选择、反馈、换手用可重复试玩脚本验证节奏、公平和恢复。",
+          "pitfall": "功能按钮可点便称体验通过，以自动结果替代人的试玩反馈。",
+          "check": "分别记录功能、视觉和实际试玩反馈，说明仅凭录像不能判定的手感。"
+        }
+      }
+    }
+  ]
+}

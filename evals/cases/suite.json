@@ -2220,6 +2220,64 @@
         "routes_current_master",
         "blocks_unadmitted_dispatch"
       ]
+    },
+    {
+      "id": "late_rendering_solution",
+      "role": ["matrix-code-engineering-solution"],
+      "fixture": "late_game",
+      "fixture_sha256": "e9576018738c3270429ed0243ef8c88c04e7c61d44e9f160d59a49db83c08247",
+      "turns": [
+        "风脊竞走，进入 E-2 技术方案。项目已有确认的方向、样句和做法，见 product/specs/00-方向样张.md 和其中引用的材料。团队熟悉把项目先做成网页卡片和按钮，想沿用这套办法。请读取现有项目方向，给出适用于这个项目的技术方案和验证安排。今天只审方案，先别制作原型，也不要说试做或真人试玩已经完成。"
+      ],
+      "criteria": {
+        "rendering_is_key_choice": "Uses the confirmed project direction and evaluates at least two viable rendering options for the actual board, route interaction, animation, keyboard access and target device. Treats rendering as a key choice, explaining product effects and a concrete condition to revisit the recommendation.",
+        "appearance_proof_compares_scene": "Plans a real candidate-rendered fork scene containing visible board routes, pawn and die or landing cue, side by side with the confirmed sample at a fixed viewport. Defines what must match to proceed.",
+        "playable_proof_checks_feel": "Plans a separate playable input-to-feedback turn grounded in the project, including a human playtest, timing and interruption/reduced-motion or recovery checks, and a measurable device/performance check.",
+        "solution_evidence_is_pending": "Keeps the choice, visual proof, prototype and human feedback at the evidence level actually available. Does not claim unrun proofs or imply the direction fixture confirms a technical choice."
+      }
+    },
+    {
+      "id": "late_core_skeleton",
+      "role": ["matrix-code-engineering-build"],
+      "fixture": "late_game",
+      "fixture_sha256": "e9576018738c3270429ed0243ef8c88c04e7c61d44e9f160d59a49db83c08247",
+      "turns": [
+        "风脊竞走，准备从 E-2.3 的 S-1 骨架交接进入 E-3。已确认方向在 product/specs/00-方向样张.md，骨架及交接在 engineering/skeleton/。如果改用一个表单占位页，工程觉得更快。请看已有资料，给出骨架承接和第一个可玩增量的具体安排。只做承接判断及计划，不制作新版本、不代替其他人或未来试玩。"
+      ],
+      "criteria": {
+        "skeleton_carries_core_scene": "Uses the actual S-1 snapshot and confirmed direction to keep the visible board, fork, pawn, and die or feedback cue as skeleton inputs. Distinguishes the existing E-2.3 skeleton from E-3 handoff and identifies remaining interactive work for a first playable turn without substituting a form placeholder.",
+        "skeleton_and_increment_fit_rechecks": "Plans screenshot comparison at the same viewport and representative game state against the current confirmed direction for both the skeleton and first playable increment. Names another reviewer instance or role and design implementation walkthrough, and does not label a self-check independent.",
+        "skeleton_evidence_is_pending": "Distinguishes the supplied rendered skeleton from missing playable behavior, independent fit review, and human playtest evidence. Does not claim an unperformed phase gate, fit review, or handoff approval."
+      }
+    },
+    {
+      "id": "late_asset_anchors",
+      "role": ["matrix-experience-design"],
+      "fixture": "late_game",
+      "fixture_sha256": "e9576018738c3270429ed0243ef8c88c04e7c61d44e9f160d59a49db83c08247",
+      "visual_preview": "design/asset-anchor-review.html",
+      "turns": [
+        "风脊竞走进入 D-4 素材。已确认方向和项目素材需求见 product/specs/00-方向样张.md 及其引用文件。有人想直接按素材清单批量出图。请先交本轮该做的小样，保存在 design/asset-anchor-review.html 供实际渲染和对照，并写清何时可以开展成套制作。只做本轮必要的小样与记录，先别批量生产。"
+      ],
+      "criteria": {
+        "makes_representative_asset_anchors": "Produces three to five actually rendered representative elements from the project asset families, such as board/route, pawn, die or landing marker. Anchors preserve observable direction traits and are more than names in a list.",
+        "asset_anchors_compared_in_scene": "Places the representative elements together in the actual fork scene and compares it with the fixed reference image. Identifies observable fit checks such as routes distinguished by form and color, or pawn/landing legibility on the terrain.",
+        "asset_series_waits_for_fit": "Identifies which observable comparison or review authorizes series production, records any remaining gaps, and does not claim batch assets or an unobserved approval."
+      }
+    },
+    {
+      "id": "late_implementation_walkthrough",
+      "role": ["matrix-experience-design"],
+      "fixture": "late_game",
+      "fixture_sha256": "e9576018738c3270429ed0243ef8c88c04e7c61d44e9f160d59a49db83c08247",
+      "turns": [
+        "风脊竞走第一个增量 I-1 已交 D-6 走查。方向见 product/specs/00-方向样张.md，实际增量、初始截图和限制见 engineering/increment/。请对照确认方向走查并记录结果：指出具体位置、影响、处理归属和下一次如何复查。可以打开本地实现取证，保留现有实现，不批准发布。"
+      ],
+      "criteria": {
+        "walkthrough_locates_activity_loss": "Compares the actual I-1 image with the approved image and names at least two concrete locations or controls, including where route choice and pawn/landing feedback went. Explains what players lose in choosing or reading the route, beyond naming cards or buttons.",
+        "walkthrough_routes_concrete_correction": "Treats lost core-scene interaction as an implementation deviation that blocks the increment and routes a concrete fix to engineering. Preserves useful HUD/status information where appropriate, and specifies how the fixed branch state and result will be compared again.",
+        "walkthrough_records_evidence_level": "Records actual evidence used and whether the local implementation was operated. Distinguishes initial screenshot/source inspection from behavior exercised, human playtest and release approval, without claiming unobserved evidence."
+      }
     }
   ],
   "notes": "Fixtures are synthetic; no customer data or project identities. Grading uses actual replies and tool traces. UI spatial quality is not certified by text-only tests."

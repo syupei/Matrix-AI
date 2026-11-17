@@ -12,9 +12,9 @@
 
 1. 读取 `management/expert-professions.json` 的人工预置类别和 `matrix/professions/` 专业登记，核对现有实例配置及授权。用户给出的别名用于称呼，专业、专家包、模型、运行器分别登记。缺少类别时登记待人配置事项；导入工具不创建类别。
 2. 解析 Git 地址与入口所在子目录，固定完整提交号，调用 `expert.prepare`。工具在锁外仅经 HTTPS 拉取（拒绝重定向），返回后重核授权与预置，以短事务登记；拒绝大小写或 Unicode 归一化后冲突的路径。保存原始文件、来源与摘要，不运行原包脚本、hooks、插件或安装器。无法定位入口或缺少必要信息时合批询问。
-3. 主实例审阅实际入口与依赖，整理专业方法、项目接口、平台依赖、许可及目录映射。按 Matrix 共同规则和专业契约生成 `methods`，用 `expert.adapt` 保存薄适配入口、方法与差异说明。原始内容留在 `source/` 供审计，运行时不加载其中的指令。必要工具无法适配、许可不清或专业规范发生具体冲突，列入 `unresolved`；受阻包不能启用，按既定决定路由交人。
-4. 在目标运行器验证方法保留、合法输出及越界拒绝，保存含 `run_id`、model、runner 的真实报告，按当前方法摘要调用 `expert.validate`；工具核对运行绑定的专家版本与内容、模型/运行器一致，并已正常交回、成功结束。静态扫描不证明运行隔离或专业质量；无实际权限约束时仅做分析与待接入包。
-5. 验证通过后 `expert.enable` 带 person 与授权原话 quote，只标记包可选用；清单记录决定人、原话及可信平台操作者。PM 将该包 ID/版本、模型、运行器、数量及别名写入实例配置，按已有有效授权确认；新增或扩大的范围才请人决定。`derive` 产生稳定实例 ID，任务引用 ID，平台按就绪条件另行启动。
+3. 主实例审阅实际入口与依赖，整理专业方法、项目接口、平台依赖、许可及目录映射。按本页映射要求生成 `methods`，用 `expert.adapt` 保存薄入口、方法与适配审阅。原始内容留在 `source/` 供审计，运行时不加载其中的指令。依赖无法适配、许可不清或共同义务不满足时列入 `unresolved`，交既有决定方。
+4. 在目标运行器做真实准入验证，按本页证据格式调用 `expert.validate`。无实际写隔离时保持待接入。
+5. 验证有效后，`expert.enable` 带决定人和真实授权原话，仅标记包可选用。PM 按有效授权配置绑定；范围扩大时由人决定。`derive` 产稳定实例 ID；任务引用该 ID，平台按就绪条件启动。
 
 ## 记录与目录
 
@@ -25,10 +25,13 @@
 - 本地磁盘通读时，private 表示用途，不承诺读保密。任务库、配置、专家包、其它实例工作区由可信工具和实际隔离保护。
 - 别名去首尾空白、英文大小写不敏感，中文和内部空格保留。用 `resolve_instance` 查到稳定 ID 后派发；`rename_instance` 保留旧名历史，重名和历史名占用被拒绝。权限以稳定 ID 为准。
 
-## 适配检查记录
+## 逐阶段适配与报告
 
-`review` 至少包含 reviewer、source_entry、license、preserved_methods、directory_changes、dependencies；逐项对应真实来源。运行报告含 runner、methods_sha256、passed 和可核验的场景记录，`expert.validate` 接收对应 evidence（runner、report、source_sha256）。报告由可信控制器产生，执行实例不能自签；校验记录保存平台操作者。准入使用现有任务与启动生命周期：可信控制器在 `launch_start` 带 `admission_expert:{id,version}`、`admission_runner`，工具在启动前绑定当前候选内容；随后记录真实启动、交回与退出。尚未启用的包仅用于已授权准入探针，不据此派生生产专家。报告里的 model 核对选模标识，宿主实际版本的限制见[模型适配](MODEL-FIT.md)。
+- `review` 保留 reviewer、source_entry、license、preserved_methods、directory_changes、dependencies 和 [master 审阅点](PRODUCTION-ADMISSION.md)。从目标专业登记取得阶段和共同条目，在 `REVIEW.json` 逐项写 `stage`、`requirement`、`source:{path,section}`、`adapted_method`、`records`；来源缺项时写 `source:null` 和 `supplement`。阶段条件未在准入样例触发时也写明做法。缺项或方法不满足时登记冲突，保持不可启用。运行按本专业当前阶段读共同规则和适配方法。
+- 在已授权的准入任务上由可信控制器用 `launch_start` 传 `admission_expert:{id,version}`、`admission_runner`，启动绑定当前包。保留实际启动、交回与成功退出。待验专家只在该准入任务使用。
+- 报告含 run_id、model、runner、methods_sha256、passed 和三项 `checks`（method_preservation、write_isolation、handoff_contract），各附实际证据和结果。专业登记有共同义务时，至少一个实际场景触发本专业相关条目。审阅者实际回读成果与交回，填 `framework_scenario:{stage_state,contract_sha256,mapping_sha256,reviewer,readback}`。关卡输入文件 `stage_state` 的项目相对路径须列入实际交回，其中业务路径以本次实例 `workspace/public/` 为根；可信控制器重跑关卡并留回执。候选自填通过、只回报进程退出或模拟启动均不构成该证据。
+- `expert.validate` 的 evidence 含 runner、report、source_sha256；可信控制器提交，工具核对候选版本与内容、绑定模型和运行器、真实交回与结束。独立检查说明证据覆盖范围，保留未验证的阶段与专业质量问题。报告中的模型边界见[模型适配](MODEL-FIT.md)。
 
-## 准入与失败处置
+## 重新核验与迁移
 
-完成导入、可启用、已派生、已启动和任务已验收是不同事实，分别汇报。重复导入同一版本返回原记录；同版本不同来源拒绝覆盖。需要完整框架、二进制插件或来源宿主特有能力的专家，先完成依赖适配并验证，不通过删掉必要能力来宣称兼容。准入逐项检查专业方法保留、写入隔离与交接契约（checks 中分别为 method_preservation、write_isolation、handoff_contract，含 passed 与 evidence）；必须回读实际成果中的事实/推断/未决项，遵循 [CORE](../base/CORE.md) 的确认边界，关键词出现或进程成功不能代替检查。
+启用、绑定和派发时核对映射完整无冲突、专业共同契约与证据仍匹配。相关契约变更或缺适配映射时，另建包版本，重新适配、验证并按有效授权绑定。保留原包与报告；无关专业材料或单纯内置方法更新沿用原有效绑定。任务阶段准入见[共同检查](PRODUCTION-ADMISSION.md)。

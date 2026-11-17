@@ -1,0 +1,67 @@
+{
+  "schema": "matrix-practice-profile/1",
+  "version": "<项目档版本>",
+  "scopes": [
+    {
+      "id": "core",
+      "description": "<活动、用户及本次适用范围>",
+      "features": {
+        "scene_centered": {
+          "value": "pending",
+          "basis": "<说明需求依据或待决问题>"
+        },
+        "appearance_target": {
+          "value": "pending",
+          "basis": "<说明需求依据或待决问题>"
+        },
+        "asset_family": {
+          "value": "pending",
+          "basis": "<说明需求依据或待决问题>"
+        },
+        "direct_manipulation": {
+          "value": "pending",
+          "basis": "<说明需求依据或待决问题>"
+        },
+        "continuous_animation": {
+          "value": "pending",
+          "basis": "<说明需求依据或待决问题>"
+        },
+        "timing_feedback": {
+          "value": "pending",
+          "basis": "<说明需求依据或待决问题>"
+        },
+        "traffic_peak": {
+          "value": "pending",
+          "basis": "<说明需求依据或待决问题>"
+        }
+      },
+      "practices": {
+        "product": {
+          "approach": "<项目具体做法；不适用或待定时说明理由/待决问题>",
+          "pitfall": "<在此活动中容易做偏的方式>",
+          "check": "<检验方式或待补证据>"
+        },
+        "experience-design": {
+          "approach": "<项目具体做法；不适用或待定时说明理由/待决问题>",
+          "pitfall": "<在此活动中容易做偏的方式>",
+          "check": "<检验方式或待补证据>"
+        },
+        "content-design": {
+          "approach": "<项目具体做法；不适用或待定时说明理由/待决问题>",
+          "pitfall": "<在此活动中容易做偏的方式>",
+          "check": "<检验方式或待补证据>"
+        },
+        "code-engineering": {
+          "approach": "<项目具体做法；不适用或待定时说明理由/待决问题>",
+          "pitfall": "<在此活动中容易做偏的方式>",
+          "check": "<检验方式或待补证据>"
+        },
+        "quality-engineering": {
+          "approach": "<项目具体做法；不适用或待定时说明理由/待决问题>",
+          "pitfall": "<在此活动中容易做偏的方式>",
+          "check": "<检验方式或待补证据>"
+        }
+      }
+    }
+  ]
+}
