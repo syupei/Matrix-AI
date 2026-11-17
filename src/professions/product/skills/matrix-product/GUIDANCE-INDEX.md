@@ -19,3 +19,5 @@
 | L01 | [本专业的职级与对照](../../../matrix/professions/product/levels.md) | 标难度、定风险、给缺陷定级 | |
 
 计费、扣费、退款或自动续费 → [计费规则格式和校验](references/billing.md)。
+
+方向样张或游戏与玩乐档 → [核心循环](references/game-loop.md)。

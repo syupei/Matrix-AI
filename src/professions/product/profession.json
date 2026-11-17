@@ -87,7 +87,7 @@
       "gives": "规则、验收与用户情境"
     }
   ],
-  "inputs": [],
+  "inputs": [{"for": "P-2", "needs": "product:P-1", "state": "confirmed", "when": "游戏与玩乐，当前调性契约"}],
   "item_inputs": {
     "default": "by_risk",
     "stricter": []

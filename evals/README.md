@@ -86,3 +86,13 @@ scoring now pairs Claude tool calls with the observed returns, masks project
 paths and explicit kit versions, and reports unmatched calls as unobserved.
 It does not invent an exit code. Keep the original bytes for evidence and
 look up persisted files or readbacks when the rule requires them.
+
+### Matrix-AI 0.37 comparison freeze
+
+Use matrix-ai-v0.35 as the reference. Run all 131 cases on both packages under matching host conditions. Six appended cases cover dice, cards and business first drafts, external PRD, direct production instructions and imported-master admission. Score observed tool state and artifacts. A missing capability does not count as an approved or executed workflow.
+
+For dice/cards, `genre_and_references` checks genre reasoning, at least two comparable references and explicit observation limits. `artifact_visual_fit` requires inspection of the actual rendered screenshot when capture succeeds. The fallback requires an honest capture limitation and an identifiable preview for human inspection; missing preview fails. `tone_samples_and_consequences` checks samples against real game moments and clear consequences. The business control must keep a work-oriented profile and clear operational copy. Both kinds must leave direction pending until a real approval. For production admission, distinguish the external version registration, current assigned master, and the rejected or accepted task command. An actor merely saying it refused does not prove the gate was exercised. Direct instructions should leave the task scope unchanged and create a PM-facing record; imported masters must declare review points before enablement.
+
+The CLI runner collects browser evidence for cases with `visual_preview`. For other orchestrators run `python3 evals/visual_evidence.py --project PROJECT` inside each prepared temporary case before artifact collection. It stores the PNG and a status report under `visual-evidence/`. The blind copy carries both with the artifacts. An alternate Chromium binary may be selected with `MATRIX_EVAL_BROWSER`.
+
+For the paired front-half slice use `evals/direction_slice.py` with the two built packages, the mixed-model role assignments and a separate synthetic stakeholder. Use the first actual frame, the final accepted frame and the first playable Review A artifact for independent visual review. Compare genre, voice and structure, correction counts, human request sizes, wall time and recorded token usage. Keep version mapping outside the blind material.

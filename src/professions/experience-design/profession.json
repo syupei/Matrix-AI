@@ -82,7 +82,7 @@
       "gives": "设计规格与走查结论"
     }
   ],
-  "inputs": [],
+  "inputs": [{"for": "D-1", "needs": "product:P-1", "state": "confirmed", "when": "游戏与玩乐，当前调性契约"}],
   "item_inputs": {
     "default": "by_risk",
     "stricter": []

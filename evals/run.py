@@ -5,6 +5,7 @@ Results are ungraded raw evidence; no canned response is treated as model behavi
 import argparse,hashlib,json,os,re,shutil,subprocess,tempfile,time,importlib.util
 from pathlib import Path
 from read_records import extract
+from visual_evidence import capture
 from operation_evidence import check as check_operation, snapshot
 
 def fingerprint(root):
@@ -40,6 +41,8 @@ def main():
    for n,user in enumerate(case['turns']):
     start=f'kit/{entry}' if entry else f'kit/.agents/skills/{role}/SKILL.md'
     prompt=f"在此临时项目中使用 {start} 处理用户请求。读取所需本地规则。仅在此目录写本轮必要成果，不访问外部业务项目、不联网、不启动其他Agent。这里没有可用原生提问控件，使用技能允许的回退方式。只处理当前用户输入，等真实下一条消息，不替用户回答。\n"
+    if case.get('visual_preview'):
+     prompt+='评测宿主会在本情境结束后自动捕获本地渲染稿，请把 visual-evidence/ 留给评测宿主。\n'
     if history and not session:prompt+='此前真实对话：\n'+json.dumps(history,ensure_ascii=False)+'\n'
     prompt+='用户：'+user
     if session:prompt='用户：'+user
@@ -73,6 +76,12 @@ def main():
      audit = check_operation(work, operation_kind, reply, recorded_events, before, after)
      record['turns'][-1]['operation_evidence'] = dict(audit, before=before, after=after)
     print(case['id'],n,'completed',flush=True)
+   if case.get('visual_preview'):
+    record['visual_evidence'] = capture(work, case['visual_preview'])
+    visual = work/'visual-evidence'
+    visual.mkdir(exist_ok=True)
+    with (visual/'capture.json').open('x', encoding='utf-8') as stream:
+     json.dump(record['visual_evidence'], stream, ensure_ascii=False, indent=2)
    # The kit files this case read, from its traces: its reply may be carried over later only while they are unchanged.
    # Resolve relative paths against this isolated evaluated project.
    kit_files=json.loads((source/'MANIFEST.json').read_text())['files']

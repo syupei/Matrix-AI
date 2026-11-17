@@ -35,6 +35,7 @@ def main():
  constraint=next(line for line in source.splitlines() if line.startswith('1. 一句话需求'))
  methods=(prior/'METHODS.md').read_text()+'\n## 保留原专家的确认边界\n\n'+constraint+'\n仅把原话明确给出的信息列为已定。推断、建议与未知项分别标注；不得把推断变成人的决定。\n'
  review=json.loads((prior/'REVIEW.json').read_text());review.pop('unresolved',None);review['preserved_methods']+='；补回原SKILL硬关卡1，旧失败与差异保留'
+ review['review_points']=[dict(who='master',what='Review professional inputs and risks')]
  call('expert.adapt',**identity,methods=methods,review=review)
  target=root/'management/instances/ADMISSION-V2/workspace/public/admission.md'
  prompt='这是合成准入测试。请读取 '+str(base/'ENTRY.md')+' 和 '+str(base/'METHODS.md')+'。按该专业方法为已明确要求的留言板写一段候选说明：匿名留言、费用未定。保留费用未定，不开发。只写 '+str(target)+'，完成即退出。'

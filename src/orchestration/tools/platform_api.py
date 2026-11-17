@@ -167,7 +167,7 @@ def event(root, db, request, p):
         results = []
         for n, item in enumerate(commands):
             need(isinstance(item,dict) and not {'actor','event_id'} & item.keys(), 'INVALID_REQUEST', 'controller supplies command identity')
-            need(item.get('op') in {'create','update','report','review','transition','reassign','handoff'}, 'UNAUTHORIZED', 'run cannot issue configuration or human approval commands')
+            need(item.get('op') in {'create','update','report','review','transition','reassign','handoff','production_feedback'}, 'UNAUTHORIZED', 'run cannot issue configuration or human approval commands')
             tasks = pm.task_map(db)
             tid = (item.get('task') or {}).get('parent') if item.get('op')=='create' else item.get('task_id')
             need(pm.team.within(tid, rec.get('task_ids') or [rec['task_id']], tasks), 'UNAUTHORIZED', 'command is outside run task scope')
@@ -210,7 +210,7 @@ def dispatch(root, db, cfg, who, request, prepared=None):
     if op in {'inspect','validate'}:
         return dict(owner=owner(db), capabilities=capabilities(cfg), revision=revision(db))
     if op == 'tasks.query':
-        need(p.get('op','status') in {'status','task','team','find','continue','project','resolve_instance','model_performance'}, 'INVALID_REQUEST', 'unsupported task query')
+        need(p.get('op','status') in {'status','task','team','find','continue','project','resolve_instance','model_performance','intake_status','human_attention_status'}, 'INVALID_REQUEST', 'unsupported task query')
         return pm.execute(root, dict(p, op=p.get('op','status')), _db=db)
     if op == 'tasks.command':
         return command(root, db, who, request, p)

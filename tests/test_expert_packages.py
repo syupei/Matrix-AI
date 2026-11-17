@@ -18,10 +18,13 @@ class Experts(Fixture, unittest.TestCase):
         self.e=pm.team.experts
         self.ident=dict(id='sim-expert',version='1')
 
-    def package(self):
+    def package(self, review_points=True, profession="code-engineering"):
         with patch.object(self.e,'fetch',return_value={'SKILL.md':b'SIM professional method','LICENSE':b'SIM permission'}):
-            self.e.prepare(pm.api(),self.root,dict(self.ident,profession='code-engineering',url='https://example.org/sim.git',commit='a'*40))
-        self.e.adapt(pm.api(),self.root,dict(self.ident,methods='Use SIM professional method. Save under workspace/private/ or workspace/public/.',review=dict(reviewer='SIM',source_entry='SKILL.md',license='SIM permission',preserved_methods='SIM method',directory_changes='SIM destinations mapped',dependencies='none')))
+            self.e.prepare(pm.api(),self.root,dict(self.ident,profession=profession,url='https://example.org/sim.git',commit='a'*40))
+        review=dict(reviewer='SIM',source_entry='SKILL.md',license='SIM permission',preserved_methods='SIM method',directory_changes='SIM destinations mapped',dependencies='none')
+        if review_points:
+            review['review_points']=[{'who':'master','what':'Review engineering baseline and open risks'}]
+        self.e.adapt(pm.api(),self.root,dict(self.ident,methods='Use SIM professional method. Save under workspace/private/ or workspace/public/.',review=review))
         base,m=self.e.read(pm.api(),self.root,self.ident)
         sha=self.e.digest((base/'METHODS.md').read_bytes())
         self.write('sim-validation.json',dict(passed=True, methods_sha256=sha,runner='SIM-worker',run_id='SIM-admission',model='SIM-model',checks={k:dict(passed=True,evidence='SIMULATED only') for k in ('method_preservation','write_isolation','handoff_contract')}))
@@ -29,6 +32,25 @@ class Experts(Fixture, unittest.TestCase):
             pm.integrity.save(pm.api(),db,'launch',dict(id='SIM-admission',task_id='SIM-admission-task',task_ids=['SIM-admission-task'],instance='SIM-admission-instance',purpose='start',started_at=pm.now(),after_seq=0,state='exited',exit_code=0,handed=True,running_at=pm.now(),finished_at=pm.now(),model='SIM-model',admission_runner='SIM-worker',admission_expert=self.e.admission_binding(pm.api(),self.root,self.ident)))
         self.e.validate(pm.api(),self.root,dict(self.ident,evidence=dict(runner='SIM-worker',report='management/sim-validation.json',source_sha256=sha)),operator='SIM-controller')
         self.e.enable(pm.api(),self.root,dict(self.ident,person='SIM-person',quote='SIMULATED enable authorization'),operator='SIM-controller')
+
+    def test_enable_requires_master_review_points(self):
+        with self.assertRaisesRegex(ValueError,'master review points'):
+            self.package(review_points=False)
+
+    def test_imported_product_master_still_requires_input_admission(self):
+        self.write('expert-professions.json', dict(schema='matrix-expert-professions/1', professions=['product'],
+                   configured_by='SIM-person', authorization='SIM-human preset'))
+        self.package(profession='product')
+        self.staff({'entries':[dict(id='imported',profession='product',level='T7',model='SIM-big',
+                    count=1,master=True,expert=self.ident)]})
+        path=self.root/'external'
+        path.mkdir()
+        (path/'prd.md').write_text('Synthetic external input')
+        self.call('intake_register',id='PRD',path='external/prd.md',version='1',source='fixture',profession='product')
+        r=self.call('intake_submit',id='PRD',master='product-001')['input']
+        self.assertEqual(r['expert']['id'],'sim-expert')
+        with self.assertRaisesRegex(ValueError,'not admitted'):
+            self.create('PROD',owner='product-001',inputs=['external/prd.md'],admitted_inputs=['PRD'])
 
     def config(self):
         return {'entries':[dict(id='internal',profession='code-engineering',level='T7',model='SIM-big',count=1,master=True,aliases=['小 M.ai']),

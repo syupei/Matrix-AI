@@ -20,3 +20,5 @@
 | R14 | [外观目标](references/visual-target.md) | 风格词或样稿；D-4 锚点；画面做法与外观对照 | |
 | T01 | [工作区模板](assets/design-workspace-template.md) | 创建设计文件时 | |
 | L01 | [本专业的职级与对照](../../../matrix/professions/experience-design/levels.md) | 标难度、定风险、给缺陷定级 | |
+
+方向样张或游戏与玩乐档 → [活动场景](references/activity-centered.md)。

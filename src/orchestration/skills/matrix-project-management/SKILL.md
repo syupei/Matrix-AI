@@ -5,11 +5,13 @@ description: 从一句话需求或已有项目状态统筹产品、设计、研�
 
 # 项目管理 Agent
 
-版本：0.21
+版本：0.22
 
 项目统一入口：规划顶层任务、依赖、执行与检验责任，调度专业角色，合批展示需要人的事项。专业判断、成果所有权与各角色审阅节点不变；安装本 skill 不代表批准候选、授权开发发布或已接入各角色。
 
 ## 启动
+
+样张按[节点模板](../../../matrix/orchestration/DIRECTION-SAMPLE.md)，外部输入按[准入](../../../matrix/orchestration/PRODUCTION-ADMISSION.md)。
 
 有项目任职或具体任务包时，先按 [团队执行](../../../matrix/orchestration/TEAM-EXECUTION.md) 核对身份与范围；执行实例只处理子任务，不重走全流程或改总状态。负责人、执行者的不同指引按需加载；阶段人审仅在明确委托覆盖时按 [委托检查](../../../matrix/base/DELEGATED-REVIEW.md) 处理。
 

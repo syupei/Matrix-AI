@@ -7,6 +7,10 @@ import importlib.util
 from types import SimpleNamespace
 from pathlib import Path
 
+_tone_spec = importlib.util.spec_from_file_location('stage_tone_contract', Path(__file__).with_name('tone_contract.py'))
+tone = importlib.util.module_from_spec(_tone_spec)
+_tone_spec.loader.exec_module(tone)
+
 PROFESSIONS=Path(__file__).resolve().parents[2]/'professions'
 
 def load_flows(directory=PROFESSIONS):
@@ -73,6 +77,7 @@ def check(root,state,conversation=True):
         record=''.join(checked_file(root,ref).read_text(encoding='utf-8').split())
         if not any(current+arrow+following in record for arrow in ('→','->')):raise ValueError('conversation check record has no entry for '+current+' → '+following)
     content_hash=artifact_digest(root,state['artifacts'])
+    tone.check_stage(root,state,state['artifacts'])
     # Review/evidence files are projections of existing sources, not a new authority.
     delegated={};person=None
     if current in REVIEW[role] and state.get('delegated_decision'):
@@ -118,6 +123,6 @@ def main():
     g.add_argument('--digest',nargs='+',metavar='PATH',help='project-relative artifact paths')
     a=p.parse_args()
     try:result=digests(a.project,a.digest) if a.digest else check(a.project,json.loads(a.state.read_text()))
-    except (ValueError,KeyError,TypeError,OSError) as e:print(json.dumps({'allowed':False,'error':str(e)},ensure_ascii=False));return 1
+    except (ValueError,KeyError,TypeError,OSError,AttributeError) as e:print(json.dumps({'allowed':False,'error':str(e)},ensure_ascii=False));return 1
     print(json.dumps(result,ensure_ascii=False,indent=2));return 0
 if __name__=='__main__':raise SystemExit(main())

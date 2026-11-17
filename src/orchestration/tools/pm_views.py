@@ -469,6 +469,10 @@ def pages(pm, root, db):
     """Views rendered with the others: the PM list for the index, one list per active instance, ledger, human points, delivery sets."""
     c = context(pm, root, db)
     out = {'index-list': task_list(c, c.cfg['pm_actor'], link=lambda tid: '[' + esc(tid) + '](tasks/' + tid + '.md)')['text']}
+    attention = pm.direction.attention(pm, root, db, c.cfg, {'op':'human_attention_status'})
+    out['index-list'] += ('\n\n## 人的负担\n\n'
+                          f"请求 {attention['count']} 次，已答复 {attention['answered']} 次，"
+                          f"展示 {attention['characters']} 字，已答复用时 {attention['seconds']} 秒。\n")
     for iid, i in sorted(c.instances.items()):
         if i.get('active', True) and re.fullmatch(pm.SAFE_ID, iid):
             out['instances/' + iid + '.md'] = ('# ' + esc(name(c, iid)) + ' 的任务\n\n只读派生视图；只列它受领的任务，派给下游的不列。\n\n'

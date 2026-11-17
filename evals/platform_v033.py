@@ -74,7 +74,7 @@ def main():
     专业方法：先核对原话与事实，再按字段和状态拆解；标注已定/待定、适用范围和可检查的验收；交接给下游明确输入版本和限制。
     本适配只支持当前产品需求子任务；完整原专家的规划、视觉联动及验收主流程未纳入此包，不声称完整专家等价。
     '''
-        facade('expert.adapt',**identity,methods=methods,review=dict(reviewer='acceptance operator',source_entry='SKILL.md',license='Matrix-AI repository source; package is used only for this authorized local compatibility test',preserved_methods='需求事实、范围、验收、未决项与交接；限定子任务抽取，未声称完整角色迁移',directory_changes='仅实例 private/public；公共规则指向安装包',dependencies='Matrix shared CORE and product profession registry; full-role workflows excluded explicitly'))
+        facade('expert.adapt',**identity,methods=methods,review=dict(review_points=[dict(who="master",what="Review professional inputs and risks")],reviewer='acceptance operator',source_entry='SKILL.md',license='Matrix-AI repository source; package is used only for this authorized local compatibility test',preserved_methods='需求事实、范围、验收、未决项与交接；限定子任务抽取，未声称完整角色迁移',directory_changes='仅实例 private/public；公共规则指向安装包',dependencies='Matrix shared CORE and product profession registry; full-role workflows excluded explicitly'))
         sha=hashlib.sha256((base/'METHODS.md').read_bytes()).hexdigest()
         adm_iid='ADMISSION'
         prompt='这是合成准入测试。请读取 '+str(base/'ENTRY.md')+' 和 '+str(base/'METHODS.md')+'。按该专业方法为已明确要求的留言板写一段候选说明：匿名留言、费用未定。保留费用未定，不开发。只写 '+str(project/'management/instances/ADMISSION/workspace/public/admission.md')+'，完成即退出。'

@@ -78,7 +78,7 @@
       "gives": "文案表版本"
     }
   ],
-  "inputs": [],
+  "inputs": [{"for": "CD-1", "needs": "product:P-1", "state": "confirmed", "when": "游戏与玩乐，当前调性契约"}],
   "item_inputs": {
     "default": "by_risk",
     "stricter": []

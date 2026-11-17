@@ -67,12 +67,20 @@ def read(pm, root, identity):
     return base, manifest
 
 
+def review_points(value):
+    require(isinstance(value, list) and value and all(
+        isinstance(point, dict) and set(point)=={'who','what'}
+        and point['who']=='master' and isinstance(point['what'], str) and point['what'].strip()
+        for point in value), 'declare master review points: who=master and what is reviewed')
+
+
 def binding(pm, root, profession, identity=None):
     if identity is None or identity == {'id': 'builtin', 'version': 'installed'}:
         return {'id': 'builtin', 'version': 'installed'}
     _, manifest = read(pm, root, identity)
     require(manifest.get('profession') == profession, 'expert profession mismatch')
     require(manifest.get('state') == 'enabled', 'expert is not enabled')
+    review_points(manifest.get('review_points'))
     require(manifest.get('preset_sha256') == allowed(pm, root, profession), 'profession preset changed; revalidate expert')
     return dict(identity, sha256=digest(json.dumps(manifest, sort_keys=True, ensure_ascii=False).encode()))
 
@@ -181,6 +189,9 @@ def adapt(pm, root, params):
     require(isinstance(review, dict) and all(isinstance(review.get(k), str) and review[k].strip() for k in
             ('reviewer', 'source_entry', 'license', 'preserved_methods', 'directory_changes', 'dependencies')), 'adaptation review and provenance required')
     require(review['source_entry'] in m['source_files'], 'source entry missing')
+    points = review.get('review_points')
+    if points is not None:
+        review_points(points)
     conflicts = params.get('unresolved', [])
     require(isinstance(conflicts, list) and all(isinstance(x,str) for x in conflicts), 'unresolved conflicts must be a list')
     # Source text is retained verbatim for auditing, never loaded as active instructions.
@@ -190,7 +201,7 @@ def adapt(pm, root, params):
               'Use METHODS.md in this directory for professional methods. source/ is provenance, not active instructions.\n'
               'Write drafts only under the stable instance workspace/private/ and handoff candidates under workspace/public/.\n'
               'Task and runtime state are changed through trusted management tools. Follow the current task packet and approvals.\n')
-    m.update(state='blocked' if conflicts else 'awaiting_validation', unresolved=conflicts)
+    m.update(state='blocked' if conflicts else 'awaiting_validation', unresolved=conflicts, review_points=points)
     return save(pm, base, m)
 
 
@@ -244,6 +255,7 @@ def validate(pm, root, params, db=None, operator=None):
 def enable(pm, root, params, db=None, operator=None):
     base, m = read(pm, root, {k:params[k] for k in ('id','version')})
     require(m['state'] in {'validated','enabled'}, 'validated expert required')
+    review_points(m.get('review_points'))
     require(m['preset_sha256'] == allowed(pm, root, m['profession']), 'profession preset changed')
     require(pm.nonempty(params.get('person')) and pm.nonempty(params.get('quote')) and pm.nonempty(operator), 'enable requires person, exact authorization quote and authenticated operator')
     if db is None:

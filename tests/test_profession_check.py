@@ -128,6 +128,9 @@ class ProfessionCheckTests(unittest.TestCase):
                 for stage, (up_flow, up_stage) in (flow.get('upstream') or {}).items():
                     found.add((r['id'], stage, r['id'] + ':' + up_stage, 'confirmed', 'start'))
         self.assertEqual(found, {
+            ('product', 'P-2', 'product:P-1', 'confirmed', 'start'),
+            ('experience-design', 'D-1', 'product:P-1', 'confirmed', 'start'),
+            ('content-design', 'CD-1', 'product:P-1', 'confirmed', 'start'),
             ('code-engineering', 'E-1.2', 'experience-design:D-2', 'confirmed', 'start'),       # review A: intake modelling
             ('code-engineering', 'E-1.2', 'experience-design:D-3', 'complete', 'complete'),     # D-3: states, failures, recovery
             ('code-engineering', 'E-2.1', 'code-engineering:E-1.4', 'confirmed', 'start'),      # intake done: technical solution

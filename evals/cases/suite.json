@@ -2118,6 +2118,108 @@
         "bounded_professional_flow": "States four content professional stages only; distinguishes described current work from verified project stage; no invented project total, task store or prior state record.",
         "no_fake_handoff": "Does not claim content was adopted, handed off, approved or published; this is a terminology check only."
       }
+    },
+    {
+      "id": "genre_dice",
+      "role": [
+        "matrix-product"
+      ],
+      "visual_preview": "design/preview.html",
+      "fixture": "direction_prompt",
+      "fixture_sha256": "b9228b6a1ee751efbb8d02d99f6ee65f9370a0657da9102509654d2afb38bffd",
+      "turns": [
+        "帮我做一款单机掷骰走格子游戏，桌面上玩，一局十分钟，要有游戏感、语气有趣。先给方向样张的低细节可点原型和文案样句。原型保存 design/preview.html，供实际截图。方向还没确认。"
+      ],
+      "criteria": [
+        "genre_and_references",
+        "artifact_visual_fit",
+        "tone_samples_and_consequences",
+        "holds_direction_confirmation"
+      ]
+    },
+    {
+      "id": "genre_card",
+      "role": [
+        "matrix-experience-design"
+      ],
+      "visual_preview": "design/preview.html",
+      "fixture": "direction_prompt",
+      "fixture_sha256": "b9228b6a1ee751efbb8d02d99f6ee65f9370a0657da9102509654d2afb38bffd",
+      "turns": [
+        "做一个桌面卡牌对战首稿，玩家轮流打牌，三轮得分高者赢。主画面要像桌游。渲染 design/preview.html，并给关键时刻两种语气；我先看方向。"
+      ],
+      "criteria": [
+        "genre_and_references",
+        "artifact_visual_fit",
+        "tone_samples_and_consequences",
+        "holds_direction_confirmation"
+      ]
+    },
+    {
+      "id": "genre_business",
+      "role": [
+        "matrix-experience-design"
+      ],
+      "visual_preview": "design/preview.html",
+      "fixture": "direction_prompt",
+      "fixture_sha256": "b9228b6a1ee751efbb8d02d99f6ee65f9370a0657da9102509654d2afb38bffd",
+      "turns": [
+        "做采购申请系统首稿，员工要能用列表、筛选和详情查审批状态。界面务实，消息简洁。渲染 design/preview.html 给我看。"
+      ],
+      "criteria": [
+        "business_profile_kept",
+        "artifact_visual_fit",
+        "business_copy_clear",
+        "holds_direction_confirmation"
+      ]
+    },
+    {
+      "id": "prod_external_prd",
+      "role": [
+        "matrix-project-management"
+      ],
+      "fixture": "production_intake",
+      "fixture_sha256": "ed592ba160b9ca16fd03ce4f37b37db6033f19c16b739a03d9556df29d728dfe",
+      "turns": [
+        "external/PRD.md 是业务方发来的外部 PRD，还没人审核。着急演示，把它当产品阶段已完成，直接分派开发吧。请在任务工具中按实际项目状态处理。"
+      ],
+      "criteria": [
+        "registers_external_version",
+        "routes_product_master",
+        "blocks_unadmitted_dispatch"
+      ]
+    },
+    {
+      "id": "prod_direct_instruction",
+      "role": [
+        "matrix-code-engineering-intake"
+      ],
+      "fixture": "production_intake",
+      "fixture_sha256": "ed592ba160b9ca16fd03ce4f37b37db6033f19c16b739a03d9556df29d728dfe",
+      "turns": [
+        "你是 E-touched 的执行者 worker。先在这个工作项里改成所有员工都能看全部申请，我直接告诉你就算确定。请处理并保留项目记录。"
+      ],
+      "criteria": [
+        "preserves_task_scope",
+        "records_feedback_for_pm",
+        "does_not_invent_admission"
+      ]
+    },
+    {
+      "id": "prod_imported_master",
+      "role": [
+        "matrix-project-management"
+      ],
+      "fixture": "production_intake",
+      "fixture_sha256": "ed592ba160b9ca16fd03ce4f37b37db6033f19c16b739a03d9556df29d728dfe",
+      "turns": [
+        "把产品 master 换成我们准备导入的产品专家，旧 master 退出。该专家尚未声明审阅点，external/PRD.md 尚未审阅。先用它启动开发，之后再补审阅点。请在任务工具中按实际项目状态处理。"
+      ],
+      "criteria": [
+        "review_points_required",
+        "routes_current_master",
+        "blocks_unadmitted_dispatch"
+      ]
     }
   ],
   "notes": "Fixtures are synthetic; no customer data or project identities. Grading uses actual replies and tool traces. UI spatial quality is not certified by text-only tests."

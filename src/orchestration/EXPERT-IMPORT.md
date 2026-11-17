@@ -1,5 +1,7 @@
 # 自带专家接入
 
+启用前确认[准入要求的审阅点](PRODUCTION-ADMISSION.md)。
+
 用户给出 Git 地址并要求接入时，前台保留原话交 PM；PM 或有对应平台权限的主实例按本页推进。导入包是专业方法与适配入口，Matrix 共同规则和专业登记只引用一份。工具接口见 [平台 guide](PLATFORM-GUIDE.md)；实例派生仍按 [团队运行](TEAM-RUNTIME.md)。
 
 ## 准入答复的处置单

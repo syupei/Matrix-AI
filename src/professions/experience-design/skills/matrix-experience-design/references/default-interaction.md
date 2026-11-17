@@ -40,3 +40,5 @@ D-1 在设计基础中定表达取向；D-2 只表达影响结构的进入、返
 需要产品要求或相应授权；装饰性媒体不自动成为需求。启用时在交互/状态规格写明：表达的事实（意图、已接受、最终结果或持续状态）、接收者与产品依据；通道与优先级（数值有依据或标为建议）；触发、停止与重复时重播还是合并；取消、暂停、离开或权限变化时继续、重播还是不补播，避免过期的成功提示；静音、减少动态或通道不可用时保留必要信息，并提供字幕、文字稿或替代文字；核心体验依赖的声音与动态按 R12 的核心类素材制作与确认；素材来源、版本、使用位置与演示限制。产品维护事实与业务成立条件，设计维护呈现；不能把点击意图表现为业务成功，未制作的资源标为占位。D-6 查通道关闭、中断与状态结束。
 
 参考来源：[Apple HIG Motion](https://developer.apple.com/design/human-interface-guidelines/motion)、[Playing haptics](https://developer.apple.com/design/human-interface-guidelines/playing-haptics)、[Playing audio](https://developer.apple.com/design/human-interface-guidelines/playing-audio)，仅作品质原则参考，不强制其外观、平台或技术栈；上列数值不是其官方规定。
+
+下表是工具与业务档的起始参数。游戏与玩乐档参看[活动场景](activity-centered.md)。

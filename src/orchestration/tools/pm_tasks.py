@@ -36,6 +36,14 @@ _project_spec = importlib.util.spec_from_file_location('pm_project', Path(__file
 projects = importlib.util.module_from_spec(_project_spec)
 _project_spec.loader.exec_module(projects)
 
+_admission_spec = importlib.util.spec_from_file_location('pm_admission', Path(__file__).with_name('pm_admission.py'))
+admission = importlib.util.module_from_spec(_admission_spec)
+_admission_spec.loader.exec_module(admission)
+
+_direction_spec = importlib.util.spec_from_file_location('pm_direction', Path(__file__).with_name('pm_direction.py'))
+direction = importlib.util.module_from_spec(_direction_spec)
+_direction_spec.loader.exec_module(direction)
+
 
 def api():
     return SimpleNamespace(**globals())
@@ -224,6 +232,9 @@ def task_map(db):
         for d in c.get('dispositions', []):
             if d.get('replaces') in tasks:
                 tasks[d['replaces']]['_superseded_by'] = d['task_id']
+    for task in tasks.values():
+        if task['state']=='done' and (task.get('admitted_inputs') or task.get('intake_review_id')):
+            task['_current_gate'] = bool(admission.production_issues(api(), root, db, task, tasks))
     for scope in integrity.records(db, 'scope').values():
         if scope['root_task'] in tasks and integrity.scope_issues(api(), root, scope, tasks):
             tasks[scope['root_task']]['_scope_incomplete'] = True
@@ -390,14 +401,14 @@ def brief(row):
 
 def current_gates(root, db, tasks):
     for tid, t in tasks.items():
-        t['_current_gate'] = bool(integrity.blockers(api(), root, db, tasks, tid, closing=True) + team.blockers(api(), root, db, tasks, tid, closing=True))
+        t['_current_gate'] = t.get('_current_gate', False) or bool(integrity.blockers(api(), root, db, tasks, tid, closing=True) + team.blockers(api(), root, db, tasks, tid, closing=True))
 
 
 def snapshot(db):
     cfg, tasks = config(db), task_map(db)
     seq = db.execute('SELECT COALESCE(MAX(seq),0) FROM events').fetchone()[0]
     root = Path(db.execute('PRAGMA database_list').fetchone()[2]).parent.parent.parent
-    gates = {tid: integrity.blockers(api(), root, db, tasks, tid) + team.blockers(api(), root, db, tasks, tid) for tid in tasks}
+    gates = {tid: integrity.blockers(api(), root, db, tasks, tid) + team.blockers(api(), root, db, tasks, tid) + admission.production_issues(api(), root, db, tasks[tid], tasks) for tid in tasks}
     current_gates(root, db, tasks)
     gaps = integrity.records(db, 'gap')
     held = {tid: [x for x in [gap_issue(t, gaps, 'running')] if x] for tid, t in tasks.items()}  # an expertise gap that stops the start
@@ -632,14 +643,18 @@ def execute(project, cmd, _db=None, _applying=None):
     root = Path(project).resolve()
     require(root.is_dir(), 'project directory missing')
     owns_db = _db is None
-    reads = {'status', 'events'} | integrity.READ_OPS | team.READ_OPS | views.READ_OPS | platform.READ_OPS | governance.READ_OPS | projects.READ_OPS
+    reads = {'status', 'events'} | integrity.READ_OPS | team.READ_OPS | views.READ_OPS | platform.READ_OPS | governance.READ_OPS | projects.READ_OPS | admission.READ_OPS | direction.READ_OPS
     db = connect(root, readonly=cmd.get('op') in reads) if owns_db else _db
     try:
         op = cmd.get('op')
         if op in reads:
             if owns_db:
                 db.execute('BEGIN')
-            if op in projects.READ_OPS:
+            if op in direction.READ_OPS:
+                result = direction.execute(api(), root, db, cmd)
+            elif op in admission.READ_OPS:
+                result = admission.execute(api(), root, db, cmd)
+            elif op in projects.READ_OPS:
                 result = projects.execute(api(), root, db, cmd)
             elif op in governance.READ_OPS:
                 result = governance.execute(api(), root, db, cmd)
@@ -669,7 +684,7 @@ def execute(project, cmd, _db=None, _applying=None):
             if owns_db:
                 db.commit()
             return result
-        require(op in {'init', 'configure', 'create', 'update', 'transition', 'review', 'human_review', 'report', 'handoff', 'reassign', 'conflict', 'notice'} | GAP_OPS | integrity.WRITE_OPS | team.WRITE_OPS | platform.WRITE_OPS | governance.WRITE_OPS | projects.WRITE_OPS, 'unknown operation')
+        require(op in {'init', 'configure', 'create', 'update', 'transition', 'review', 'human_review', 'report', 'handoff', 'reassign', 'conflict', 'notice'} | GAP_OPS | integrity.WRITE_OPS | team.WRITE_OPS | platform.WRITE_OPS | governance.WRITE_OPS | projects.WRITE_OPS | admission.WRITE_OPS | direction.WRITE_OPS, 'unknown operation')
         require(nonempty(cmd.get('event_id')) and nonempty(cmd.get('actor')), 'event_id and actor required')
         if owns_db:
             db.execute('BEGIN IMMEDIATE')
@@ -689,6 +704,10 @@ def execute(project, cmd, _db=None, _applying=None):
             require(cmd['actor'] == cfg['pm_actor'], 'init actor must be PM')
             db.execute('INSERT INTO meta VALUES (?,?)', ('config', canon(cfg)))
             result = {'initialized': True, 'schema': SCHEMA}
+        elif op in direction.WRITE_OPS:
+            result = direction.execute(api(), root, db, cmd)
+        elif op in admission.WRITE_OPS:
+            result = admission.execute(api(), root, db, cmd)
         elif op in projects.WRITE_OPS:
             result = projects.execute(api(), root, db, cmd)
         elif op in governance.WRITE_OPS:
@@ -746,7 +765,7 @@ def execute(project, cmd, _db=None, _applying=None):
                 require(actor == manager, 'only responsible manager may create this level')
                 allowed = {'id','parent','title','owner','checker','goal','inputs','outputs','criteria','dependencies','completion_requires','resources','slots','executor','human_required','expanded','next_action','source',
                            'kind','stage','direction','people','derived_from','awaiting','project_level','role','artifact_digests',
-                           'difficulty','risk','risk_reason','origin','gap','order','timeout_minutes','closure'} | governance.FIELDS
+                           'difficulty','risk','risk_reason','origin','gap','order','timeout_minutes','closure'} | governance.FIELDS | admission.FIELDS
                 require(set(data) <= allowed, 'unknown create fields')
                 after = dict(data, parent=parent, manager=manager, state='planned', revision=1,
                              work_revision=1, evidence=[], review=None, human_review=None,
@@ -768,6 +787,8 @@ def execute(project, cmd, _db=None, _applying=None):
                 check_people(after, people)
                 problem = team.level_issue(api(), db, after) or team.master_issue(api(), db, cfg, after)
                 require(not problem, problem)
+                admission_issues = admission.production_issues(api(), root, db, after, tasks)
+                require(not admission_issues, canon(admission_issues))
             else:
                 tid = cmd['task_id']
                 require(tid in tasks, 'task missing')
@@ -776,19 +797,28 @@ def execute(project, cmd, _db=None, _applying=None):
                 after = json.loads(canon(before))
                 if op in {'update', 'transition', 'report'}:
                     # The dispatcher may also record coordination facts, such as which person the task now waits for.
-                    coordinating = op == 'update' and actor == after['manager'] and set(cmd.get('changes') or {}) <= COORDINATION | governance.FIELDS | {'next_action', 'checker'}
+                    coordinating = op == 'update' and actor == after['manager'] and set(cmd.get('changes') or {}) <= COORDINATION | governance.FIELDS | admission.FIELDS | {'next_action', 'checker', 'dependencies'}
                     require(actor == after['owner'] or coordinating or (op == 'transition' and (actor == after['manager'] or platform.launch_bound(api(), db, cfg, cmd, before))),
                             'task state belongs to its owner')
                 if op == 'update':
                     require(after['state'] not in TERMINAL, 'reopen before editing terminal task')
                     changes = cmd['changes']
                     allowed = {'next_action','evidence','executor','expanded','source','reason','title','goal','inputs','outputs','criteria','dependencies','completion_requires','resources','slots','human_required','checker','artifact_digests',
-                               'difficulty','risk','risk_reason'} | COORDINATION | governance.FIELDS
+                               'difficulty','risk','risk_reason'} | COORDINATION | governance.FIELDS | admission.FIELDS
                     require(set(changes) <= allowed, 'immutable/unknown field')
                     require(nonempty(cmd.get('reason')), 'change reason required')
                     # Difficulty and risk are labels of the dispatcher; lowering one needs this reason, F0/F1 also a person.
                     if set(changes) & ({'goal','inputs','outputs','criteria','dependencies','completion_requires','human_required','checker','people','derived_from','difficulty','risk','risk_reason'} | governance.FIELDS):
                         require(actor == after['manager'] or nonempty(cmd.get('scope_authorization')), 'scope/interface change needs manager authorization reference')
+                    if 'dependencies' in changes and actor == after['manager'] and before['state'] == 'running':
+                        require(False, 'stop running work before changing scheduling dependencies')
+                    if set(changes) & (admission.FIELDS | {'goal','inputs','outputs','criteria','dependencies'}):
+                        instance = integrity.records(db, 'instance').get(actor, {})
+                        executor = actor == before.get('executor') and not instance.get('master')
+                        governed = before.get('admitted_inputs') or before.get('intake_review_id')
+                        if set(changes) & admission.FIELDS or governed or executor:
+                            require(actor == after['manager'] or _applying, 'production changes must return to the PM; record production_feedback')
+                        require(not governed or before['state'] != 'running', 'stop admitted production before changing its task scope')
                     old_risk, new_risk = team.risk(before.get('risk')), team.risk(changes.get('risk', before.get('risk')))
                     if old_risk is not None and old_risk <= 1 and (new_risk is None or new_risk > old_risk):
                         require(nonempty(cmd.get('quote')), 'lowering an F0/F1 risk needs the deciding person and exact quote')
@@ -832,6 +862,8 @@ def execute(project, cmd, _db=None, _applying=None):
                         # Handing over to the dispatcher: the result and evidence paths go with it.
                         handed = cmd.get('evidence')
                         require(handed is None or (strings(handed) and handed), 'evidence must be a non-empty path list')
+                        if handed:
+                            admission.submission(api(), root, after, handed)
                         if handed and handed != after['evidence']:
                             after.update(evidence=handed, work_revision=after['work_revision'] + 1, review=None, human_review=None)
                         require(after['evidence'], 'hand over with the result and evidence paths (evidence)')
@@ -980,6 +1012,16 @@ def execute(project, cmd, _db=None, _applying=None):
                 check_people(after, people)
                 if after['state'] == 'running':
                     require(not reasons(after,tasks,cfg), '; '.join(reasons(after,tasks,cfg)))
+            if op == 'update' and 'evidence' in cmd['changes']:
+                admission.submission(api(), root, after, after['evidence'])
+            if op == 'update' and set(cmd['changes']) & (admission.FIELDS | {'inputs'}) and (
+                    after.get('admitted_inputs') or before.get('admitted_inputs') or after.get('intake_review_id') or before.get('intake_review_id')):
+                require(not before.get('admitted_inputs') or after.get('admitted_inputs'), 'cannot drop admitted production inputs')
+                require(before.get('intake_review_id') == after.get('intake_review_id'), 'review purpose is immutable')
+                problems = admission.production_issues(api(), root, db, after, tasks)
+                require(not problems, canon(problems))
+            if op == 'transition' and after['state'] == 'done':
+                direction.confirm_milestone(api(), root, db, after)
             if op == 'transition' and after['state'] == 'done' and after.get('closure'):
                 current_gates(root, db, tasks)
                 closing = projects.closure_check(api(), cfg, tasks)
@@ -987,6 +1029,7 @@ def execute(project, cmd, _db=None, _applying=None):
             if op == 'transition' and after['state'] in {'running', 'done'}:
                 problems = integrity.blockers(api(), root, db, tasks, tid, closing=after['state']=='done', applying=_applying)
                 problems += team.blockers(api(), root, db, tasks, tid, closing=after['state']=='done')
+                problems += admission.production_issues(api(), root, db, after, tasks)
                 require(not problems, 'integrity gate: ' + canon(problems))
             for key in list(after):
                 if key.startswith('_'):

@@ -42,7 +42,7 @@ def main():
 本适配只支持独立函数子任务；原包完整集成、走查、灰度发布及运维主流程未纳入，不宣称全角色等价。
 输出代码文件顶部注明来源追踪标识 SOURCE-IMPORTED-CODE，作为本次双来源隔离检查；不将它写入其他实例的成果。
 '''
-  facade('expert.adapt',**identity,methods=methods,review=dict(reviewer='acceptance operator',source_entry='SKILL.md',license='owned public Matrix-AI source, local authorized compatibility test only',preserved_methods='bounded incremental implementation, real tests, independent acceptance boundary and no invented product decisions; full-role orchestration excluded',directory_changes='instance private/public only',dependencies='installed Matrix shared CORE and profession contract, standard library only'))
+  facade('expert.adapt',**identity,methods=methods,review=dict(review_points=[dict(who="master",what="Review professional inputs and risks")],reviewer='acceptance operator',source_entry='SKILL.md',license='owned public Matrix-AI source, local authorized compatibility test only',preserved_methods='bounded incremental implementation, real tests, independent acceptance boundary and no invented product decisions; full-role orchestration excluded',directory_changes='instance private/public only',dependencies='installed Matrix shared CORE and profession contract, standard library only'))
   (out/'metadata.json').write_text(json.dumps(dict(kit=str(a.kit.resolve()),kit_sha256=hashlib.sha256((a.kit/'MANIFEST.json').read_bytes()).hexdigest(),models=['gpt-6-luna','gpt-6.1-sol'],effort='medium'),indent=2))
  elif a.phase=='admit':
   target=root/'management/instances/ADMISSION/workspace/public/admission.md'
