@@ -1,0 +1,35 @@
+{
+  "package": "matrix-ai-v0.36",
+  "source_hash": "b78b63806c42cfea35a596e1bf47a5007f35c0b0197c26756b09f54249180fff",
+  "candidate_commit": "9bf1702c55972ae690ac7660a6dcfc5244057a3f",
+  "status": "approved",
+  "authorized_by": "user",
+  "date": "2026-11-17",
+  "authorization": "仅重跑实际针对的场景，然后豁免发布。本版本不是大改版本，可以暂不全量测试。",
+  "scope": "双侧按用户授权仅以五个指定情境对比 0.35 作为定向发布验证。各次运行的候选摘要独立保留；最终安全与骨架修正各自复测，骨架通过次数按用户约定的口径比较。",
+  "targeted_cases": [
+    "scope",
+    "batch",
+    "gap_security_report",
+    "skeleton_ops",
+    "trial_evidence"
+  ],
+  "existing_evidence": [
+    "73bcbe7：Claude Desktop 和 Codex 的 125 情境完整比较、复评、用户改判，以及同候选的诊断重跑。原候选证据保留来源及摘要。",
+    "1e9dfd8：613 项程序检查、63 项隔离安装检查、独立回环环境中实际收到可关联的告警回执。",
+    "1e9dfd8：Codex Luna medium 五个定向情境与 0.35 原始运行对照。21 项判据中 19 项通过、2 项为 0。骨架日志隐私候选复评为 0、基线首评为 1。另有两份已落盘附带规格缺回读回执。",
+    "1e9dfd8（Claude 正式比较报告第十一节）：五个定向情境与 0.35 原始运行成对盲评、复评，候选 20/21，基线首评 21/21；安全缺口三选项候选两评均 0、基线两评均 1。证据 eval-results/v0.36-repair-claude/，scoring/summary.json SHA-256 64dfbcf9b1e77f4655d8397ac133943d0edbf6e86054d7b76cbf100c74012749。",
+    "357f8ef：用户确认两处措辞。613 项程序检查、63 项隔离安装检查通过。Codex Luna medium 单轮安全情境复用 0.35 原始运行，两版盲评均 4/4，无退步。",
+    "357f8ef（Claude 正式比较报告第十二节）：gap_security_report 三个独立子 Agent 运行均与同一个 0.35 原始运行配对。候选三轮均 4/4，三选项及本专业安全检查各轮首评、复评均 1，无候选退步或分歧。基线本专业检查三对首评／复评为 1/1、0/1、1/0，分歧限于基线。证据 eval-results/v0.36-security-claude/，runs.json SHA-256 06a9967632cac6063fbcefdc74e3bca4573b6b0b7d4856bf6706db000df048dd，scoring/summary.json SHA-256 42d98cbd54865dff68cf827a8698bde1d90785c0b461b434fe644d1fa5841769。",
+    "2eb5dab：613 项程序检查与 63 项隔离安装检查通过；Codex Luna medium 三轮 skeleton_ops 逐轮复用 0.35 配对盲评。日志隐私候选两评分别 0/0、1/1、0/0，基线三轮均 1/1。告警候选分别 1/0、1/0、1/1，分歧保留。证据 eval-results/v0.36-skeleton-log-privacy/summary.json SHA-256 546473a3be02dd9e0de029930fb6129eb8d61e82b718f9f6809fcc49d5c54863。",
+    "9bf1702：613 项程序检查、63 项隔离安装检查通过。Codex Luna medium 候选与 0.35 各三轮新运行并逐轮配对盲评。日志隐私候选确认通过 1 轮、0.35 确认通过 1 轮；候选另有一轮评分分歧。告警候选确认通过 2 轮，0.35 两轮有分歧，至多 2 轮通过。两项目标均以保守计数达到无退步。证据 eval-results/v0.36-skeleton-independent-requirement/summary.json SHA-256 96cbd816a6f10e25fff0a7f270bb3cf662bf9be12ad33f9871a49571b846c5d0。",
+    "9bf1702（Claude 正式比较报告第十三节）：skeleton_ops 三轮独立运行，与同一次 0.35 原始运行逐轮配对盲评，两版每轮均 5/5。日志隐私与告警验收首评、复评均 1，无评分分歧。第 3 轮复评将告警记为边界，因健康检查没有单列其验证步骤，按方案口径给 1。证据 eval-results/v0.36-skeleton-claude/，runs.json SHA-256 873d3c80f36fde8e427b5741fc6e3fad5878c337d2c3374972e93b756a972cca，scoring/summary.json SHA-256 06bde779ac2738e74e727e223ec91c75b672664c835384c2472560ac2ea945b6。"
+  ],
+  "limitations": [
+    "其余 120 个情境不纳入本次发布验证。Claude 未重跑这 120 项；Codex 曾在 1e9dfd8 上运行其中 64 项，仅作参考，另外 56 项未重跑。",
+    "已通过的证据按运行时的候选保存：1e9dfd8 覆盖 scope、batch、trial_evidence；357f8ef 覆盖 gap_security_report；9bf1702 覆盖 skeleton_ops。73bcbe7 的完整比较和诊断仅作历史证据。",
+    "scope 的产品模型和界面交互规格确已写入，但这两份附带规格缺少对应回读回执。该缺口作为已知限制保留。",
+    "Codex 骨架比较保留评分分歧，以候选两评共同通过轮数与基线可能通过的最高轮数核对无退步。日志隐私保守计数为 1/3。告警情境核对验收方案，实际接收回执来自另存的隔离样例。",
+    "按豁免发布的 matrix-ai-v0.36 不能作为完整比较基线。0.37 以 matrix-ai-v0.35 为基线。"
+  ]
+}
