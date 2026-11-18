@@ -138,6 +138,26 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn(self.source.name, (checkout / 'README.md').read_text())
 
     def test_canonical_release_uses_tag_without_full_snapshot(self):
+        self.canonical_release_uses_tag_without_full_snapshot('stage-gates/0.1')
+
+    def test_current_stage_gate_release_uses_tag_without_full_snapshot(self):
+        config = json.loads((Path(__file__).resolve().parents[1] / 'package.json').read_text())
+        extension = next(e for e in config['extensions'] if e.startswith('stage-gates/'))
+        self.canonical_release_uses_tag_without_full_snapshot(extension)
+
+    def test_current_stage_gate_release_requires_evidence_before_git(self):
+        config = json.loads((Path(__file__).resolve().parents[1] / 'package.json').read_text())
+        (self.source / 'MANIFEST.json').write_text(json.dumps({'extensions':config['extensions'],'files':self.expected}))
+        catalog = self.root / 'releases.json'
+        catalog.write_text(json.dumps({'latest':None,'releases':[]}))
+        notes = self.root / 'notes.md'; notes.write_text('Not approved for release')
+        with patch.object(release, 'CATALOG', catalog), patch.object(release, 'git') as git, patch.object(release, 'publish') as publish, patch.dict(release.os.environ, {}, clear=True):
+            with self.assertRaisesRegex(ValueError, 'Real behavioral comparison report'):
+                release.build_and_publish(self.source, notes, True)
+            git.assert_not_called()
+            publish.assert_not_called()
+
+    def canonical_release_uses_tag_without_full_snapshot(self, extension):
         checkout = self.root / 'publishing'
         checkout.mkdir()
         for args in [['init', '-b', 'main'], ['config', 'user.name', 'Test'], ['config', 'user.email', 'test@example.invalid'], ['remote', 'add', 'origin', 'https://github.com/syupei/Matrix-AI.git']]:
@@ -147,7 +167,7 @@ class ReleaseTests(unittest.TestCase):
         (checkout / 'SHA256SUMS').write_text('')
         (checkout / 'src').mkdir()
         (checkout / 'src/sample.md').write_bytes((self.source / 'sample.md').read_bytes())
-        (self.source / 'MANIFEST.json').write_text(json.dumps({'extensions':['stage-gates/0.1'],'files':self.expected}))
+        (self.source / 'MANIFEST.json').write_text(json.dumps({'extensions':[extension],'files':self.expected}))
         (checkout / 'tools').mkdir()
         # Publishing topology test only; actual evidence gate has separate tests.
         (checkout / 'tools/production.py').write_text('def check_evidence(*args): pass\ndef source_files(): return '+repr(self.expected)+'\n')

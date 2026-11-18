@@ -257,7 +257,8 @@ def build_and_publish(source, notes, latest=False):
     # New generation releases require the same evidence gate even when this
     # lower-level CLI is invoked directly. Historical retries remain supported.
     metadata = json.loads((source / 'MANIFEST.json').read_text()) if (source / 'MANIFEST.json').exists() else {}
-    canonical = 'stage-gates/0.1' in metadata.get('extensions', [])
+    canonical = any(isinstance(extension, str) and extension.startswith('stage-gates/')
+                    for extension in metadata.get('extensions', []))
     waiver_path = None
     if canonical:
         import importlib.util
