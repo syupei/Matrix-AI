@@ -320,7 +320,7 @@ def review_receipt(root, binding):
     authority = {key: binding.get(key) for key in ('display', 'scope', 'direction_sha256')}
     if registration.exists():
         require(json.loads(file(root, registration.relative_to(root).as_posix()).read_text()) == authority,
-                'the same response is already bound to another display, scope or direction')
+                'the same response is already bound to another display, scope or direction; save each actual new reply in its own source file')
     # A failed display/hash check must not consume the person's real reply. The
     # content-addressed bundle is harmless until registration succeeds atomically.
     bundle = seal_bundle(root, [binding['display'], {'path': response['path'], 'sha256': response['sha256']}], binding, follow_refs=False)

@@ -87,7 +87,7 @@ def framework_contract(pm, root, profession):
 def mapping_conflicts(pm, contract, mapping, source_files):
     expected = {(row['stage'], row['requirement']): row['definition']['record']
                 for row in contract['requirements']}
-    # Exact contract comparison includes timing, approved material coverage and unmet status;
+    # Exact comparison includes timing, deliverables versus capture evidence and unmet status;
     # an old mapping cannot silently opt out of the common pre-review boundary.
     checks = {(row['stage'], row['requirement']): row['definition'].get('submission')
               for row in contract['requirements']}

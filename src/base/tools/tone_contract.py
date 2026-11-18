@@ -664,10 +664,15 @@ def check_asset_submission(root,state,display=None,*,registry_root=None,historic
                 and receipt.get('review_page')==record['comparison']['review_page'], 'asset comparison receipt is stale or belongs to other material')
         for ref in receipt['materials']:verify_ref(root,ref)
         direction_files={ref['path'] for ref in data['parts'].values()}|{contract['path']}
-        required=[receipt['review_page'],*[ref for ref in receipt['materials'] if ref['path'] not in direction_files]]
+        # Capturing a PNG produces a control receipt, not another rendered
+        # artifact. Keep verifying all receipt material, but approve only the
+        # declared deliverables, scene and anchors (not their capture evidence).
+        deliverables={ref['path'] for ref in [*record['artifacts'],*record['anchors']]}
+        required=[receipt['review_page'],record['comparison']['scene_sample'],
+                  *[ref for ref in receipt['materials'] if ref['path'] in deliverables-direction_files]]
         approved={(ref['path'],ref['sha256']) for ref in state.get('artifacts',[])}
         missing=sorted({ref['path'] for ref in required if (ref['path'],ref['sha256']) not in approved})
-        require(not missing,'D-4 artifacts must bind every review page and non-direction receipt material before approval: '+', '.join(missing))
+        require(not missing,'D-4 artifacts must bind every review page, scene sample, anchor and declared deliverable before approval: '+', '.join(missing))
         if display is not None and display!=receipt['review_page']['path']:
             require((Path(root)/display).is_file(), 'review must show the page bound by each asset comparison receipt, directly or embedded')
             embedded,_=embedded_page(root,display,recursive=True)

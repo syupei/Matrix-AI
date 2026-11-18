@@ -631,7 +631,7 @@ def gap_op(root, db, cmd):
             value = dict(g, status=choice, decision=decision)
         else:
             require(g['status'] in {'expert', 'human'}, 'only a gap given to an expert or a person closes, with their result')
-            require(actor in desks, 'only PM or front desk records a ' + g['status'] + ' gap delivery; a producer cannot attest external authorship')
+            require(actor in desks, 'only PM or front desk records ' + g['status'] + ' gap delivery; a producer cannot attest external authorship')
             require(handles(linked), 'PM, front desk, or the owner or manager of every linked task records the result')
             require(nonempty(cmd.get('source')) and strings(cmd.get('evidence')) and cmd['evidence'], 'source of the received result and evidence (non-empty list) required')
             value = dict(g, status='closed', result=dict(source=cmd['source'], evidence=cmd['evidence'], by=actor, at=now()))

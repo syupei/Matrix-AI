@@ -278,7 +278,7 @@ def review_child(pm, task, tasks):
         ancestor=tasks.get(ancestor.get('parent'),{})
     pm.require(outputs and all(not name.endswith('/') and Path(name).suffix.lower() in {'.json','.md','.txt'} and
                not within_output(name,[*parent.get('inputs',[]),*ancestors]) for name in outputs),
-               'review child outputs must be separate inspection records, never ancestor business outputs')
+               'review child outputs must be separate inspection records, never ancestor declared outputs')
     return True
 
 
@@ -395,7 +395,36 @@ def upstream_confirmation(pm,root,db,task,up,files,phase):
     return checked.get('review_bundle') or (receipt or {}).get('bundle')
 
 
-def input_snapshot(pm,root,task,tasks=None,phase='entry'):
+def current_handover(pm,root,db,tasks,path,upstream):
+    """Choose a completed source by dependency lineage, never by live bytes alone."""
+    actual_names={p.relative_to(root).as_posix() for p in pm.local(root,path).rglob('*') if p.is_file()} if path.endswith('/') else {path}
+    candidates={}
+    for up in upstream:
+        if (not up or up.get('kind') in {'coordination','rule_maintenance'} or up.get('intake_review_id')
+                or not pm.effective_done(up,tasks) or not task_professions(pm,root,db,up)
+                or not within_output(path,up.get('outputs',[]))):continue
+        files={name:sha for name,sha in up.get('handed_output_sha256',{}).items()
+               if name==path or path.endswith('/') and name.startswith(path)}
+        # A composed directory may need partial handovers from several tasks.
+        # Do not mistake an older complete listing for its current sole source.
+        if files and actual_names<=set(files) and (not path.endswith('/') or
+                all(pm.integrity.file_hash(pm,root,name)==sha for name,sha in files.items())):
+            candidates[up['id']]=up
+    superseded=set()
+    for up in candidates.values():
+        pending=[up.get('parent'),*up.get('dependencies',[])];seen=set()
+        while pending:
+            tid=pending.pop()
+            if not tid or tid in seen:continue
+            seen.add(tid);ancestor=tasks.get(tid,{})
+            if tid in candidates:superseded.add(tid)
+            pending.extend([ancestor.get('parent'),*ancestor.get('dependencies',[])])
+    selected=[up for tid,up in candidates.items() if tid not in superseded]
+    pm.require(len(selected)<=1,'PM: select one source for multiple unrelated upstream handovers: '+path+' ('+', '.join(sorted(up['id'] for up in selected))+')')
+    return selected[0] if selected else None
+
+
+def input_snapshot(pm,root,db,task,tasks=None,phase='entry',upstream=()):
     saved=task.get('input_provenance')
     if not saved:return None
     gate=load_gate();view,bundle=gate.tone.evidence.verify_bundle(root,saved['bundle'])
@@ -418,10 +447,12 @@ def input_snapshot(pm,root,task,tasks=None,phase='entry'):
             pending.extend([up.get('parent'),*up.get('dependencies',[])])
         for path, source in list(context['sources'].items()):
             origins=source.get('origins', [source])
-            if any(origin.get('task_id') not in reachable for origin in origins):
+            selected=current_handover(pm,root,db,tasks,path,upstream)
+            changed_source=selected and {origin.get('task_id') for origin in origins}!={selected['id']}
+            if changed_source or any(origin.get('task_id') not in reachable for origin in origins):
                 # A manager may replace an already-consumed upstream task with a
                 # successor. Re-resolve that input through normal admission; a
-                # retained path alone must not keep the departed source forever.
+                # retained path or a transitive predecessor must not pin the old source.
                 own=dict(task.get('handed_output_sha256',{}),**task.get('submitted_output_sha256',{}))
                 evolved=[name for name,sha in source['files'].items()
                          if within_output(name,task.get('outputs',[])) and name in own and own[name]!=sha]
@@ -545,7 +576,6 @@ def production_issues_impl(pm, root, db, task, tasks=None, phase='entry'):
     professions = task_professions(pm,root,db,task)
     professional = bool(professions & pm.team.registries(pm, root).keys())
     paths = {canonical_input(path):path for path in inputs}
-    snapshot=input_snapshot(pm,root,task,tasks,phase) if task.get('input_provenance') else None
     input_sources={}
     requires = {path for path in paths if path in {row['path'] for row in latest.values()}}
     production=not coordination_only(pm,db,task) and task.get('kind')!='rule_maintenance'
@@ -559,13 +589,15 @@ def production_issues_impl(pm, root, db, task, tasks=None, phase='entry'):
         seen_upstream.add(source_task.get('id'))
         extra = [tasks.get(key, {}) for key in source_task.get('dependencies', [])]
         upstream.extend(extra);pending.extend(extra)
+    snapshot=input_snapshot(pm,root,db,task,tasks,phase,upstream) if task.get('input_provenance') else None
     # Every professional business input needs provenance, regardless of its path or owner label.
     frozen_rules=installed_rules(pm,root)
     for path in list(requires):
         trusted = False
         if snapshot and path in snapshot['sources']:
             trusted=True;input_sources[path]=snapshot['sources'][path]
-        for up in sorted(upstream,key=lambda row:row.get('updated_at',''),reverse=True):
+        selected=current_handover(pm,root,db,tasks,path,upstream) if not trusted else None
+        for up in ([selected] if selected else sorted(upstream,key=lambda row:row.get('updated_at',''),reverse=True)):
             if trusted:break
             declared = any(path == out or out.endswith('/') and path.startswith(out) for out in up.get('outputs', []))
             if not declared or up.get('kind') in {'coordination','rule_maintenance'} or up.get('intake_review_id') or not task_professions(pm,root,db,up):

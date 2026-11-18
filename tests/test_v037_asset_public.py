@@ -16,18 +16,23 @@ def cli(root,tool,*args):
     return json.loads(run.stdout)
 
 
-def materials(root,C,D,status='achieved'):
+def materials(root,C,D,status='achieved',png=False):
     anchors=[h.put(root,'design/assets/a'+str(i)+'.svg','<svg><text>SIM anchor '+str(i)+'</text></svg>') for i in range(3)]
     scene=h.put(root,'design/assets/scene.html','<main>SIM current anchored scene</main>')
     direction=D['parts'].get('screenshot') or D['parts']['preview']
     tag='img' if direction['path'].endswith('.png') else 'iframe'
-    page=h.put(root,'design/assets/review.html','<main>Visible contour '+status+'<'+tag+' src="'+os.path.relpath(direction['path'],'design/assets')+'"></'+tag+'><iframe src="scene.html"></iframe></main>')
-    arts=[scene,*anchors,page]
+    sources=[scene,*anchors]
+    sample=h.put(root,'design/assets/scene.png',h.shotpng()) if png else scene
+    binding=h.capture(root,sources,sample) if png else None
+    sample_tag='img' if png else 'iframe'
+    page=h.put(root,'design/assets/review.html','<main>Visible contour '+status+'<'+tag+' src="'+os.path.relpath(direction['path'],'design/assets')+'"></'+tag+'><'+sample_tag+' src="'+Path(sample['path']).name+'"></'+sample_tag+'></main>')
+    arts=[*sources,*([sample] if png else []),page]
     rec=h.record(root,'asset_anchors',C,arts,'design/assets/record.json')
     data=json.loads((root/rec['path']).read_text())
-    data.update(anchors=anchors,comparison=dict(confirmed_features=['Visible contour'],scene_sample=scene,review_page=page,
-        rows=[dict(feature='Visible contour',reference=direction,reference_observation='SIM observed separated edge',anchor=scene,
+    data.update(anchors=anchors,comparison=dict(confirmed_features=['Visible contour'],scene_sample=sample,review_page=page,
+        rows=[dict(feature='Visible contour',reference=direction,reference_observation='SIM observed separated edge',anchor=sample,
                    anchor_observation='SIM current separate edge',status=status,difference='SIM documented boundary difference')]))
+    if png:data['comparison'].update(capture_binding=binding,viewport='1280x800')
     rec=h.put(root,rec['path'],data)
     result=cli(root,'tone_contract.py','--asset-comparison',rec['path'])
     wrapper=h.put(root,'design/representative.html','<main>SIM representative page<iframe src="assets/review.html"></iframe></main>')
@@ -35,6 +40,30 @@ def materials(root,C,D,status='achieved'):
 
 
 class SingleAsset(unittest.TestCase):
+    def test_png_sample_closes_d4_and_d5_without_treating_capture_receipt_as_artifact(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);C,D=h.direction(root,[h.feature_scope(asset_family='yes')])
+            arts,record,result,wrapper=materials(root,C,D,png=True)
+            data=json.loads((root/record['path']).read_text())
+            capture_path=root/data['comparison']['capture_binding']['receipt']['path']
+            self.assertNotIn(str(capture_path.relative_to(root)),[a['path'] for a in arts])
+            fit=h.fit(root,C,arts,'design/png-fit.json',shot=h.put(root,'design/fit.png',h.shotpng()),direction_data=D)
+            state=h.human_stage(root,h.stage(root,'design','D-4','D-5',C,arts,
+                dict(asset_anchors={'board':record},asset_fit={'board':fit}),
+                asset_comparison_receipts={'board':result['asset_comparison_receipt']}),'PNG-D4')
+            request=json.loads((root/state['request']).read_text());reply=json.loads((root/state['response']).read_text())
+            request.update(display_evidence=wrapper['path'],display_sha256=wrapper['sha256']);reply['display_sha256']=wrapper['sha256']
+            h.put(root,state['request'],request);h.put(root,state['response'],reply)
+            path=h.put(root,'png-d4.json',state)
+            self.assertTrue(cli(root,'stage_gate.py','--state',str(root/path['path']))['allowed'])
+            next_state=h.stage(root,'design','D-5','D-6',C,[h.put(root,'design/complete.md','SIM complete PNG design')])
+            next_path=h.put(root,'png-d5.json',next_state)
+            self.assertTrue(cli(root,'stage_gate.py','--state',str(root/next_path['path']))['allowed'])
+            # Evidence is still hash-bound even though it is not an approved artifact.
+            capture_path.write_text(capture_path.read_text()+' ')
+            with self.assertRaises(ValueError):
+                cli(root,'tone_contract.py','--asset-comparison',record['path'])
+
     def test_wrapper_cannot_approve_a_page_or_embedded_material_omitted_from_artifacts(self):
         for missing in ('review.html','scene.html','a0.svg'):
             with self.subTest(material=missing),tempfile.TemporaryDirectory() as directory:
@@ -171,6 +200,12 @@ class TeamAsset(Team,unittest.TestCase):
                       display=wrapper['path'],scope=['board'],inputs=[a['path'] for a in state['artifacts']])
 
     def test_public_team_closes_d4_with_embedded_page(self):
+        self.close_d4_with_embedded_page()
+
+    def test_public_team_closes_d4_with_png_sample(self):
+        self.close_d4_with_embedded_page(png=True)
+
+    def close_d4_with_embedded_page(self,png=False):
         entry=dict(role='design',current='D-4',scope=['board'],tone_contract=self.C)
         completion='design/d4-state.json'
         self.create('D4',project_level=False,owner='experience-design-001',executor='experience-design-001',checker='quality-engineering-003',
@@ -181,12 +216,12 @@ class TeamAsset(Team,unittest.TestCase):
             self.call('human_attention',id='normal-'+kind,task_id='D4',kind=kind,display=question['path'],scope=['board'])
         with self.assertRaisesRegex(ValueError,'stage_state'):
             self.call('human_attention',id='anchor-missing',task_id='D4',kind='confirmation',review_purpose='asset_anchors',display=question['path'],scope=['board'])
-        arts,record,result,wrapper=materials(self.root,self.C,self.D,'unmet')
+        arts,record,result,wrapper=materials(self.root,self.C,self.D,'unmet',png=png)
         self.put(completion,dict(entry,artifacts=arts,practice_evidence={'asset_anchors':{'board':record}},asset_comparison_receipts={'board':result['asset_comparison_receipt']}))
         self.call('human_attention',id='unmet-anchor',task_id='D4',kind='confirmation',review_purpose='asset_anchors',stage_state=completion,
                   display=wrapper['path'],scope=['board'])
         self.assertFalse(result['release_ready'])
-        arts,record,result,wrapper=materials(self.root,self.C,self.D)
+        arts,record,result,wrapper=materials(self.root,self.C,self.D,png=png)
         fit=self.fit_child('D4','FIT-D4','quality-engineering-002','reviews/d4-fit.json',
             lambda:h.fit(self.root,self.C,arts,'reviews/d4-fit.json',shot=self.put('reviews/d4.png',h.shotpng()),direction_data=self.D,
                          mode='independent',checker='quality-engineering-002',producer='experience-design-001',review_task='FIT-D4'))

@@ -396,7 +396,7 @@ class StageRegressions(unittest.TestCase):
         self.assertIn('asset_anchors',active['board'])
         contract=tone.practice.professional_contract(registry)
         definition=next(row['definition'] for row in contract['requirements'] if row['stage']=='D-4' and row['requirement']=='asset_anchors')
-        self.assertEqual(definition['version'],5)
+        self.assertEqual(definition['version'],6)
         self.assertIn('comparison',definition)
 
     def test_cross_root_sealing_requires_explicit_read_only_view(self):

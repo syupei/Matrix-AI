@@ -101,7 +101,7 @@ class ReworkPublic(Fixture, unittest.TestCase):
         self.assertEqual('SIM skeleton v1',(view/'src/game.js').read_text())
         self.assertEqual('SIM independently checked settings',(view/'src/settings.js').read_text())
 
-    def successor_rebind(self, *, completed=False, remove_first=False, evolve=False):
+    def successor_rebind(self, *, completed=False, remove_first=False, evolve=False, dependent=False, ambiguous=False):
         self.upstream()
         self.business('V',outputs=['src/settings.js'])
         self.finish('V',{'src/settings.js':'SIM settings v1'})
@@ -119,15 +119,24 @@ class ReworkPublic(Fixture, unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'successor'):
             self.mutate('transition','V','PM',state='planned',reason='SIM revised source',
                         rework_reason='execution',note='SIM used source must be replaced')
-        self.business('V2',outputs=['src/settings.js'])
+        if dependent and evolve:put(self.root,'src/settings.js','SIM settings v1')
+        self.business('V2',outputs=['src/settings.js'],**(
+            dict(inputs=['src/settings.js','external/brief.md'],dependencies=['V']) if dependent else {}))
         self.finish('V2',{'src/settings.js':'SIM settings v2 successor'})
+        if ambiguous:
+            self.business('OTHER',outputs=['src/settings.js'])
+            self.finish('OTHER',{'src/settings.js':'SIM settings v2 successor'})
         if completed:
             self.mutate('transition','D','PM',state='planned',reason='SIM rework consumer',
                         rework_reason='execution',note='SIM new trusted source')
         if remove_first:
             self.mutate('update','D','PM',changes={'inputs':['src/game.js','external/brief.md'],'dependencies':['U','V2']},
                         reason='SIM temporarily remove replaced input',admission_basis=['IN-1'])
-        change=dict(inputs=inputs,dependencies=['U','V2'])
+        change=dict(inputs=inputs,dependencies=['U','V2',*(['OTHER'] if ambiguous else [])])
+        if ambiguous:
+            with self.assertRaisesRegex(ValueError,'multiple unrelated upstream handovers'):
+                self.mutate('update','D','PM',changes=change,reason='SIM ambiguous checked sources',admission_basis=['IN-1'])
+            return
         if evolve:
             with self.assertRaisesRegex(ValueError,'evolved input changed upstream; merge'):
                 self.mutate('update','D','PM',changes=change,reason='SIM replace source',admission_basis=['IN-1'])
@@ -154,6 +163,15 @@ class ReworkPublic(Fixture, unittest.TestCase):
 
     def test_replacing_source_of_locally_evolved_input_requires_merge(self):
         self.successor_rebind(evolve=True)
+
+    def test_rework_successor_can_depend_on_replaced_source(self):
+        self.successor_rebind(dependent=True)
+
+    def test_dependent_successor_still_requires_merge_for_local_evolution(self):
+        self.successor_rebind(dependent=True,evolve=True)
+
+    def test_unrelated_checked_sources_require_pm_to_select_one(self):
+        self.successor_rebind(dependent=True,ambiguous=True)
 
     def test_unrelated_manager_edit_does_not_adopt_tampered_retained_input(self):
         self.upstream();self.business('V',outputs=['src/settings.js'])

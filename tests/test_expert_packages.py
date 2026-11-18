@@ -642,6 +642,16 @@ class Experts(Fixture, unittest.TestCase):
         self.assertEqual('blocked',result['state'])
         self.assertEqual(['map the required pre-review check and receipt: D-4/asset_anchors'],result['unresolved'])
 
+    def test_old_mapping_cannot_treat_capture_receipts_as_approved_deliverables(self):
+        self.write('expert-professions.json',dict(schema='matrix-expert-professions/1',professions=['experience-design'],configured_by='SIM',authorization='SIM design'))
+        params=self.prepare_params('experience-design')
+        params['review']['review_points']=[dict(who='master',what='SIM actual direction and anchor review')]
+        row=next(row for row in params['review']['framework_mapping'] if (row['stage'],row['requirement'])==('D-4','asset_anchors'))
+        row['pre_review_check']=dict(row['pre_review_check'],artifacts='review pages and all non-direction receipt materials')
+        result=self.e.adapt(pm.api(),self.root,params)
+        self.assertEqual('blocked',result['state'])
+        self.assertEqual(['map the required pre-review check and receipt: D-4/asset_anchors'],result['unresolved'])
+
     def test_design_d4_missing_anchor_record_is_rejected_by_common_gate(self):
         self.package()
         from expert_direction_fixture import close_direction

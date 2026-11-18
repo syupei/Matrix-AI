@@ -464,7 +464,7 @@ def check_asset_attention(pm,root,task,display,state_path=None,*,allow_unmet=Fal
     if state_path:
         if not explicit_state and not (stage.get('role')=='design' and stage.get('current')=='D-4') and not pm.local(root,state_path).is_file():return
         pm.require(pm.nonempty(state_path) and pm.local(root,state_path).is_file(),
-                   'asset review requires stage_state: an existing D-4 JSON with practice_evidence and asset_comparison_receipts')
+                   'D-4 review requires stage_state: submit the current artifacts and practice evidence before requesting approval')
         try:state=json.loads(pm.local(root,state_path).read_text())
         except (ValueError,OSError) as error:
             raise pm.TaskError('asset review stage_state must be a readable JSON object: '+str(state_path)) from error
@@ -481,7 +481,7 @@ def check_asset_attention(pm,root,task,display,state_path=None,*,allow_unmet=Fal
     data=tone.confirmed_contract(root,stage.get('tone_contract'),registry_root=root)
     if not any('asset_anchors' in row for row in tone.practice.active(tone.profile(root,data),['asset_anchors'],stage.get('practice_scope') or stage.get('scope')).values()):return
     pm.require(state is not None,
-               'asset review requires stage_state: an existing D-4 JSON with practice_evidence and asset_comparison_receipts')
+               'D-4 review requires stage_state: submit the current artifacts and practice evidence before requesting approval')
     tone.check_asset_submission(root,state,display,allow_unmet=allow_unmet)
     return True
 
