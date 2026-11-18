@@ -211,6 +211,8 @@ class Enforcement(Fixture, unittest.TestCase):
         self.create('T-1')
         self.open(TAX, task_ids=['T-1'])
         self.decide('G-001', choice='human', quote='SIMULATED: 列成我的待办，我去找会计')
+        with self.assertRaisesRegex(pm.TaskError,'only PM or front desk'):
+            self.close_gap('G-001',actor=self.t('T-1')['owner'],source='human result')
         item = {'person': 'boss', 'action': 'execute', 'ref': 'G-001', 'item': '需要具备注册税务师的人处理：SIM 提现要代扣个税（缺口 G-001）'}
         self.assertEqual([item], self.t('T-1')['awaiting'])
         with self.assertRaisesRegex(pm.TaskError, '人工待办：需要具备注册税务师的人处理：SIM 提现要代扣个税（缺口 G-001）'):

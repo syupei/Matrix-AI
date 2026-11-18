@@ -1,0 +1,114 @@
+"""Synthetic D-4 acceptance through package CLIs and public PM operations only."""
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import unittest
+import longchain_fixture as h
+from pm_game_fixture import Team, OUT_D
+
+
+def cli(root,tool,*args):
+    run=subprocess.run([sys.executable,'-B',str(h.KIT/'matrix/base/tools'/tool),'--project',str(root),*args],text=True,capture_output=True)
+    if run.returncode:raise ValueError(run.stdout+run.stderr)
+    return json.loads(run.stdout)
+
+
+def materials(root,C,D,status='achieved'):
+    anchors=[h.put(root,'design/assets/a'+str(i)+'.svg','<svg><text>SIM anchor '+str(i)+'</text></svg>') for i in range(3)]
+    scene=h.put(root,'design/assets/scene.html','<main>SIM current anchored scene</main>')
+    direction=D['parts'].get('screenshot') or D['parts']['preview']
+    tag='img' if direction['path'].endswith('.png') else 'iframe'
+    page=h.put(root,'design/assets/review.html','<main>Visible contour '+status+'<'+tag+' src="'+os.path.relpath(direction['path'],'design/assets')+'"></'+tag+'><iframe src="scene.html"></iframe></main>')
+    arts=[scene,*anchors,page]
+    rec=h.record(root,'asset_anchors',C,arts,'design/assets/record.json')
+    data=json.loads((root/rec['path']).read_text())
+    data.update(anchors=anchors,comparison=dict(confirmed_features=['Visible contour'],scene_sample=scene,review_page=page,
+        rows=[dict(feature='Visible contour',reference=direction,reference_observation='SIM observed separated edge',anchor=scene,
+                   anchor_observation='SIM current separate edge',status=status,difference='SIM documented boundary difference')]))
+    rec=h.put(root,rec['path'],data)
+    result=cli(root,'tone_contract.py','--asset-comparison',rec['path'])
+    wrapper=h.put(root,'design/representative.html','<main>SIM representative page<iframe src="assets/review.html"></iframe></main>')
+    return arts,rec,result,wrapper
+
+
+class SingleAsset(unittest.TestCase):
+    def test_natural_evidence_folder_is_sealed_as_user_artifact(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);C,_=h.direction(root,[h.feature_scope()])
+            artifact=h.put(root,'management/evidence/e22/observed.md','SIM actual evidence in a natural project folder')
+            state=h.stage(root,'design','D-3','D-4',C,[artifact])
+            path=h.put(root,'natural.json',state)
+            self.assertTrue(cli(root,'stage_gate.py','--state',str(root/path['path']))['allowed'])
+
+    def test_public_d4_wrapper_then_d5_and_unmet_not_releasable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            C,D=h.direction(root,[h.feature_scope(asset_family='yes')])
+            arts,record,result,wrapper=materials(root,C,D)
+            fit=h.fit(root,C,arts,'design/fit.json',shot=h.put(root,'design/fit.png',h.shotpng()),direction_data=D)
+            state=h.human_stage(root,h.stage(root,'design','D-4','D-5',C,arts,
+                dict(asset_anchors={'board':record},asset_fit={'board':fit}),asset_comparison_receipts={'board':result['asset_comparison_receipt']}),'D4')
+            request=json.loads((root/state['request']).read_text());reply=json.loads((root/state['response']).read_text())
+            request.update(display_evidence=wrapper['path'],display_sha256=wrapper['sha256']);reply['display_sha256']=wrapper['sha256']
+            h.put(root,state['request'],request);h.put(root,state['response'],reply)
+            path=h.put(root,'d4.json',state)
+            self.assertTrue(cli(root,'stage_gate.py','--state',str(root/path['path']))['allowed'])
+            next_state=h.stage(root,'design','D-5','D-6',C,[h.put(root,'design/complete.md','SIM complete design')])
+            path=h.put(root,'d5.json',next_state)
+            self.assertTrue(cli(root,'stage_gate.py','--state',str(root/path['path']))['allowed'])
+            arts,record,result,wrapper=materials(root,C,D,'unmet')
+            self.assertFalse(result['release_ready'])
+            fit=h.fit(root,C,arts,'design/unmet-fit.json',shot=h.put(root,'design/unmet-fit.png',h.shotpng()),direction_data=D)
+            state=h.human_stage(root,h.stage(root,'design','D-4','D-5',C,arts,
+                dict(asset_anchors={'board':record},asset_fit={'board':fit}),asset_comparison_receipts={'board':result['asset_comparison_receipt']}),'D4-unmet')
+            path=h.put(root,'d4-unmet.json',state)
+            with self.assertRaisesRegex(ValueError,'cannot release'):
+                cli(root,'stage_gate.py','--state',str(root/path['path']))
+
+
+class TeamAsset(Team,unittest.TestCase):
+    rows=[h.feature_scope(asset_family='yes')]
+
+    def test_public_team_closes_d4_with_embedded_page(self):
+        entry=dict(role='design',current='D-4',scope=['board'],tone_contract=self.C)
+        completion='design/d4-state.json'
+        self.create('D4',project_level=False,owner='experience-design-001',executor='experience-design-001',checker='quality-engineering-003',
+                    inputs=[self.tone.DEFAULT_PATH],admitted_inputs=[],dependencies=['DIR'],practice_stage=entry,practice_completion=completion,outputs=OUT_D)
+        self.start('D4')
+        question=self.put('design/question.md','SIM choose asset family batch')
+        for kind in ('clarification','correction','confirmation'):
+            self.call('human_attention',id='normal-'+kind,task_id='D4',kind=kind,display=question['path'],scope=['board'])
+        with self.assertRaisesRegex(ValueError,'stage_state'):
+            self.call('human_attention',id='anchor-missing',task_id='D4',kind='confirmation',review_purpose='asset_anchors',display=question['path'],scope=['board'])
+        arts,record,result,wrapper=materials(self.root,self.C,self.D,'unmet')
+        self.put(completion,dict(entry,practice_evidence={'asset_anchors':{'board':record}},asset_comparison_receipts={'board':result['asset_comparison_receipt']}))
+        self.call('human_attention',id='unmet-anchor',task_id='D4',kind='confirmation',review_purpose='asset_anchors',stage_state=completion,
+                  display=wrapper['path'],scope=['board'])
+        self.assertFalse(result['release_ready'])
+        arts,record,result,wrapper=materials(self.root,self.C,self.D)
+        fit=self.fit_child('D4','FIT-D4','quality-engineering-002','reviews/d4-fit.json',
+            lambda:h.fit(self.root,self.C,arts,'reviews/d4-fit.json',shot=self.put('reviews/d4.png',h.shotpng()),direction_data=self.D,
+                         mode='independent',checker='quality-engineering-002',producer='experience-design-001',review_task='FIT-D4'))
+        state=self.state('design','D-4',arts,dict(asset_anchors={'board':record},asset_fit={'board':fit}),
+                         asset_comparison_receipts={'board':result['asset_comparison_receipt']})
+        self.put(completion,state)
+        self.call('human_attention',id='anchor',task_id='D4',kind='confirmation',review_purpose='asset_anchors',stage_state=completion,
+                  display=wrapper['path'],scope=['board'],inputs=[a['path'] for a in arts])
+        digest=self.gate.artifact_digest(self.root,arts);quote='SIM actual stage review B approval'
+        reply=self.put('management/reviews/D4-reply.md',quote)
+        self.call('human_attention',id='B',task_id='D4',kind='confirmation',review_purpose='stage_review',stage_state=completion,
+                  display=wrapper['path'],scope=['board'],inputs=[a['path'] for a in arts])
+        self.call('human_attention',id='B',response=reply['path'])
+        answer=self.mutate('human_review','D4','PM',outcome='approved',person='SIM-owner',attention_id='B',
+                           presented_ref=wrapper['path'],source=reply['path'],quote=quote,scope=['board'])
+        state['request']=self.put('management/reviews/B-request.json',dict(request_id='B',role='design',stage='D-4',scope=['board'],
+            artifact_sha256=digest,display_evidence=wrapper['path'],display_sha256=wrapper['sha256']))['path']
+        state['response']=self.put('management/reviews/B-response.json',dict(request_id='B',scope=['board'],artifact_sha256=digest,
+            actor='user',choice='confirm',source=reply['path'],quote=quote,display_sha256=wrapper['sha256'],message_sha256=self.ev.digest(quote),
+            review_receipt=answer['task']['human_review']['review_receipt']))['path']
+        self.put(completion,state)
+        self.finish('D4',[completion,record['path'],*[a['path'] for a in arts]])
+        self.assertEqual('done',self.t('D4')['state'])

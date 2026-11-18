@@ -49,13 +49,12 @@ def attention(pm, root, db, cfg, cmd):
         direction = pm.integrity.records(db, 'direction_sample').get(task_id)
         task = pm.task_map(db).get(task_id, {})
         stage = task.get('practice_stage') or {}
-        if stage.get('role')=='design' and stage.get('current')=='D-4':
-            state_path=cmd.get('stage_state') or task.get('practice_completion')
-            pm.require(pm.nonempty(state_path),'before review B provide the D-4 stage_state with its asset comparison receipt')
-            state=json.loads(pm.local(root,state_path).read_text())
-            pm.require(all(state.get(key)==stage.get(key) for key in ('role','current','scope','tone_contract')),
-                       'asset review state differs from the assigned D-4 scope')
-            tone.check_asset_submission(root,state,source)
+        purpose=cmd.get('review_purpose')
+        pm.require(purpose in {None,'asset_anchors','stage_review'}, 'review_purpose must be asset_anchors or stage_review')
+        if purpose:
+            pm.require(kind=='confirmation' and task, 'a professional review request needs confirmation kind and task_id')
+            check_asset_attention(pm,root,task,source,cmd.get('stage_state'),allow_unmet=True)
+        rec.update(review_purpose=purpose,stage_state=cmd.get('stage_state'))
         inputs = cmd.get('inputs', [])
         pm.require(pm.strings(inputs), 'attention inputs must be project files')
         refs = [evidence.ref(root, source), *[evidence.ref(root, name) for name in inputs]]
@@ -241,6 +240,9 @@ def resolve_gap(pm, root, db, cfg, cmd):
     else:
         pm.require(gap['status'] == 'closed' and adopted,
                    'external or human gap delivery needs closed gap evidence and admitted contribution versions')
+        if gap['decision']['choice']=='human':
+            pm.require((gap.get('result') or {}).get('by') in {cfg['pm_actor'],cfg.get('frontdesk_actor')} - {None},
+                       'human direction delivery must have been recorded by PM or front desk')
         admissions = pm.integrity.records(db, 'input_admission')
         latest = pm.admission.ref_latest(admissions)
         covered = set()
@@ -377,8 +379,11 @@ def record_confirmation(pm, root, db, task, cmd):
         attention = pm.integrity.records(db, 'human_attention').get(cmd['attention_id'])
         pm.require(attention and attention.get('task_id') == task['id'],
                    'human review requires the displayed request for this task')
+        pm.require(attention.get('kind')=='confirmation', 'approval requires a confirmation request; clarification or correction is not approval')
         pm.require(cmd['presented_ref'] == attention['display'] and cmd['source'] == attention.get('response'),
                    'human review must consume the same displayed material and response source')
+        checked=check_asset_attention(pm,root,task,attention['display'],attention.get('stage_state'),allow_unmet=False)
+        pm.require(not checked or attention.get('review_purpose')=='stage_review', 'D-4 stage approval must consume an explicit stage_review request')
         return bind_attention(pm, root, db, cmd['attention_id'], person=cmd.get('person'),
                               quote=cmd['quote'], scope=cmd['scope'], expected={'task_id': task['id']})
     tone = pm.admission.load_gate().tone
@@ -421,6 +426,7 @@ def stage_confirmation(pm, root, db, cfg, cmd):
     pm.require(cmd['actor'] in {cfg['pm_actor'], cfg.get('frontdesk_actor')} - {None},
                'PM or front desk binds the actual stage confirmation')
     gate = pm.admission.load_gate()
+    pm.require(pm.nonempty(cmd.get('state')) and pm.local(root,cmd['state']).is_file(), 'stage_confirmation needs state: the existing stage-state JSON path')
     state = json.loads(pm.local(root, cmd['state']).read_text(encoding='utf-8'))
     request = json.loads(gate.checked_file(root, state['request']).read_text())
     reply = json.loads(gate.checked_file(root, state['response']).read_text())
@@ -437,19 +443,46 @@ def stage_confirmation(pm, root, db, cfg, cmd):
                and attention.get('displayed_sha256') == request.get('display_sha256')
                and reply.get('display_sha256') == request.get('display_sha256')
                and attention.get('response') == reply.get('source'), 'use the actual answered stage display and response')
-    person = gate.deciding_person(root, state['role'], reply) or cmd.get('person')
-    pm.require(pm.nonempty(person), 'record the actual deciding person')
+    person = gate.deciding_person(root, state['role'], reply) or cmd.get('person') or 'user'
+    if state.get('role')=='design' and state.get('current')=='D-4':
+        task=pm.task_map(db).get(attention.get('task_id'))
+        pm.require(task, 'D-4 stage approval needs the assigned task_id on human_attention')
+        checked=check_asset_attention(pm,root,task,attention['display'],cmd['state'],allow_unmet=False)
+        pm.require(not checked or attention.get('review_purpose')=='stage_review', 'D-4 stage approval must consume an explicit stage_review request')
     receipt = bind_attention(pm, root, db, cmd['attention_id'], person=person,
                              quote=reply['quote'], scope=state['scope'],
                              expected={'artifacts': state['artifacts']})
     return {'review_receipt': receipt, 'state': cmd['state'], 'role': state['role'], 'stage': state['current']}
 
 
+def check_asset_attention(pm,root,task,display,state_path=None,*,allow_unmet=False):
+    stage=task.get('practice_stage') or {}
+    if stage.get('role')!='design' or stage.get('current')!='D-4':return
+    tone=pm.admission.load_gate().tone
+    data=tone.confirmed_contract(root,stage.get('tone_contract'),registry_root=root)
+    if not any('asset_anchors' in row for row in tone.practice.active(tone.profile(root,data),['asset_anchors'],stage.get('practice_scope') or stage.get('scope')).values()):return
+    state_path=state_path or task.get('practice_completion')
+    pm.require(pm.nonempty(state_path) and pm.local(root,state_path).is_file(),
+               'asset review requires stage_state: an existing D-4 JSON with practice_evidence and asset_comparison_receipts')
+    state=json.loads(pm.local(root,state_path).read_text())
+    pm.require(all(state.get(key)==stage.get(key) for key in ('role','current','scope','tone_contract')),
+               'asset review state differs from the assigned D-4 scope')
+    tone.check_asset_submission(root,state,display,allow_unmet=allow_unmet)
+    return True
+
+
 def bind_attention(pm, root, db, attention_id, *, person, quote, scope, expected):
     attention = pm.integrity.records(db, 'human_attention').get(attention_id)
+    pm.require(attention and attention.get('kind') == 'confirmation',
+               'approval requires a confirmation request; clarification or correction is not approval')
     pm.require(attention and attention.get('seconds') is not None and attention.get('scope') == scope,
                'approval requires the answered displayed request and scope')
-    pm.require(attention.get('response_message') == quote.strip() and all(attention['context'].get(k) == v for k,v in expected.items()),
+    def same(key,value):
+        actual=attention['context'].get(key)
+        if key=='artifacts' and isinstance(actual,list) and isinstance(value,list):
+            return sorted(actual,key=lambda row:(row['path'],row['sha256']))==sorted(value,key=lambda row:(row['path'],row['sha256']))
+        return actual==value
+    pm.require(attention.get('response_message') == quote.strip() and all(same(k,v) for k,v in expected.items()),
                'approval differs from the complete response or displayed content version')
     evidence = pm.admission.load_gate().tone.evidence
     display_root, _ = evidence.verify_bundle(root, attention['display_bundle'])
@@ -458,7 +491,7 @@ def bind_attention(pm, root, db, attention_id, *, person, quote, scope, expected
         display=evidence.ref(display_root, attention['display']),
         response=dict(evidence.ref(response_root, attention['response']), response_id=attention.get('response_id'),
                       message_sha256=evidence.digest(quote.strip())),
-        person=person, quote=quote.strip(), outcome='approved', actor='user')
+        person=person or 'user', quote=quote.strip(), outcome='approved', actor='user')
     evidence.check_review_binding(binding)
     staging = 'management/review-sources/' + attention_id
     for snapshot, source in ((display_root, attention['display']), (response_root, attention['response'])):

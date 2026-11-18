@@ -7,8 +7,9 @@ import sqlite3
 import tempfile
 import unittest
 from practice_fixture import png
+from kit import KIT
 
-BASE = Path(__file__).resolve().parents[1] / 'src/base/tools'
+BASE = KIT / 'matrix/base/tools'
 spec = importlib.util.spec_from_file_location('round2_stage', BASE / 'stage_gate.py')
 gate = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gate)
@@ -47,7 +48,8 @@ class StageRegressions(unittest.TestCase):
         message='Synthetic complete approval '+str(self.serial)
         display=self.put('reviews/shown-'+str(self.serial)+'.md','Displayed this complete direction '+str(self.serial))
         reply=self.put('reviews/reply-'+str(self.serial)+'.json',dict(messages=[dict(id='message-'+str(self.serial),text=message)]))
-        binding=dict(format='matrix-review-binding/1',request_id='review-'+str(self.serial),scope=['board'],actor='user',
+        scopes=[row['id'] for row in tone.profile(self.root,data)['scopes']]
+        binding=dict(format='matrix-review-binding/1',request_id='review-'+str(self.serial),scope=scopes,actor='user',
                      person='synthetic-user',quote=message,outcome='approved',display=display,
                      response=dict(reply,response_id='message-'+str(self.serial),message_sha256=tone.evidence.digest(message)),
                      direction_sha256=tone.direction_binding(tone.DEFAULT_PATH,data)['direction_sha256'])
@@ -336,7 +338,7 @@ class StageRegressions(unittest.TestCase):
     def asset_comparison(self):
         anchors=[self.put('design/anchor-'+str(i)+'.svg','<svg><text>Actual synthetic anchor '+str(i)+'</text></svg>') for i in range(3)]
         scene=self.put('design/current-scene.html','<main>Actual branch scene'+''.join('<img src="anchor-'+str(i)+'.svg">' for i in range(3))+'</main>')
-        page=self.put('design/review.html','<section><iframe src="preview.html"></iframe><iframe src="current-scene.html"></iframe><img src="anchor-0.svg"></section>')
+        page=self.put('design/review.html','<section>Visible layered object contour: achieved<iframe src="preview.html"></iframe><iframe src="current-scene.html"></iframe><img src="anchor-0.svg"></section>')
         comparison=dict(confirmed_features=['Visible layered object contour'],rows=[dict(feature='Visible layered object contour',reference=self.data['parts']['preview'],
             reference_observation='The direction objects have a separate light edge',anchor=anchors[0],anchor_observation='The current object retains a light edge at actual scene scale',
             status='achieved',difference='No material contour difference was observed at this scale')],review_page=page,scene_sample=scene)
@@ -357,8 +359,10 @@ class StageRegressions(unittest.TestCase):
                 value=copy.deepcopy(original);change(value);changed=self.put('d4-invalid.json',value)
                 with self.assertRaisesRegex(ValueError,error):tone.check_record(self.root,'asset_anchors','board',changed,self.contract)
         value=copy.deepcopy(original);value['comparison']['rows'][0].update(status='close',difference='The current edge is thinner; preserve the actual readability review')
+        page=self.put('design/close-review.html',(self.root/'design/review.html').read_text().replace('achieved','close'))
+        value['comparison']['review_page']=page;value['artifacts'].append(page)
         self.assertTrue(tone.check_record(self.root,'asset_anchors','board',self.put('d4-close.json',value),self.contract))
-        page=self.put('design/review.html','Direction preview.html and current-scene.html will be compared')
+        page=self.put('design/review.html','Visible layered object contour achieved; Direction preview.html and current-scene.html will be compared')
         value=copy.deepcopy(original);value['comparison']['review_page']=page
         value['artifacts']=[page if ref['path']==page['path'] else ref for ref in value['artifacts']]
         with self.assertRaisesRegex(ValueError,'must embed'):
@@ -392,7 +396,7 @@ class StageRegressions(unittest.TestCase):
         self.assertIn('asset_anchors',active['board'])
         contract=tone.practice.professional_contract(registry)
         definition=next(row['definition'] for row in contract['requirements'] if row['stage']=='D-4' and row['requirement']=='asset_anchors')
-        self.assertEqual(definition['version'],3)
+        self.assertEqual(definition['version'],4)
         self.assertIn('comparison',definition)
 
     def test_cross_root_sealing_requires_explicit_read_only_view(self):
@@ -463,6 +467,7 @@ class StageRegressions(unittest.TestCase):
         self.assertEqual(process.returncode,0,process.stdout+process.stderr)
         result=json.loads(process.stdout);receipt=json.loads(tone.verify_ref(self.root,result['tool_receipt']).read_text())
         self.assertEqual(receipt['format'],'direction-tool-receipt/1')
+        self.assertEqual(result['draft'],tone.evidence.ref(self.root,tone.DEFAULT_PATH))
         self.assertEqual(receipt['tool']['sha256'],hashlib.sha256((BASE/'tone_contract.py').read_bytes()).hexdigest())
         self.assertTrue(receipt['allowed']);self.assertEqual(receipt['delivery'],result['delivery'])
         # Tool provenance is install metadata, never a workspace file to recursively collect.

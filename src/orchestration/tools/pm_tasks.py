@@ -631,6 +631,8 @@ def gap_op(root, db, cmd):
             value = dict(g, status=choice, decision=decision)
         else:
             require(g['status'] in {'expert', 'human'}, 'only a gap given to an expert or a person closes, with their result')
+            if g['status']=='human':
+                require(actor in desks, 'only PM or front desk records a human gap delivery; a producer cannot attest human authorship')
             require(handles(linked), 'PM, front desk, or the owner or manager of every linked task records the result')
             require(nonempty(cmd.get('source')) and strings(cmd.get('evidence')) and cmd['evidence'], 'source of the received result and evidence (non-empty list) required')
             value = dict(g, status='closed', result=dict(source=cmd['source'], evidence=cmd['evidence'], by=actor, at=now()))
@@ -865,8 +867,8 @@ def execute(project, cmd, _db=None, _applying=None):
                         pure_coordination = (admission.coordination_only(api(),db,before) and admission.coordination_only(api(),db,candidate)
                                              and not before.get('admitted_inputs') and not candidate.get('admitted_inputs'))
                         if not pure_coordination:admission.semantic_basis(api(),root,db,before,candidate,cmd,applying_id)
-                        if set(changes) & {'inputs','outputs','dependencies'}:
-                            after.pop('input_provenance',None)
+                        # Keep consumed bytes for retained inputs. At restart,
+                        # source_entries resolves only new or changed sources.
                     after.update(changes)
                     admission.task_boundary(api(),root,db,after,tasks)
                     integrity.observe(api(), root, after)

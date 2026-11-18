@@ -50,4 +50,6 @@
 
 ## 阶段与协作配置
 
+阶段人审的human_attention→stage_confirmation或human_review→response.review_receipt路径及person要求见[检验与人工决定](TASK-REVIEW.md)。
+
 查询阶段、协作档位或决定人及委托时，读取[具体说明](TASK-GOVERNANCE.md)。

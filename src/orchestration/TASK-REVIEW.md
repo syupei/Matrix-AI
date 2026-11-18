@@ -2,6 +2,8 @@
 
 何时读：检验、录入人工决定、上报、转交或改派。调用前置与其余操作见[原入口](TASK-TOOL.md)。
 
+阶段人审按[公开回执路径](../base/REVIEW-EVIDENCE.md)：PM/前台先human_attention登记task_id、kind:confirmation、scope、display和inputs（本轮成果路径），答复后登记response；再用stage_confirmation传state、attention_id、person，或由human_review带attention_id返回review_receipt。回执写入response JSON，不改已交回的阶段状态。无名单时person可省略（记user）；有名单按决定人权限填写。D-4的review_purpose与stage_state见[共同对照](../base/ASSET-COMPARISON.md)。
+
 ## 检验、人工决定、上报、转交
 
 - 平台返工用 `plan_restart`（本层 manager）：`task_id,expected_revision,note`，非执行原因另带 `attributed_to`；沿用检验者记录的 cause。工具登记本次工作版本及执行者对应的重启参数，调度器照此执行；缺参数时交派发者补齐，不反复尝试无效启动。实际启动时才累计返工次数，已有额度与升级条件仍有效。

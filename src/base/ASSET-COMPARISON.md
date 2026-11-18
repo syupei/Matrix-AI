@@ -22,10 +22,12 @@ asset_anchors含scope、tone_contract、artifacts、anchors（3–5个不同真�
  "scene_sample":{"path":"本轮场景.html","sha256":"当前摘要"}}
 ```
 
-缺灰模只延后放回灰模与成套放行；已有方向样张时，锚点当轮仍须对照。交审B前运行`python3 matrix/base/tools/tone_contract.py --project . --asset-comparison <asset_anchors记录>`，取得asset_comparison_receipt；在阶段状态asset_comparison_receipts中按活动ID引用。回执绑定记录、审看页、方向与小样，展示须为该页；改稿后重查。无回执可存草稿，不能交审或完成。模板见[并排审看页](asset-comparison-template.html)，按confirmed_features逐行填写，不虚构观察。
+缺灰模只延后放回灰模与成套放行；已有方向样张时，锚点当轮仍须对照。在锚点交人整体审看之前运行`python3 matrix/base/tools/tone_contract.py --project . --asset-comparison <asset_anchors记录>`，取得asset_comparison_receipt；在阶段状态asset_comparison_receipts中按活动ID引用。回执绑定记录、审看页、方向与小样；本次展示及后续审阅B可直接使用该页，也可用iframe/object嵌入本阶段全部范围的回执页。改稿后重查。无回执可存草稿，不能交审或完成。模板见[并排审看页](asset-comparison-template.html)，按confirmed_features逐行填写，不虚构观察。comparison.state写实际代表状态；生成页的状态、观察和限制占位全部替换。
+
+团队human_attention显式写review_purpose：锚点整体审看为asset_anchors，阶段审阅为stage_review，并带task_id与stage_state（已存在的D-4 JSON，含契约、scope、practice_evidence和asset_comparison_receipts）。澄清、更正及家族合批确认不使用这两个purpose，也不能凭其答复越过阶段。阶段确认消费时会再核对绑定任务和当前回执。单对话锚点审看时靠本指引执行，完成关卡再核回执。
 
 ref均为项目相对path/sha256。confirmed_features逐项来自已确认样稿，不随本轮做法任意删减；rows逐项覆盖，不用“精致/统一/以后再看”等空话代实际观察。reference须是当前契约parts.preview或parts.screenshot。anchor须是本记录anchors或scene_sample；小样属于本次artifacts，不能拿方向样稿本身冒新小样。审看页用img/iframe/object等真实嵌入两侧和小样，写路径或链接不等于并排呈现；依赖文件同交回并保持摘要有效。HTML/SVG保留实际内容；若小样是PNG，comparison另写viewport/capture_binding，按[采集证据](REVIEW-EVIDENCE.md)绑定实际artifacts和采集receipt。
 
-status仅achieved（达到）/close（接近）/unmet（未达到）。缺表、占位、旧ref、缺小样/审看素材或unmet时，保存待补草稿，不能完成成套放行。close必须保留实际差异与取舍，沿已有D-4审阅决定，不因表齐自动合格。程序只核结构、覆盖、文件和版本，不认证画质或观察确实发生。
+status仅achieved（达到）/close（接近）/unmet（未达到），页面逐项写特征和同一status。缺表、占位、旧ref、缺小样/审看素材时不发回执。unmet可取得release_ready:false回执并如实交人决定，完成与成套放行仍被阻断；不要为交审把unmet改成close。close保留实际差异与取舍，沿已有D-4审阅决定，不因表齐自动合格。程序只核结构、覆盖、文件和版本，不认证画质或观察确实发生。
 
 导入专家须映射当前记录及pre_review_check，缺交审回执同样被拦。历史封存与当前成果见[阶段证据](STAGE-EVIDENCE.md)。

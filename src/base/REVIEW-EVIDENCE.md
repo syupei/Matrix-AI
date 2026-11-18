@@ -8,6 +8,10 @@
 
 PM的展示与答复使用同一scope；方向另冻结全部活动ID。`human_review`、`stage_confirmation`或`intake_admit`消费已答复的human_attention，见[阶段检查](STAGE-GATES.md)。单对话保存binding后运行 `python3 matrix/base/tools/review_evidence.py --project . --review-binding <项目相对JSON>`，返回 `review_receipt:{path,sha256}`。binding写`actor:"user"`；方向还须`direction_draft:{path,sha256}`，展示正文含本轮direction_sha256，工具核实际草稿并计算消息摘要；人工看稿附实际`artifacts` refs。回执的context保留绑定，files保留逐字节副本。全部校验成功才登记答复identity；失败可改正重试，不能换文件名复用旧答复。不同真实消息用稳定response_id；内容变更须展示新版并记录新答复。完整写权限者可篡改源与登记，文件工具不认证人或替代宿主隔离。
 
+direction_draft取--draft返回的draft（真实草稿path/sha256，也可取tool_receipt内的contract），不是贴合记录使用的direction_reference。方向scope恰好覆盖全部活动ID；工具统一顺序再登记。display是含方向摘要与稿件链接的实际展示正文，不是预览或工具JSON。展示遗漏摘要须补展示后取得真实答复，不能改写旧展示；仅字段填错可改正重试。
+
+边界：代理自写展示并编造response_id也可能被接受，无需篡改账本，须由宿主保障真实来源。两次真实答复同文且宿主不提供稳定消息ID时，当前工具不能区分，会阻断第二次；不得自编ID绕过，保留待核实记录。
+
 团队先用`human_attention`展示并登记实答，inputs为成果路径、scope与状态一致。`human_review`带同一attention_id、task_id、展示、来源、原话、范围，取返回的task.human_review.review_receipt。无任务的阶段用`stage_confirmation`，传state文件、attention_id、person，取review_receipt放入response。两者消费原请求，不新增人审；不能用内部函数或自制回执代替。
 
 ## 实际截图与人工回退

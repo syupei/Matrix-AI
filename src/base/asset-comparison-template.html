@@ -1,11 +1,11 @@
 <!doctype html>
 <html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>素材锚点对照审看</title>
-<style>body{font:16px system-ui;margin:24px;color:#17212b}main{display:grid;grid-template-columns:1fr 1fr;gap:24px}figure{margin:0}img{width:100%;object-fit:contain;border:1px solid #aaa}table{border-collapse:collapse;width:100%;margin-top:24px}th,td{border:1px solid #aaa;padding:12px;text-align:left}</style>
+<style>body{font:16px system-ui;margin:24px;color:#17212b}main{display:grid;grid-template-columns:1fr 1fr;gap:24px}figure{margin:0}img,iframe{width:100%;aspect-ratio:8/5;object-fit:contain;border:1px solid #aaa}table{border-collapse:collapse;width:100%;margin-top:24px}th,td{border:1px solid #aaa;padding:12px;text-align:left}</style>
 <h1>素材锚点对照审看</h1>
 <p>活动范围：{{SCOPE}}；视口：{{VIEWPORT}}；代表状态：{{STATE}}。{{MISSING_INPUT_LIMITATIONS}}</p>
-<main><figure><img src="{{CONFIRMED_DIRECTION_IMAGE}}" alt="已确认方向样张"><figcaption>已确认方向样张</figcaption></figure>
-<figure><img src="{{CURRENT_SCENE_IMAGE}}" alt="本轮锚点小样"><figcaption>本轮锚点小样</figcaption></figure></main>
+<main><figure>{{DIRECTION_EMBED}}<figcaption>已确认方向样张</figcaption></figure>
+<figure>{{SCENE_EMBED}}<figcaption>本轮锚点小样</figcaption></figure></main>
 <table><thead><tr><th>已确认特征</th><th>方向样张观察</th><th>本轮锚点观察</th><th>达到／接近／未达到</th><th>差异与影响</th></tr></thead>
 <tbody><!-- 按 comparison.confirmed_features 逐项填一行，取自实际观察。 -->{{COMPARISON_ROWS}}</tbody></table>
 </html>

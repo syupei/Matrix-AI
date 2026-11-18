@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import re
 import importlib.util
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -179,6 +180,7 @@ def _check(root,state,conversation=True,registry_root=None,seal=True,task_contex
         if reply.get('message_sha256') != tone.evidence.digest(message):raise ValueError('reply message changed')
         if (Path(registry_root or root)/'management/runtime/tasks.sqlite3').is_file() and current!='P-1':
             receipt=reply.get('review_receipt') or state.get('review_receipt')
+            if not receipt:raise ValueError('bind the answered human_attention with stage_confirmation; put review_receipt in response JSON, leaving the handed stage state unchanged')
             binding=tone.evidence.verify_human_receipt(registry_root or root,receipt,artifacts=state['artifacts'])
             if binding['display']['sha256']!=req['display_sha256'] or binding['quote']!=message:raise ValueError('stage confirmation differs from its actual PM attention')
             if task_context and binding.get('task_id') and binding['task_id']!=task_context['task_id']:raise ValueError('stage confirmation was displayed for a different task')
@@ -205,11 +207,13 @@ def _check(root,state,conversation=True,registry_root=None,seal=True,task_contex
                 if isinstance(record.get(key),dict):controls.add(record[key]['path'])
             if isinstance(record.get('capture_binding'),dict) and record['capture_binding'].get('receipt'):controls.add(record['capture_binding']['receipt']['path'])
         controls.update(task_context.get('review_files',{}))
+        controls.update(task_context.get('control_files',[]))
         if isinstance(state.get('implementation_handoff'),dict):controls.add(state['implementation_handoff']['path'])
         actual={value['path']:value['sha256'] for value in state['artifacts']}
         handed=task_context.get('handed_files',{})
-        required=(task_context.get('review_subjects') if role=='design' and current=='D-6' and task_context.get('implementation')
-                  else {name:sha for name,sha in handed.items() if name not in controls})
+        required={name:sha for name,sha in handed.items() if name not in controls}
+        if role=='design' and current=='D-6' and task_context.get('implementation'):
+            required.update(task_context.get('review_subjects',{}))
         if not required or any(actual.get(name)!=sha for name,sha in required.items()):raise ValueError('stage artifacts do not cover the actual task and child handover')
     return result
 
@@ -242,11 +246,12 @@ def check(root,state,conversation=True,registry_root=None,seal=True,task_context
         # Mutable project inputs must be sealed. Content-addressed authority is already
         # immutable and verified at its original root; recursively copying its views
         # would embed every earlier snapshot again without adding any evidence.
-        authority_dirs = ('management/evidence/', 'management/stage-receipts/', 'management/review-sources/')
         for path,sha in reads.items():
             if path.is_relative_to(root):
                 name = path.relative_to(root).as_posix()
-                if not name.startswith(authority_dirs):refs[name]=sha
+                immutable=bool(re.match(r'^management/evidence/[0-9a-f]{64}/',name) or
+                               re.match(r'^management/stage-receipts/[0-9a-f]{64}\.json$',name))
+                if not immutable:refs[name]=sha
         context={'role':state['role'],'stage':state['current'],'scope':state['scope'],
                  'tone_contract':state.get('tone_contract'),'state_path':state_path,'task_context':task_context,
                  'checked_at':checked_at}

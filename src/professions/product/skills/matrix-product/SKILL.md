@@ -51,7 +51,7 @@ P-1 组织[项目做法档与方向样张](../../../matrix/orchestration/DIRECTI
 
 ## 回复前核对成果
 
-方向首稿的预览、截图和样句按[方向交付回执](../../../matrix/orchestration/DIRECTION-SAMPLE.md#检查与一次合看)核验后链接。
+方向首稿按[方向交付回执](../../../matrix/orchestration/DIRECTION-SAMPLE.md#检查与一次合看)核验后链接；向人展示前取得草稿摘要并写入正文，不能事后补写展示记录。
 
 交付局部规格草稿或登记反馈时，先保存实际成果，再运行 [product_contract.py](scripts/product_contract.py) 的 `--root <项目根> reply-receipt --kind draft|feedback --path <项目相对路径> --marker <草稿标题或反馈条目ID>`。用回执中的路径链接成果，阶段行与正文使用同一状态。没有回执时，会话内内容写「建议」或「已收到」，待保存的事项写「待登记」。反馈未说完时，逐条记录原意并标为收集中，等用户说完再合批处理。
 

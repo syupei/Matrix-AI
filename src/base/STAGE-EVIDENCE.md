@@ -25,7 +25,7 @@ E-2技术试做允许playtest_status:pending，playtest说明既有试玩安排�
 
 ## 实现走查
 
-implementation_walkthrough仍写scope、tone_contract、实际artifacts及locations/activity_effect/preservation_basis/recheck_method。以下改为结构行：
+implementation_walkthrough写scope、tone_contract、实际artifacts及locations/activity_effect/preservation_basis/recheck_method，另含以下结构行：
 
 - preserved_states:[{state,layer,basis}]；无适用项时空数组，写理由，并由实际fit检验人以preservation_review:{checker,conclusion}确认。
 - design_recheck_states:[{state,method,evidence:{path,sha256}}]；图像证据另附该行capture_binding，沿共用采集校验。

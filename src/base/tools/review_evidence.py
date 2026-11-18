@@ -432,13 +432,14 @@ def main():
             spec=importlib.util.spec_from_file_location('review_direction',Path(__file__).with_name('tone_contract.py'))
             tone=importlib.util.module_from_spec(spec);spec.loader.exec_module(tone)
             draft=binding.get('direction_draft')
-            require(isinstance(draft,dict),'direction binding needs direction_draft:{path,sha256}; show this version and record the new response')
+            require(isinstance(draft,dict),'direction binding needs direction_draft:{path,sha256} from tool_receipt.contract; correct the binding without changing the actual display or reply')
             verify_ref(args.project,draft)
             data=tone.validate(args.project,draft['path'],confirmed=False,_pending_human=True)
+            binding['scope']=tone.check_direction_scope(args.project,data,binding.get('scope'))
             expected=tone.direction_binding(tone.DEFAULT_PATH,data)['direction_sha256']
             require(binding['direction_sha256']==expected,'direction digest differs from the current draft; correct the binding before retrying')
             shown=verify_ref(args.project,binding['display']).read_text(encoding='utf-8')
-            require(expected in shown,'display must identify this direction digest; show the new version and record its actual new response')
+            require(expected in shown,'display record lacks this direction digest; if it was absent from the actual display, show the draft with its digest and obtain the actual reply; do not backfill an old display')
             binding['response']['message_sha256']=digest(response_message(args.project,binding['response']['path'],binding['response'].get('response_id')))
         result={'allowed':True,'review_receipt':review_receipt(args.project,binding),
                 'limitation':'Binds recorded bytes and scope; does not authenticate the human or establish professional quality.'}

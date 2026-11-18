@@ -81,6 +81,25 @@ class ReworkPublic(Fixture, unittest.TestCase):
         self.check('CHECKED');self.close('CHECKED')
         self.assertEqual('done',self.t('CHECKED')['state'])
 
+    def test_semantic_edit_retains_owned_input_and_freezes_new_input(self):
+        self.upstream()
+        self.business('V',outputs=['src/settings.js'])
+        self.finish('V',{'src/settings.js':'SIM independently checked settings'})
+        self.downstream(outputs=['src/game.js'])
+        self.mutate('transition','D',state='running',reason='SIM start',execution_receipt='SIM process')
+        original=self.t('D')['input_provenance']
+        put(self.root,'src/game.js','SIM evolved implementation')
+        self.mutate('transition','D',state='waiting_review',reason='SIM handover',stop_evidence='SIM',evidence=['src/game.js'])
+        self.mutate('review','D',self.t('D')['checker'],outcome='failed',cause='execution',criteria_checked=self.t('D')['criteria'],evidence=['SIM fix requested'])
+        self.mutate('update','D','PM',changes=dict(inputs=['src/game.js','src/settings.js','external/brief.md'],dependencies=['U','V'],
+                    admitted_inputs=['IN-1'],stage_transition=self.stage(['external/brief.md']),outputs=['src/game.js','src/turn.js']),
+                    reason='SIM admitted scope extension',admission_basis=['IN-1'])
+        self.assertEqual(original,self.t('D')['input_provenance'])
+        self.mutate('transition','D',state='running',reason='SIM rework',execution_receipt='SIM',rework_reason='execution',note='SIM fix')
+        view,_=self.gate.tone.evidence.verify_bundle(self.root,self.t('D')['input_provenance']['bundle'])
+        self.assertEqual('SIM skeleton v1',(view/'src/game.js').read_text())
+        self.assertEqual('SIM independently checked settings',(view/'src/settings.js').read_text())
+
 
 if __name__ == '__main__':
     unittest.main()

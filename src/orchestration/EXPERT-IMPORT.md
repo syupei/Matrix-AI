@@ -32,7 +32,7 @@ expert.validate的evidence含runner/report/source_sha256（METHODS摘要），�
 
 首次通过封存management/expert-validations/<id>/<version>/<author-run-id>/。manifest.validation保存bundle、author_run_sha256、review_receipt；DB的expert_validation（id=<id>/<version>）锚定bundle与receipt_sha256，不能重封存替换。enable/bind/派发核快照、DB锚点和当前methods/package/mapping/contract；public演进可继续，改快照或receipt失效。
 
-D-4按asset_family触发asset_anchors；映射须含当前记录与pre_review_check（契约definition.submission）。缺映射在adapt阻断，交审前回执、并排页及完成记录由共同gate核对。字段见[共同对照](../base/ASSET-COMPARISON.md)；表齐不等于视觉合格，未达到不放行成套生产。
+D-4的asset_anchors映射含pre_review_check（definition.submission第4版：锚点审看前取回执、可嵌入回执页、unmet可审不可放行）。旧包重新适配，adapt与gate统一检查；字段及边界见[共同对照](../base/ASSET-COMPARISON.md)。
 
 ## 迁移
 

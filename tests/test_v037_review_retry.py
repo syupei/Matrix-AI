@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 from kit import KIT
-from practice_fixture import direction, put
+from practice_fixture import direction, put, scope
 
 spec = importlib.util.spec_from_file_location('retry_tone', KIT / 'matrix/base/tools/tone_contract.py')
 tone = importlib.util.module_from_spec(spec)
@@ -65,3 +65,40 @@ class ConfirmationRetry(unittest.TestCase):
         code, result = self.invoke()
         self.assertEqual(1, code)
         self.assertIn('display', result['error'])
+
+    def two_activities(self):
+        _, data = direction(self.root, tone, rows=[scope(tone), scope(tone, 'admin')])
+        data.pop('confirmation')
+        self.binding['direction_draft'] = put(self.root, tone.DEFAULT_PATH,
+                                             '```tone-contract\n'+json.dumps(data)+'\n```\n')
+        digest = tone.direction_binding(tone.DEFAULT_PATH, data)['direction_sha256']
+        self.binding['direction_sha256'] = digest
+        self.binding['display'] = put(self.root, 'shown.md', 'SIM actual displayed direction '+digest)
+        return data
+
+    def test_incomplete_or_extra_scope_does_not_consume_reply_before_corrected_retry(self):
+        self.two_activities()
+        before = self.registrations()
+        for ids in (['workspace'], ['workspace','admin','unknown'], ['workspace','workspace']):
+            self.binding['scope'] = ids
+            code, result = self.invoke()
+            self.assertEqual(1, code)
+            self.assertIn('all activity scopes', result['error'])
+            self.assertEqual(before, self.registrations())
+        self.binding['scope'] = ['workspace','admin']
+        code, result = self.invoke()
+        self.assertEqual(0, code)
+        self.binding['scope'] = ['admin','workspace']
+        code, reordered = self.invoke()
+        self.assertEqual(0, code)
+        self.assertEqual(result['review_receipt'],reordered['review_receipt'])
+
+    def test_legacy_partial_approval_cannot_confirm_unreviewed_activity(self):
+        data = self.two_activities()
+        receipt = tone.evidence.review_receipt(self.root, self.binding)
+        data['confirmation'] = dict(person=self.binding['person'], quote=self.binding['quote'],
+                                    source=self.binding['response']['path'],
+                                    direction_sha256=self.binding['direction_sha256'], review_receipt=receipt)
+        put(self.root, tone.DEFAULT_PATH, '```tone-contract\n'+json.dumps(data)+'\n```\n')
+        with self.assertRaisesRegex(ValueError, 'all activity scopes'):
+            tone.validate(self.root, tone.DEFAULT_PATH)

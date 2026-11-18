@@ -40,6 +40,16 @@ class PublicReview(Fixture, unittest.TestCase):
         first=stage_receipt(self,state,'stage-review','SIM-owner')
         self.assertEqual(first,stage_receipt(self,state,'stage-review','SIM-owner'))
 
+    def test_stage_confirmation_without_people_list_uses_actual_user(self):
+        state,_,_=self.shown()
+        put(self.root,'stage-state.json',state)
+        result=self.call('stage_confirmation',state='stage-state.json',attention_id='stage-review')
+        self.assertTrue(result['review_receipt'])
+
+    def test_missing_state_reports_public_operation_requirement(self):
+        with self.assertRaisesRegex(ValueError,'stage_confirmation needs state'):
+            self.call('stage_confirmation',attention_id='missing')
+
     def test_stage_confirmation_rejects_changed_artifacts_and_unanswered_request(self):
         state, _, _ = self.shown()
         with self.assertRaisesRegex(ValueError, 'actual answered'):
@@ -70,7 +80,8 @@ class PublicAcceptanceGuard(unittest.TestCase):
         for name in ('test_v037_public_review.py', 'public_review_fixture.py',
                      'test_v037_round2_pipeline.py', 'test_v037_round2_pm_stages.py',
                      'test_v037_direction_recovery.py','test_v037_rework_public.py',
-                     'test_v037_game_pm_public.py','pm_game_fixture.py','test_v037_longchain_public.py','longchain_fixture.py'):
+                     'test_v037_game_pm_public.py','pm_game_fixture.py','test_v037_longchain_public.py','longchain_fixture.py',
+                     'test_v037_asset_public.py','test_v037_asset_pm.py','test_v037_asset_submission.py'):
             tree = ast.parse(Path(__file__).with_name(name).read_text())
             for node in ast.walk(tree):
                 if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):

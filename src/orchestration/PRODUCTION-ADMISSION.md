@@ -25,3 +25,5 @@
 PM语义修改带admission_basis（当前intake id列表），并绑定到修改后inputs/admitted_inputs；变更方案还须受影响专业master的实际assessment。仅填写reason或私信来源不能改任务。production_feedback不改任务范围；PM用resolve_production_feedback带id、disposition=intake/change/rejected、reason及适用target_id处置，continue和任务视图列待办。
 
 一条工具记录只证明该来源、范围与版本的核对；宿主提供身份与写入边界。旧来源/答复未绑定新字段时须补核，不追改历史为已批准。
+
+已启动任务经PM准入修改时保留未变输入的原快照，只冻结新增或换源输入；从outputs移除的输入须仍匹配原只读字节，不把自己演进的成果重新包装为外部准入。阶段确认公开回执路径见[TASK-REVIEW](TASK-REVIEW.md)。

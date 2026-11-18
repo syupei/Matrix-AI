@@ -25,7 +25,7 @@ class AssetSubmission(unittest.TestCase):
         return json.loads(run.stdout)
 
     def test_missing_gray_model_does_not_block_comparison_but_receipt_is_required(self):
-        with self.assertRaisesRegex(ValueError,'before review B'):
+        with self.assertRaisesRegex(ValueError,'before anchor review'):
             tone.check_asset_submission(self.root,self.state)
         result=self.cli('--asset-comparison',self.record['path'])
         self.state['asset_comparison_receipts']={'board':result['asset_comparison_receipt']}
@@ -41,10 +41,28 @@ class AssetSubmission(unittest.TestCase):
         result=self.cli('--asset-page',self.record['path'],'--page-output','design/new-review.html')
         self.assertEqual('draft_only',result['status'])
         page=(self.root/result['review_page']['path']).read_text()
-        self.assertEqual(2,page.count('<img '))
+        self.assertEqual(1,page.count('<img '))
+        self.assertEqual(1,page.count('<iframe '))
         for feature in self.data['comparison']['confirmed_features']:self.assertIn(feature,page)
         self.assertNotIn('{{',page)
         self.assertNotIn('asset_comparison_receipt',result)
+
+    def test_generated_placeholders_and_html_in_an_image_slot_are_rejected(self):
+        result=self.cli('--asset-page',self.record['path'],'--page-output','design/pending-review.html')
+        data=copy.deepcopy(self.data)
+        data['comparison']['review_page']=result['review_page']
+        data['artifacts'].append(result['review_page'])
+        for row in data['comparison']['rows']:
+            row['anchor']=data['comparison']['scene_sample']
+            row['reference']=self.f.data['parts']['screenshot']
+        record=self.f.put('pending-assets.json',data)
+        with self.assertRaisesRegex(ValueError,'review page.*placeholder'):
+            tone.check_record(self.root,'asset_anchors','board',record,self.f.contract)
+        page=self.f.put('design/broken-image.html','<img src="direction.png"><img src="current-scene.html">')
+        data['comparison']['review_page']=page;data['artifacts'].append(page)
+        record=self.f.put('broken-assets.json',data)
+        with self.assertRaisesRegex(ValueError,'image element.*image file'):
+            tone.check_record(self.root,'asset_anchors','board',record,self.f.contract)
 
     def test_copied_direction_image_cannot_be_an_anchor(self):
         changed=copy.deepcopy(self.data)
@@ -53,11 +71,19 @@ class AssetSubmission(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'cannot copy'):
             tone.check_record(self.root,'asset_anchors','board',record,self.f.contract)
 
+    def test_unmet_receipt_can_be_shown_but_not_released(self):
+        data=copy.deepcopy(self.data)
+        data['comparison']['rows'][0]['status']='unmet'
+        page=self.f.put('design/unmet-review.html',(self.root/'design/review.html').read_text().replace('achieved','unmet'))
+        data['comparison']['review_page']=page;data['artifacts'].append(page)
+        record=self.f.put('unmet.json',data)
+        self.assertFalse(self.cli('--asset-comparison',record['path'])['release_ready'])
+
     def test_png_sample_binds_its_sources_without_hashing_itself(self):
         data=copy.deepcopy(self.data)
         sources=[r for r in data['artifacts'] if r['path'] not in {data['comparison']['review_page']['path'],data['comparison']['scene_sample']['path']}]
         picture,binding=self.f.capture(sources,'design/new-scene.png')
-        page=self.f.put('design/png-review.html','<img src="direction.png"><img src="new-scene.png"><img src="anchor-0.svg">')
+        page=self.f.put('design/png-review.html','Visible layered object contour: achieved<img src="direction.png"><img src="new-scene.png"><img src="anchor-0.svg">')
         data['artifacts']=[*sources,picture,page]
         data['comparison'].update(scene_sample=picture,capture_binding=binding,viewport='1280x800',review_page=page)
         data['comparison']['rows'][0]['reference']=self.f.data['parts']['screenshot']

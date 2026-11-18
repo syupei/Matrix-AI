@@ -393,7 +393,12 @@ def input_snapshot(pm,root,task,tasks=None,phase='entry'):
     if not saved:return None
     gate=load_gate();view,bundle=gate.tone.evidence.verify_bundle(root,saved['bundle'])
     context=bundle['context']
-    pm.require(context.get('task_id')==task['id'] and context.get('inputs')==task.get('inputs'), 'frozen dispatch inputs no longer match this task')
+    pm.require(context.get('task_id')==task['id'], 'frozen dispatch inputs belong to another task')
+    context=json.loads(json.dumps(context))
+    retained={canonical_input(path) for path in task.get('inputs',[])}
+    context['sources']={path:source for path,source in context['sources'].items() if path in retained}
+    context['inputs']=task.get('inputs',[])
+    context['files']={name:sha for source in context['sources'].values() for name,sha in source['files'].items()}
     # An authorized reopen may consume a newly completed upstream revision. Never
     # refresh from live bytes alone, and never change a running task's input contract.
     if tasks and (phase == 'start' or task.get('state') not in {'running','done'} and phase in {'entry','planning'}):
@@ -451,8 +456,10 @@ def completion_context(pm,root,db,task,tasks,completion):
     selected=[task]
     for row in tasks.values():
         if row['id']!=task['id'] and pm.team.within(row['id'],[task['id']],tasks) and pm.effective_done(row,tasks):selected.append(row)
-    files={};producers={};review_files={}
+    files={};producers={};review_files={};control_files=set()
     for row in selected:
+        if row.get('practice_completion'):control_files.add(row['practice_completion'])
+        if row.get('review_for'):control_files.update(row.get('handed_output_sha256',{}))
         handed=row.get('handed_output_sha256',{})
         if row['id']==task['id']:
             handed={name:pm.integrity.file_hash(pm,root,name) for name in row.get('evidence',[])
@@ -462,9 +469,9 @@ def completion_context(pm,root,db,task,tasks,completion):
         review=row.get('review') or {}
         for name,digest in review.get('artifact_sha256',{}).items():
             files[name]=digest;producers[name]=review['checker'];review_files[name]=digest
-    context=dict(task_id=task['id'],dispatched=task.get('practice_stage'),handed_files=files,producers=producers,review_files=review_files)
+    context=dict(task_id=task['id'],dispatched=task.get('practice_stage'),handed_files=files,producers=producers,review_files=review_files,control_files=sorted(control_files))
     state=json.loads(pm.local(root,completion).read_text())
-    if state.get('role')=='design' and state.get('current')=='D-6':
+    if state.get('current') in {'D-6','E-3.2'}:
         subjects={};subject_producers={}
         for item in state.get('artifacts',[]):
             candidates=[]
@@ -479,7 +486,8 @@ def completion_context(pm,root,db,task,tasks,completion):
                 subjects[item['path']]=item['sha256']
                 subject_producers[item['path']]=source.get('submitted_by') or source.get('executor') or source['owner']
         if subjects:
-            pm.require(len(subjects)==len(state['artifacts']), 'D-6 implementation artifacts must all match a current trusted engineering handover')
+            pm.require(all(item['path'] in subjects or files.get(item['path'])==item['sha256'] for item in state['artifacts']),
+                       'implementation artifacts must match a current trusted engineering handover or this design task delivery')
             context.update(review_subjects=subjects,subject_producers=subject_producers,implementation=True)
     return context
 

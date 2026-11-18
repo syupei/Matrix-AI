@@ -87,6 +87,8 @@ def framework_contract(pm, root, profession):
 def mapping_conflicts(pm, contract, mapping, source_files):
     expected = {(row['stage'], row['requirement']): row['definition']['record']
                 for row in contract['requirements']}
+    # Exact contract comparison includes timing, embedded display and unmet status;
+    # an old mapping cannot silently opt out of the common pre-review boundary.
     checks = {(row['stage'], row['requirement']): row['definition'].get('submission')
               for row in contract['requirements']}
     if not isinstance(mapping, list):
