@@ -6,7 +6,7 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from kit import KIT
-from practice_fixture import PIXEL, direction, fit_record, practice_record, put, scope
+from practice_fixture import PIXEL, direction, fit_record, practice_record, put, scope, approve, human_receipt, design_walkthrough
 
 
 spec = importlib.util.spec_from_file_location('practice_gate_test', KIT/'matrix/base/tools/stage_gate.py')
@@ -115,6 +115,7 @@ class PracticeStages(unittest.TestCase):
         state = self.state('E-3.2','E-3.3',[scope(tone,appearance_target='yes')])
         state['role'] = 'build'
         contract = state['tone_contract']
+        state['practice_evidence']['implementation_walkthrough']={'workspace':design_walkthrough(self.root,gate,contract,[self.artifact])}
         self.add_record(state,'core_scene_skeleton',screenshot=put(self.root,'core.png',PIXEL))
         reference = tone.read(self.root,tone.DEFAULT_PATH)['parts']['screenshot']
         view = dict(reference_screenshot=reference,reference_viewport='1280×800',
@@ -122,10 +123,10 @@ class PracticeStages(unittest.TestCase):
         fit = fit_record(self.root,contract,[self.artifact], **view)
         state['practice_evidence']['skeleton_fit']={'workspace':fit}
         with self.assertRaisesRegex(ValueError,'missing practice evidence: increment_fit'):
-            gate.check(self.root,state)
+            tone.check_stage(self.root,state,state['artifacts'])
         state['practice_evidence']['increment_fit']={'workspace':fit}
         with self.assertRaisesRegex(ValueError,'separate fit review records'):
-            gate.check(self.root,state)
+            tone.check_stage(self.root,state,state['artifacts'])
         for extra, message in (
             (dict(view,reference_viewport='1024x768'),'same numeric viewport'),
             (dict(view,comparison_state=''),'representative comparison state'),
@@ -135,10 +136,10 @@ class PracticeStages(unittest.TestCase):
                 increment = fit_record(self.root,contract,[self.artifact],record_path='increment-fit.json', **extra)
                 state['practice_evidence']['increment_fit']['workspace'] = increment
                 with self.assertRaisesRegex(ValueError,message):
-                    gate.check(self.root,state)
+                    tone.check_stage(self.root,state,state['artifacts'])
         increment = fit_record(self.root,contract,[self.artifact],record_path='increment-fit.json', **view)
         state['practice_evidence']['increment_fit']['workspace'] = increment
-        self.assertTrue(gate.check(self.root,state)['allowed'])
+        self.assertTrue(tone.check_stage(self.root,state,state['artifacts']))
 
     def test_human_skeleton_comparison_uses_current_direction_viewport_record(self):
         state = self.state('E-2.3','E-2.4',[scope(tone,appearance_target='yes')])
@@ -147,6 +148,8 @@ class PracticeStages(unittest.TestCase):
         data['parts'].pop('screenshot')
         data['parts']['manual_review'] = direction_review
         data['capture_unavailable'] = 'Direction capture unavailable'
+        data['human_review_receipt']=human_receipt(self.root,tone,[data['parts']['preview']])
+        approve(self.root,tone,data)
         state['tone_contract'] = put(self.root,tone.DEFAULT_PATH,'# Direction\n```tone-contract\n'
                                      + json.dumps(data) + '\n```\n')
         manual = put(self.root,'skeleton-view.md','Reviewer saw the same initial selection at desktop width')

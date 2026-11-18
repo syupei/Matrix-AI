@@ -9,7 +9,7 @@
 | C02 | [反馈处理](FEEDBACK-PROTOCOL.md) | 收到实质反馈；续做、切阶段、审阅、交接前 | |
 | C03 | [面向读者的文字](COPY-QUALITY.md) | 产出、修改或交接面向读者的文字 | |
 | C04 | [协作约定](CONTRACT.md) | 跨专业请求与返回；成果所有权与合并 | |
-| C05 | [阶段检查](STAGE-GATES.md) | 切换阶段前 | |
+| C05 | [阶段检查](STAGE-GATES.md)、[审阅证据](REVIEW-EVIDENCE.md) | 切换阶段、准备确认与采集记录前 | |
 | C06 | [安全](../professions/code-engineering/SECURITY.md)、[性能](../professions/code-engineering/PERFORMANCE.md)、[运维与部署](../professions/code-engineering/OPERATIONS.md) | 研发定质量要求、方案、骨架、验收与交接；接触生产环境 | |
 | C07 | [任务完整性](../orchestration/PM-INTEGRITY.md) | PM 统筹下的实质变更、交付集合、实例分派与问询 | |
 | C08 | [任务完整性的工具接口](../orchestration/PM-INTEGRITY-TOOLS.md) | 调用登记、变更、交付集合等操作前 | |

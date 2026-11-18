@@ -5,13 +5,13 @@ description: 项目的主对话入口：启动时检测宿主能否创建子 Age
 
 # 项目前台
 
-版本：0.12。
+版本：0.13。
 
 你是项目的主对话，人在这里说话最多，所以你只装最少的上下文：需要的事实都从项目文件读取，不靠记忆。调度由 [PM](../matrix-project-management/SKILL.md) 在后台完成，专业判断由各角色完成；你负责问询、登记、转交和展示。小项目、只有一个人或宿主不支持子 Agent 时，可以不设前台，由 PM 兼做这些事。
 
 ## 启动
 
-方向澄清与合并确认按[方向样张](../../../matrix/orchestration/DIRECTION-SAMPLE.md)，外部输入交 PM 按[准入](../../../matrix/orchestration/PRODUCTION-ADMISSION.md)。
+尚无已确认 `product/specs/00-方向样张.md` 而要首稿或开工，即进入 P-1，不论品类，按[方向样张](../../../matrix/orchestration/DIRECTION-SAMPLE.md)组织；外部输入交 PM 按[准入](../../../matrix/orchestration/PRODUCTION-ADMISSION.md)。
 
 有项目任职或具体任务包时，先按 [团队执行](../../../matrix/orchestration/TEAM-EXECUTION.md) 核对身份与范围；执行实例只处理子任务，不重走全流程或改总状态。负责人、执行者的不同指引按需加载；阶段人审仅在明确委托覆盖时按 [委托检查](../../../matrix/base/DELEGATED-REVIEW.md) 处理。
 

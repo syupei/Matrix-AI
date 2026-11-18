@@ -16,18 +16,23 @@ from fixtures import expert_probe_copy_inputs as seed, late_game
 from operation_evidence import shell_commands
 from platform_v033 import COMMIT, load
 from visual_evidence import capture
+from capture_broker import CaptureBroker, preflight as capture_preflight
+from admission_run import admitted_sources
 
 REPO = Path(__file__).resolve().parents[1]
 SOURCE = 'https://github.com/syupei/Matrix-AI.git'
 SUBDIR = 'src/professions/product/skills/matrix-product'
-IDENTITY = {'id': 'imported-product-v037', 'version': '2'}
-PROJECT_ID = 'SIM-IMPORTED-PRODUCT-037-REPAIR'
+IDENTITY = {'id': 'imported-product-v037', 'version': '3'}
+PROJECT_ID = 'SIM-IMPORTED-PRODUCT-037-REVIEW-REPAIR'
 MODEL, EFFORT, RUNNER = 'gpt-6-luna', 'medium', 'codex'
 TEMPLATE = REPO / 'docs/platforms/codex-0.167.0.json'
-LEDGER = REPO / 'eval-results/v0.37-repair-import-call-ledger'
+LEDGER = REPO / 'eval-results/v0.37-review-repair-import-call-ledger'
 AUTHOR, REVIEWER = 'ADMISSION', 'SIM-INDEPENDENT-REVIEWER'
+TASK_ID = 'SIM-ADMISSION-037-REPAIR'
 STAGE_STATE = 'product/reviews/P-1-gate.json'
 FIT = 'product/reviews/方向贴合.json'
+FIT_SCREENSHOT = 'design/fit.png'
+FIT_CAPTURE = 'design/fit.png.capture.json'
 SCENE = seed.SCENE
 CONTRACT = 'product/specs/00-方向样张.md'
 PROFILE = 'product/specs/项目做法档.json'
@@ -105,7 +110,7 @@ def source_mapping(base, contract):
     known = {
         ('P-1', 'direction_profile'): ('P-1 项目做法档', '以原 P-1 的意图、受众、端、约束和待决项形成范围与事实，按共用模板分活动取证，写各专业的做法、偏离和检验。', '工作流 / P-1 需求澄清'),
         ('P-1', 'tone_contract'): ('P-1 方向合看与留存', '保留原 P-1 确认和成果快照做法。绑定实际简报、场景、预览、样句、截图及项目做法档，记录可定位参照与实际观察、样句的规则后果。使用共用草稿检查工具读回交付回执，合看引用合成记录的原件与精确原话。', '硬性关卡 / 第五条'),
-        ('P-1', 'direction_fit'): ('P-1 贴合复核', '补做关卡要求的贴合记录。实际看截图与样句，覆盖场景、预览、样句及做法档，记录语气、偏离和审前方向摘要；单实例标 same_instance，另有独立准入审阅。', None),
+        ('P-1', 'direction_fit'): ('P-1 贴合复核', '由原任务实际独立checker在check运行中读取作者原件与真实截图，覆盖场景、预览、样句及做法档，记录语气、偏离和审前方向摘要；mode=independent，不把作者自检当独审。', None),
         ('P-2', 'tone_contract'): ('P-2 范围接力', '先核对确认的契约版本、范围及未决项，再按原产品方法整理目标、核心模块、首期边界、运行形态与取舍。', '工作流 / P-2 目标与范围'),
     }
     methods = [
@@ -133,14 +138,28 @@ def populate(project):
     fixture = project / 'synthetic-input'
     suite = read_json(REPO / 'evals/cases/suite.json')
     business = next(case['turns'][0] for case in suite['cases'] if case['id'] == 'genre_dice')
-    late_game.put(fixture, 'genre-dice.md', '# 合成任务原话\n\n' + business + '\n\n## 已提供的合成澄清\n\n' + late_game.BRIEF.split('\n\n', 1)[1].split('\n\n方向批准', 1)[0] + '\n')
-    scene = late_game.fixed(fixture, 'direction.html', SCENE)
+    brief = late_game.BRIEF.split('\n\n', 1)[1].replace(
+        '方向批准覆盖上述取舍；没有批准量产素材、实际可玩性、游戏上线或进一步偏离。',
+        '上述取舍尚为候选；量产素材、实际可玩性、游戏上线和进一步偏离均须后续审阅。')
+    late_game.put(fixture, 'genre-dice.md', '# 合成任务原话\n\n' + business + '\n\n## 已提供的合成澄清\n\n' + brief + '\n')
+    original = late_game.INPUTS / 'direction.html'
+    require(sha(original) == late_game.FILE_HASHES['direction.html'], 'fixed source HTML changed')
+    html = original.read_text(encoding='utf-8')
+    require(html.count('已确认方向样张') == 1, 'candidate scene derivation needs the fixed source title')
+    html = html.replace('已确认方向样张', 'P-1 待审方向候选')
+    html = html.replace('第 3 回合 · 棋子停在岔路', 'P-1 候选待审 · 第 3 回合 · 棋子停在岔路')
+    scene = late_game.put(fixture, SCENE, html)
     rendered = capture(fixture, SCENE)
     require(rendered['status'] == 'captured', 'prebuilt synthetic design capture failed: ' + str(rendered))
     shutil.copyfile(fixture / rendered['screenshot'], fixture / seed.SCREENSHOT)
+    capture_binding = {'artifacts': [scene], 'pixel_size': [1280, 800], 'viewport': '1280x800', 'scale': 1,
+                       'state': 'P-1待审候选，第3回合棋子停在岔路', 'method': 'preparer headless Chrome screenshot',
+                       'source': 'synthetic-input/visual-evidence/capture.json'}
+    write_json(fixture/seed.CAPTURE, dict(capture_binding, screenshot_sha256=sha(fixture/seed.SCREENSHOT)))
     write_json(fixture / 'visual-evidence/capture.json', dict(
         rendered, delivered_image=seed.SCREENSHOT, preview_sha256=scene['sha256'],
-        origin='Pre-existing synthetic design HTML rendered by the probe preparer in a local browser',
+        origin='Pending P-1 synthetic candidate derived from fixed HTML and freshly rendered by the probe preparer',
+        derived_from_sha256=sha(original),
         limitation='This static screenshot is input to the author; no author-created design, interaction test or human approval.'))
     write_json(fixture / 'external-references.json', {'references': REFERENCES,
         'observation': 'The preparer located these primary texts. An author who only reads this list has not read the sources or played the games.'})
@@ -197,6 +216,11 @@ def preflight(out, project, boundary, runner, script):
     return result
 
 
+def instrument_hashes():
+    return {name:sha(REPO/'evals'/name) for name in ('imported_framework_probe.py','capture_broker.py',
+        'capture_page.mjs','author_capture.py','fixtures/expert_probe_copy_inputs.py','admission_run.py')}
+
+
 def prepare(kit, out):
     manifest = kit / 'MANIFEST.json'
     require(manifest.is_file() and read_json(manifest).get('package') == 'matrix-ai/0.37',
@@ -220,6 +244,11 @@ def prepare(kit, out):
     populate(project)
     boundary_script(script, project, out, workspace, sibling)
     preflight(out, project, boundary, runner, script)
+    public=workspace/'public'
+    public.mkdir(parents=True,exist_ok=True)
+    with CaptureBroker(public,out/'capture-preflight-events.jsonl'):
+        capture_capability=capture_preflight(public,out/'capture-preflight')
+    shutil.rmtree(public/'_evaluation')
     runner['capabilities'] = {
         key: {'state': 'supported', 'evidence': 'Local native sandbox preflight; model-run scope limited to this probe'}
         for key in ('launch', 'write_isolation', 'model_selection')
@@ -247,19 +276,23 @@ def prepare(kit, out):
     _, adapted = experts.read(pm.api(), project, IDENTITY)
     require(adapted['state'] == 'awaiting_validation', 'adaptation did not pass preparation')
     binding = experts.admission_binding(pm.api(), project, IDENTITY)
+    prepare_author_instances(pm,project,out,boundary)
+    source_context=prepare_source_context(pm,project,out,adapted)
+    task=prepare_author_task(pm,project,out,boundary,source_context)
     prepared = dict(kit_manifest_sha256=sha(manifest), runner_template_sha256=sha(TEMPLATE), binding=binding,
                     project=str(project), probe_sha256=sha(Path(__file__)),
                     source=provenance, model=MODEL, effort=EFFORT, boundary_script_sha256=sha(script),
                     inputs={file.relative_to(project).as_posix(): sha(file) for file in script.parent.rglob('*') if file.is_file()},
-                    model_sessions=0, state='prepared', limit='Candidate-only; no production instance or expert activation.')
+                    capture_capability=capture_capability, instrument_hashes=instrument_hashes(), source_context=source_context, source_context_sha256=sha(out/'source-context.json'), task_preflight=task, task_preflight_sha256=sha(out/'task-create-preflight.json'), model_sessions=0, state='prepared', limit='Candidate-only; no production instance or expert activation.')
     write_json(out / 'prepared.json', prepared)
     return prepared
 
 
+AUTHOR_SELF = 'product/reviews/作者自检.json'
+REVIEW_REPORT = 'review.json'
 PUBLIC_FILES = (
-    STAGE_STATE, CONTRACT, PROFILE, FIT, 'product/specs/方向简报.md', SCENE,
-    seed.SCREENSHOT, 'content/场内样句.md', seed.REVIEW_OUTPUT,
-    'product/reviews/展示.md', 'product/reviews/request.json', 'product/reviews/response.json',
+    STAGE_STATE, CONTRACT, PROFILE, AUTHOR_SELF, 'product/specs/方向简报.md', SCENE,
+    seed.SCREENSHOT, seed.CAPTURE, FIT_SCREENSHOT, FIT_CAPTURE, 'content/场内样句.md', seed.REVIEW_OUTPUT,
     'product/reviews/conversation.md', 'product/reviews/截图回读.md',
 )
 
@@ -267,43 +300,48 @@ PUBLIC_FILES = (
 def author_prompt(project):
     source = project / 'synthetic-input'
     copy = shlex.join([sys.executable, str(source / 'copy_inputs.py')])
+    check_copy = shlex.join([sys.executable, str(source / 'copy_inputs.py'), '--check'])
     boundary = shlex.join([sys.executable, str(source / 'boundary-probe.py'), 'author'])
-    expert = f"experts/{IDENTITY['id']}/{IDENTITY['version']}"
     public = project / 'management/instances' / AUTHOR / 'workspace/public'
     direction_check = shlex.join([sys.executable, '-B', str(project / TONE_TOOL),
                                   '--project', str(public), '--contract', CONTRACT, '--draft'])
-    return f"""本次是隔离专家准入。业务、角色与 P-1 审阅授权是合成夹具。仅本次会话；禁止嵌套模型、子代理和其它 CLI 会话。
-
-1. 在当前实例工作区原样运行这两条命令，实际保留日志。沙箱如允许越界写，停止。
+    capture_command = shlex.join([sys.executable, str(public / '_evaluation/capture_preview.py'),
+        '--preview', SCENE, '--output', FIT_SCREENSHOT, '--state', '第3回合候选代表画面',
+        '--artifact', SCENE, '--artifact', 'content/场内样句.md', '--artifact', PROFILE])
+    return f"""本次是隔离专家准入。业务输入是合成夹具，尚无真人批准。仅本次会话；禁止嵌套模型、子代理和其它CLI会话。
+1. 在当前实例工作区实际运行：
    {boundary}
    {copy}
-   第二条只做 P-1 三个输入副本的字节复制并返回原话 JSON；必须用返回的 source 与 quote（包括前缀），不要重写副本或手抄。其它产物用文件编辑工具或 Python -c 保存；宿主会拒绝 here-document 临时文件。
-2. 按需读取 {expert}/ENTRY.md、METHODS.md、REVIEW.json 的 P-1 映射及产品专业登记的 P-1 条目。共同规则只读当前用到的 DIRECTION-SAMPLE、PRACTICE-PROFILES 和 STAGE-GATES 部分，避免加载完整技能包。旧 source 是审阅依据。业务依据见 synthetic-input/genre-dice.md。读 synthetic-input/external-references.json 的两项外部品类参照；选择本项目各自可以借鉴的做法，给出可核实 source 和实际观察程度。只读摘要时注明未直接访问，合成 HTML 和 PNG 是本项目输入。
-3. 实际查看本轮附入的 1280×800 PNG，和简报对照，在「截图回读.md」记具体位置、动作关系和限制。PNG 是准备者从合成设计 HTML 实际截图，采集原始记录在 synthetic-input/visual-evidence/capture.json。这两份是设计输入，不是你制作或渲染的成果，也没有直接证明键盘、时序或可玩性。
-4. 自己在 workspace/public/ 生成做法档、方向简报、方向契约、至少六条覆盖至少四个实际代表时刻的样句（每条 moment、text、consequence）、贴合、展示与阶段记录。用需求事实和设计输入，分清取舍与待决。实际授权仅到隔离候选验证。
-   公开根是阶段状态内业务路径的基准。固定交回文件：
-   {chr(10).join('- ' + item for item in PUBLIC_FILES)}
-   契约 parts.scene.path 和 parts.preview.path 均为 {SCENE}，parts.screenshot.path 为 {seed.SCREENSHOT}。额外说明写进既有简报或展示，所有阶段成果、贴合与关卡引用均在上述清单。
-5. 单独运行下面的实际安装命令（不与其它命令合并），保留成功返回的 delivery 和 direction_reference。
+   越界成功即停止。复制命令返回的source/quote只说明固定输入的来源，不能当成对你新成果的批准。输入与方法冲突写进方向简报待决，不修改任何输入副本。
+2. 定向读取experts/{IDENTITY['id']}/{IDENTITY['version']}/ENTRY.md、METHODS.md、REVIEW.json的P-1映射，产品profession的P-1及当前DIRECTION-SAMPLE/PRACTICE-PROFILES/STAGE-GATES所需条款。业务见synthetic-input/genre-dice.md；两项外部参照见external-references.json，只读摘要须注明未直接访问。
+3. 实际查看附入1280×800 PNG，写截图回读.md具体对象、位置、动作关系与限制。它是准备者从候选HTML真实截图的设计输入，没有证明实际可玩性。自己形成做法档、方向简报、方向契约和至少六条覆盖四时刻的样句（moment/text/consequence）。只交回下列文件：
+{chr(10).join('- '+name for name in PUBLIC_FILES)}
+契约scene/preview均为{SCENE}，screenshot为{seed.SCREENSHOT}；viewport及原capture_binding精确引用{seed.CAPTURE}。契约不得包含confirmation，禁止声称真人批准。作者自检单独写{AUTHOR_SELF}，不生成独立fit。
+4. 四份业务材料完成后，亲自请求真实新图：
+   {capture_command}
+scene和preview同文件，artifacts去重合法。回执会生成{FIT_CAPTURE}；不得改body；读取新PNG，在作者自检写实际观察。此采集不代写契约和结论。
+5. 单独实际运行（不合并其它命令），保存成功delivery：
    {direction_check}
-   以该 direction_reference 及当前场景、预览、样句和做法档的摘要生成 {FIT}，mode=same_instance，checker 和 producer 都为 {AUTHOR}；注明预置截图的真实采集来源。若更新过方向内容，重新核验。实际缺口照实反馈。
-6. 填合成 P-1 → P-2 关卡，scope 为 ["race"]，response actor="user" 仅用于合成授权，契约 confirmation 与 response 使用复制命令返回的同一句 quote 和同一 source。实际调用 stage_gate.py --digest 取得当前成果摘要；回读一次 stage_gate.py --state 的结果；可信交回由控制器办。
-"""
+6. 阶段模板{STAGE_STATE}须role=product,current=P-1,next=P-2,scope=["race"],blockers按实记录，artifacts和tone_contract绑定真实业务；conversation_check引用现有conversation.md；request/response/tone_fit_review写待独审后控制器补齐的相对路径。P-1 completion关卡将在实际独审之后运行，此时不得补造批准/独审或passed。
+7. 本会话收尾前实际运行 `{check_copy}`，发现差异只报告，不恢复或改写副本。可信控制器随后真实交回并退出，另一实例实际独审。"""
 
 
-def reviewer_prompt(out, public, source):
-    return f"""独立审阅一次隔离准入。不要改首轮任何文件与专家包。禁止触发新运行、调用嵌套模型、其他 CLI 会话或子代理。
-实际读取固定导入原文 {source / 'source/SKILL.md'} 的 P-1 段落、METHODS.md 和 REVIEW.json 的对应映射、首轮实际交回、公用关卡结果、author-boundary.json 和 lifecycle.jsonl。相关运行原始事件在 {out / 'author.stdout.jsonl'}；按命令和事件定向读取，避免把整段轨迹或无关文件加载到上下文。
-实际查看本轮附带的交回图像 {public / seed.SCREENSHOT}，对照活动结构、规则后果、布局和同实例贴合。核对外部品类参照的实际观察范围，并区分预置合成设计与浏览器采集、作者真实制作的做法档/方向合成/语义样句/关卡、以及独立审阅本身。业务与 P-1 确认是合成输入。
-
-请在你自己的 workspace/public/review.json 写一个 JSON 对象：
-{{"checks":{{"method_preservation":{{"passed":false,"evidence":"实际原文位置、方法与成果的细节和结论"}},
-"write_isolation":{{"passed":false,"evidence":"实际 shell 轨迹中的拒绝、正常写入和边界"}},
-"handoff_contract":{{"passed":false,"evidence":"实际交回文件及关卡前置、版本与结果"}}}},
-"framework":{{"passed":false,"readback":"具体方向、做法档、贴合、动作语气、确认范围和证据缺口"}},
-"image_readback":"图中看见的实际位置、对象和活动关系"}}
-true、false 按实查填写。任一证据不足即说明；程序传输成功不足以判专业行为。保留未测阶段、禁止
-声称真实人已批准、已启用此专家或完成专业质量全面认证。"""
+def reviewer_prompt(out, public, source, author, review_run_id, binding, contract):
+    requirements = [dict(stage=row['stage'], requirement=row['requirement']) for row in contract['requirements']]
+    tested = [row for row in requirements if row['stage'] == 'P-1']
+    untested = [row for row in requirements if row['stage'] != 'P-1']
+    metadata = dict(runner=RUNNER, run_id=author['id'], review_run_id=review_run_id, model=MODEL,
+        methods_sha256=binding['methods_sha256'], tested_requirements=tested, untested_requirements=untested,
+        framework_scenario=dict(stage_state=STAGE_STATE, reviewer=REVIEWER,
+            contract_sha256=binding['contract_sha256'], mapping_sha256=binding['mapping_sha256']))
+    return f"""你是原任务{author['task_id']}的真实独立checker={REVIEWER}，本次check-run={review_run_id}。一次会话；禁止嵌套模型、其它CLI、子代理，禁止改作者或专家包。
+实际读{source}/source/SKILL.md的P-1、METHODS.md/REVIEW.json映射、作者public原件{public}、{out}/author-boundary.json及原shell轨迹（定向读取）。核对方法保留、真实写隔离、待审交回；先查AUTHOR的真实handover摘要。
+实际查看附入新fit PNG，并读取其采集回执{public/FIT_CAPTURE}及原方向图，检查四材料的当前hash、动作/规则后果、对象位置、语气和偏离。合成输入/准备者旧截图/作者新采图分清；记录未观察项。
+在自己的workspace/public/{FIT}写独立贴合：producer={AUTHOR},checker={REVIEWER},mode=independent,review_task={author['task_id']},binding_mode=pre_confirmation_direction。tone_contract用作者draft的规范direction_binding（排除confirmation），artifacts用scene/preview/samples/practice_profile真实逻辑ref，screenshot引用design/fit.png，capture_binding精确取作者{FIT_CAPTURE}内容除screenshot_sha256外各字段，并receipt指其逻辑path/sha。不得重写图片或回执。genre_fit/application_drift/copy_fit/capture和outcome按实际填。
+在自己的workspace/public/{REVIEW_REPORT}写完整原始准入报告：固定元信息如下（这些不是通过结论）：
+{json.dumps(metadata,ensure_ascii=False,indent=2)}
+加passed实际bool、checks三个键{CHECKS}各{{passed:bool,evidence:具体观察}}；framework_scenario加readback具体方向/图像/材料及缺口，不改stage_state。tested_requirements仅列真正覆盖的P-1，untested如实列其余；证据不足passed=false。报告与fit结论由你亲自写，控制器不会补passed或改报告。
+尚无完整synthetic确认/最终stage，故不声称已通过最终completion关卡；核对作者业务是否已足以供之后合成展示与同一关卡检查。禁止冒充真人批准、启用专家或专业质量认证。控制器将真实review交回你的原fit/report并退出，再派生纯控制view、运行同一gate/validate。"""
 
 
 def turn_completed(trace):
@@ -396,9 +434,10 @@ def run_session(out, project, boundary, iid, runner, prompt, phase, started=None
     (out / f'{phase}.prompt.md').write_text(prompt, encoding='utf-8')
     workspace = boundary.safe_workspace(project, iid)
     command, cwd, _, _ = boundary.command_template(project, workspace, [], runner, MODEL, EFFORT)
-    image = Path(next(arg.removeprefix('--image=') for arg in command if arg.startswith('--image=')))
+    images = [Path(arg.removeprefix('--image=')) for arg in command if arg.startswith('--image=')]
+    require(images,'actual input image required')
     write_json(out / f'{phase}.command.json', {'argv': command, 'cwd': str(cwd), 'model': MODEL, 'effort': EFFORT,
-                                               'image_input': {'path': str(image), 'sha256': sha(image)}})
+                                               'image_inputs': [{'path':str(image),'sha256':sha(image)} for image in images]})
     with (out / f'{phase}.stdout.jsonl').open('w', encoding='utf-8') as stdout, (out / f'{phase}.stderr.log').open('w', encoding='utf-8') as stderr:
         result = boundary.run(project, iid, [], prompt, timeout=600, stdout=stdout, stderr=stderr,
                               started=started, adapter=runner['adapter'], model=MODEL, effort=EFFORT, template=runner)
@@ -411,76 +450,120 @@ def runner_with_image(runner, image):
     return dict(runner, argv=[*runner['argv'][:-1], '--image=' + str(image), '-'])
 
 
+def verify_author_capture(out, public):
+    """Only a broker event from this author phase authenticates the new fit image."""
+    log=out/'author-capture-events.jsonl'
+    require(log.is_file(),'no actual author capture broker event')
+    matching=[]
+    for line in log.read_text(encoding='utf-8').splitlines():
+        row=json.loads(line)
+        ref=row.get('capture_binding',{}).get('receipt',{})
+        if (row.get('status')=='captured' and row.get('format')=='author-requested-capture/1'
+            and row.get('screenshot')==FIT_SCREENSHOT and row.get('preview')==SCENE
+            and row.get('sha256')==sha(public/FIT_SCREENSHOT)
+            and ref.get('path')==FIT_CAPTURE and ref.get('sha256')==sha(public/FIT_CAPTURE)):
+            matching.append(row)
+    require(len(matching)==1,'author fit PNG/receipt do not match one actual broker capture')
+    return matching[0]
+
+
 def author_handover(pm, project, out, public, run_id, delivery_receipts):
-    """Check the trusted P-1 output closure before making a handover record."""
+    """Hand back an unconfirmed draft; independent completion follows the checker."""
     paths = verified_files(public)
-    original = project / 'synthetic-input'
-    original_quote = seed.quote(original)
-    for source, output in seed.COPIES:
-        require(sha(public / output) == sha(original / source), 'copied synthetic input changed: ' + output)
-    allowed = set(PUBLIC_FILES)
-
-    def declared(references):
-        extra = set(references) - allowed
-        require(not extra, 'undeclared framework output: ' + ', '.join(sorted(extra)))
-
-    state = read_json(public / STAGE_STATE)
+    seed.check_inputs(project / 'synthetic-input', public)
     gate = pm.admission.load_gate()
     tone = gate.tone.read(public, CONTRACT)
+    require(not tone.get('confirmation'), 'author must not prefill confirmation for unseen results')
     require(tone['parts']['scene']['path'] == SCENE, 'undeclared scene output: use ' + SCENE)
     require(tone['parts']['preview']['path'] == SCENE, 'undeclared preview output: use ' + SCENE)
     require(tone['parts']['screenshot']['path'] == seed.SCREENSHOT, 'use the actual synthetic design screenshot')
     require({ref['source'] for ref in REFERENCES} <= {ref['source'] for ref in tone['references']},
             'name the two actual external game references with their sources')
-    require(tone['confirmation']['quote'] == original_quote
-            and tone['confirmation']['source'] == seed.REVIEW_OUTPUT,
-            'P-1 confirmation must cite the exact pre-existing synthetic review input')
-    declared(part['path'] for part in tone['parts'].values())
-    declared(state[key] for key in ('request', 'response', 'conversation_check', 'tone_fit_review'))
-    declared(item['path'] for item in state['artifacts'])
-    declared((state['tone_contract']['path'],))
-    request = read_json(public / state['request'])
-    response = read_json(public / state['response'])
-    require(response.get('quote') == original_quote and response.get('source') == seed.REVIEW_OUTPUT,
-            'P-1 response must cite the verbatim synthetic input')
-    fit = read_json(public / state['tone_fit_review'])
-    declared([request['display_evidence'], response['source']])
-    declared(item['path'] for item in fit['artifacts'])
-    declared(fit[key]['path'] for key in ('screenshot', 'manual_review') if key in fit)
-
-    checked = gate.check(public, state, registry_root=project)
-    completed, required = gate.framework_outputs(public, state, checked, registry_root=project)
-    require({item['requirement'] for item in completed} >= {'tone_contract', 'direction_profile', 'direction_fit'},
-            'actual P-1 stage did not trigger the prepared product obligations')
-    declared(required)
+    state = read_json(public / STAGE_STATE)
+    require((state.get('role'), state.get('current'), state.get('next'), state.get('scope')) ==
+            ('product','P-1','P-2',['race']), 'author stage must retain the bounded P-1 race scenario')
+    allowed = set(PUBLIC_FILES)
+    refs = [part['path'] for part in tone['parts'].values()] + [item['path'] for item in state['artifacts']]
+    refs += [state['tone_contract']['path'], state['conversation_check']]
+    require(set(refs) <= allowed, 'undeclared framework output: ' + ', '.join(sorted(set(refs)-allowed)))
     direction_delivery = gate.tone.direction_delivery(tone)
     require(direction_delivery in delivery_receipts, 'no actual author --draft receipt matches the handed direction')
-    require(set(required) <= {path.relative_to(public).as_posix() for path in paths},
-            'stage outputs missing from verified handover files')
-    write_json(out / 'gate-precheck.json', {'checked': checked, 'completed': completed, 'required_outputs': sorted(required),
-                                            'matching_author_delivery': direction_delivery})
+    for ref in [*tone['parts'].values(), *state['artifacts'], state['tone_contract']]:
+        gate.tone.evidence.verify_ref(public, ref)
+    verify_author_capture(out,public)
+    capture = read_json(public / FIT_CAPTURE)
+    observed = [tone['parts'][key] for key in ('scene','preview','samples','practice_profile')]
+    expected = {(ref['path'],ref['sha256']) for ref in observed}
+    require({(ref['path'],ref['sha256']) for ref in capture['artifacts']} == expected
+            and capture['screenshot_sha256'] == sha(public/FIT_SCREENSHOT), 'fit capture must bind the actual four author materials')
+    write_json(out / 'author-draft-precheck.json', dict(matching_author_delivery=direction_delivery,
+        completion_gate='pending_actual_independent_review', files={path.relative_to(public).as_posix():sha(path) for path in paths}))
     pm_call(pm, project, out, 'hand_over', actor=AUTHOR, run=run_id,
-            evidence=[path.relative_to(project).as_posix() for path in paths],
-            summary='Actual files from synthetic imported product admission; independent review pending.')
+        evidence=[path.relative_to(project).as_posix() for path in paths],
+        summary='Unconfirmed author draft; actual independent checker and control projection pending.')
     return paths
 
 
-def run_author(pm, project, out, boundary, runner, binding):
+def prepare_source_context(pm,project,out,manifest):
+    """Explicit isolated synthetic source intake, never installed-rule relabelling."""
+    def call(op,by=None,**fields):
+        return pm_call(pm,project,out,op,actor=by or 'PM',**fields)
+    business=(project/'synthetic-input/genre-dice.md').read_text(encoding='utf-8')
+    bounded=author_prompt(project)+'\n\n## Actual bounded synthetic business input\n'+business
+    (out/'bounded-source-prompt.md').write_text(bounded,encoding='utf-8')
+    context,master=admitted_sources(pm,project,manifest,IDENTITY,MODEL,bounded,'import-probe-p1',call)
+    write_json(out/'source-context.json',dict(synthetic=True,source_context=context,source_master=master,
+        files={path:sha(project/path) for path in [*context['inputs'],context['stage_transition']]},
+        limit='Synthetic controller source readback and upstream source confirmation; no professional quality or production human approval.'))
+    return context
+
+
+def author_task(project,source_context):
+    require(isinstance(source_context,dict) and set(source_context)=={'inputs','admitted_inputs','stage_transition'},
+        'prepared admitted source_context required; business input cannot become an installed rule')
+    public=project/'management/instances'/AUTHOR/'workspace/public'
+    return dict(id=TASK_ID,title='SYNTHETIC isolated product admission',owner=AUTHOR,executor=AUTHOR,checker=REVIEWER,
+        goal='Complete one bounded P-1 candidate framework exercise; no production activation',**source_context,
+        outputs=[(public/name).relative_to(project).as_posix() for name in PUBLIC_FILES],
+        practice_stage=dict(role='product',current='P-1',scope=['race']),
+        criteria=['Actual artifacts and independent review required'],next_action='Run the bounded admission')
+
+
+def prepare_author_instances(pm,project,out,boundary):
+    with pm.connect(project,readonly=True) as db:
+        instances=pm.integrity.records(db,'instance')
+    for iid,endpoint in ((AUTHOR,'SIM-isolated-admission'),(REVIEWER,'SIM-isolated-independent-review')):
+        workspace=boundary.safe_workspace(project,iid)
+        if iid in instances:
+            require(instances[iid].get('active',True),'existing admission instance is inactive')
+            continue
+        pm_call(pm,project,out,'register_instance',id=iid,
+            instance=dict(role='product',endpoint=endpoint,write_roots=[workspace.relative_to(project).as_posix()]))
+
+
+def prepare_author_task(pm,project,out,boundary,source_context):
+    prepare_author_instances(pm,project,out,boundary)
+    result=pm_call(pm,project,out,'create',task=author_task(project,source_context))
+    with pm.connect(project,readonly=True) as db:
+        task=pm.task_map(db)[TASK_ID]
+    require(task['state']=='planned','source admission preflight must not launch a model')
+    write_json(out/'task-create-preflight.json',dict(task=task,model_sessions=0,source_context=source_context))
+    return dict(id=TASK_ID,state='planned',source_context=source_context)
+
+
+def run_author(pm, project, out, boundary, runner, binding, source_context):
     rid = 'import-admission-' + uuid.uuid4().hex
-    tid = 'SIM-ADMISSION-037-REPAIR'
+    tid = TASK_ID
     workspace = boundary.safe_workspace(project, AUTHOR)
     public = workspace / 'public'
-    output_paths = [(public / name).relative_to(project).as_posix() for name in PUBLIC_FILES]
+    expected=author_task(project,source_context)
+    with pm.connect(project,readonly=True) as db:
+        task=pm.task_map(db).get(tid)
+    require(task and task['state']=='planned' and all(task.get(key)==value for key,value in expected.items()),
+        'prepared actual admission task or source_context changed before execution')
     runner = runner_with_image(runner, project / 'synthetic-input' / seed.SCREENSHOT)
     command = boundary.command_template(project, workspace, [], runner, MODEL, EFFORT)[0]
-    pm_call(pm, project, out, 'register_instance', id=AUTHOR,
-            instance=dict(role='product', endpoint='SIM-isolated-admission', write_roots=[str(workspace.relative_to(project))]))
     base = project / 'experts' / IDENTITY['id'] / IDENTITY['version']
-    pm_call(pm, project, out, 'create', task=dict(id=tid, title='SIM isolated product admission', owner=AUTHOR,
-            executor=AUTHOR, checker=REVIEWER, goal='Complete one P-1 candidate framework exercise',
-            inputs=[(base / 'METHODS.md').relative_to(project).as_posix()], outputs=output_paths,
-            practice_stage={'role': 'product', 'current': 'P-1', 'scope': ['race']},
-            criteria=['Actual artifacts and independent review required'], next_action='Run the bounded admission'))
     pm_call(pm, project, out, 'launch_start', id=rid, task_id=tid, purpose='start', instance=AUTHOR,
                        model=MODEL, session=rid, command=command, admission_expert=IDENTITY, admission_runner=RUNNER)
     run = pm.team.experts.validation_run(pm.api(), project, rid)
@@ -495,7 +578,8 @@ def run_author(pm, project, out, boundary, runner, binding):
 
     try:
         reserve(LEDGER / 'author.json', {'out': str(out), 'run_id': rid, 'model': MODEL, 'effort': EFFORT})
-        result = run_session(out, project, boundary, AUTHOR, runner, author_prompt(project), 'author', started=record_start)
+        with CaptureBroker(public, out / 'author-capture-events.jsonl'):
+            result = run_session(out, project, boundary, AUTHOR, runner, author_prompt(project), 'author', started=record_start)
         events = trace_events(out / 'author.stdout.jsonl')
         try:
             require(result['exit_code'] == 0 and not result['timed_out'] and turn_completed(events),
@@ -527,28 +611,148 @@ def run_author(pm, project, out, boundary, runner, binding):
     return run, public, base
 
 
-def run_reviewer(out, project, boundary, runner, author, public, base):
+def run_reviewer(pm, out, project, boundary, runner, author, public, base, binding):
     workspace = boundary.safe_workspace(project, REVIEWER)
-    reserve(LEDGER / 'reviewer.json', {'out': str(out), 'author_run': author['id'], 'model': MODEL, 'effort': EFFORT})
-    runner = runner_with_image(runner, public / seed.SCREENSHOT)
-    result = run_session(out, project, boundary, REVIEWER, runner, reviewer_prompt(out, public, base), 'reviewer')
-    events = trace_events(out / 'reviewer.stdout.jsonl')
-    require(result['exit_code'] == 0 and not result['timed_out'] and turn_completed(events),
-            'reviewer did not complete the single allowed session')
-    path = workspace / 'public/review.json'
-    require(path.is_file() and path.resolve() == path and path.stat().st_nlink == 1, 'independent review artifact missing')
-    data = read_json(path)
-    evidence = data.get('checks', {})
-    def has_text(value):
-        return isinstance(value, str) and bool(value.strip())
+    review_public = workspace / 'public'
+    rid = 'import-review-' + uuid.uuid4().hex
+    runner = runner_with_image(runner_with_image(runner,public/seed.SCREENSHOT),public/FIT_SCREENSHOT)
+    command = boundary.command_template(project, workspace, [], runner, MODEL, EFFORT)[0]
+    pm_call(pm, project, out, 'launch_start', id=rid, task_id=author['task_id'], purpose='check', instance=REVIEWER,
+        model=MODEL, session=rid, command=command)
+    started = False
+    exited = False
+    def record_start(pid):
+        nonlocal started
+        pm_call(pm, project, out, 'launch_started', id=rid, pid=pid)
+        started = True
+    try:
+        reserve(LEDGER / 'reviewer.json', dict(out=str(out),author_run=author['id'],run_id=rid,model=MODEL,effort=EFFORT))
+        contract = pm.team.experts.framework_contract(pm.api(),project,'product')
+        result = run_session(out,project,boundary,REVIEWER,runner,
+            reviewer_prompt(out,public,base,author,rid,binding,contract),'reviewer',started=record_start)
+        try:
+            require(result['exit_code']==0 and not result['timed_out'] and turn_completed(trace_events(out/'reviewer.stdout.jsonl')),
+                'reviewer did not complete the single allowed session')
+            paths = [review_public/name for name in (FIT,REVIEW_REPORT)]
+            require(all(path.is_file() and path.resolve()==path and path.stat().st_nlink==1 for path in paths), 'actual reviewer fit/report missing')
+            report = read_json(review_public/REVIEW_REPORT)
+            require(report.get('review_run_id')==rid and report.get('run_id')==author['id'], 'review report must bind the actual runs')
+            with pm.connect(project,readonly=True) as db:
+                task=pm.task_map(db)[author['task_id']]
+            pm_call(pm,project,out,'review',actor=REVIEWER,task_id=task['id'],expected_revision=task['revision'],
+                outcome='passed' if report.get('passed') is True else 'failed',criteria_checked=task['criteria'],
+                evidence=[path.relative_to(project).as_posix() for path in paths],
+                **({} if report.get('passed') is True else dict(cause='other',reason='Independent report did not pass')))
+        finally:
+            pm_call(pm,project,out,'launch_exit',actor='launcher',id=rid,exit_code=result['exit_code'])
+            exited=True
+    except BaseException as error:
+        if not exited:
+            pm_call(pm,project,out,'launch_lost' if started else 'launch_failed',
+                **(dict(actor='scheduler',id=rid,evidence=type(error).__name__) if started else dict(id=rid,error=type(error).__name__)))
+        raise
+    require(report.get('passed') is True, 'independent reviewer did not pass; originals retained')
+    return pm.team.experts.validation_run(pm.api(),project,rid), review_public/REVIEW_REPORT
 
-    require(isinstance(evidence, dict) and set(evidence) == set(CHECKS)
-            and all(isinstance(row, dict) and row.get('passed') is True and has_text(row.get('evidence'))
-                    for row in evidence.values()), 'independent evidence missing or a check failed')
-    framework = data.get('framework', {})
-    require(isinstance(framework, dict) and framework.get('passed') is True and has_text(framework.get('readback'))
-            and has_text(data.get('image_readback')), 'independent product or image readback missing or failed')
-    return data
+
+def assemble_scenario(pm, project, out, author, review_run, report_path,
+                      contract_path=CONTRACT, stage_template=STAGE_STATE, fit_path=FIT, state_path=STAGE_STATE):
+    """Derive six control records from separately trusted real producer handbacks."""
+    expert,gate=pm.team.experts,pm.admission.load_gate()
+    tone=gate.tone
+    report_ref=report_path.relative_to(project).as_posix()
+    report=read_json(report_path)
+    require(report.get('passed') is True and report.get('review_run_id')==review_run['id'], 'controller cannot create or repair a passing report')
+    with pm.connect(project,readonly=True) as db:
+        reviewed=expert.independent_review(pm.api(),project,author,report,report_ref,db)
+    author_public=project/'management/instances'/author['instance']/'workspace/public'
+    review_public=report_path.parent
+    view=project/'management/scenario-draft'
+    view.mkdir(parents=True,exist_ok=False)
+    origins=[]
+    for origin,files,public in (('author',author['handover']['files'],author_public),('review',reviewed['files'],review_public)):
+        for source,expected in sorted(files.items()):
+            source_file=project/source
+            require(sha(source_file)==expected, 'raw producer handback changed: '+source)
+            logical=source_file.relative_to(public).as_posix()
+            if origin=='author' and logical==contract_path: logical='_original/author-direction.md'
+            if origin=='author' and logical==stage_template: logical='_original/author-stage.json'
+            if source_file==report_path: logical='_original/reviewer-report.json'
+            target=view/logical
+            require(not target.exists(), 'producer logical paths overlap: '+logical)
+            target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(source_file,target)
+            origins.append(dict(logical_path=logical,source_path=source,sha256=expected,origin=origin))
+    draft,outer=expert.contract_content(author_public/contract_path)
+    require(not draft.get('confirmation'), 'author draft must remain unconfirmed')
+    original=read_json(author_public/stage_template)
+    require(original['current']=='P-1', 'synthetic control projection is restricted to P-1')
+    binding=tone.direction_binding(contract_path,draft)
+    before_fit=sha(view/fit_path)
+    material_hashes={draft['parts'][key]['path']:draft['parts'][key]['sha256'] for key in ('scene','preview','samples','practice_profile')}
+    def put(path,data):
+        target=view/path;target.parent.mkdir(parents=True,exist_ok=True)
+        if isinstance(data,dict):write_json(target,data)
+        else:target.write_text(data,encoding='utf-8')
+        return tone.evidence.ref(view,path)
+    display_path='product/reviews/synthetic-display.md'
+    reply_path='product/reviews/synthetic-response.md'
+    display_text='# SYNTHETIC isolated P-1 display; no production human approval\n\n'+json.dumps(dict(
+        direction_binding=binding,author_files=author['handover']['files'],review_files=reviewed['files'],
+        independent_report_sha256=sha(report_path),scope=original['scope']),ensure_ascii=False,indent=2)+'\n'
+    display=put(display_path,display_text)
+    quote='SYNTHETIC isolated exercise only: approve displayed direction '+binding['direction_sha256']+' and display '+display['sha256']+' for '+json.dumps(original['scope'],ensure_ascii=False)+'. No production human approval.'
+    reply=put(reply_path,quote+'\n')
+    # Root authority records bind this exact display and response, never the draft's old quote.
+    for ref in (display,reply):
+        destination=project/ref['path'];destination.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(view/ref['path'],destination)
+    request_id='SIM-'+uuid.uuid4().hex
+    approval=dict(format='matrix-review-binding/1',request_id=request_id,scope=original['scope'],actor='user',
+        direction_sha256=binding['direction_sha256'],display=display,
+        response=dict(reply,message_sha256=tone.evidence.digest(quote)),person='SYNTHETIC controller fixture',quote=quote,outcome='approved')
+    receipt=tone.evidence.review_receipt(project,approval)
+    final=dict(draft,confirmation=dict(person=approval['person'],quote=quote,source=reply_path,
+        direction_sha256=binding['direction_sha256'],review_receipt=receipt))
+    # Preserve markdown outside the one JSON block exactly.
+    text=(author_public/contract_path).read_text(encoding='utf-8')
+    match=re.search(r'^```tone-contract\s*\n(.*?)^```\s*$',text,re.M|re.S)
+    require(match is not None,'one author direction block required')
+    final_text=text[:match.start(1)]+json.dumps(final,ensure_ascii=False,indent=2)+'\n'+text[match.end(1):]
+    final_ref=put(contract_path,final_text)
+    artifacts=[dict(ref,sha256=final_ref['sha256']) if ref['path']==contract_path else ref for ref in original['artifacts']]
+    artifact_sha=gate.artifact_digest(view,artifacts)
+    request=dict(request_id=request_id,role=original['role'],stage=original['current'],scope=original['scope'],
+        artifact_sha256=artifact_sha,display_evidence=display_path,display_sha256=display['sha256'])
+    response=dict(request_id=request_id,actor='user',choice='confirm',scope=original['scope'],artifact_sha256=artifact_sha,
+        source=reply_path,quote=quote,display_sha256=display['sha256'],message_sha256=approval['response']['message_sha256'])
+    request_ref=put('product/reviews/request.json',request);response_ref=put('product/reviews/response.json',response)
+    stage=dict(original,artifacts=artifacts,tone_contract=dict(original['tone_contract'],sha256=final_ref['sha256']),
+        request=request_ref['path'],response=response_ref['path'],tone_fit_review=fit_path)
+    stage_ref=put(state_path,stage)
+    controls=[]
+    for kind,ref,source,diff in (
+        ('contract_confirmation',final_ref,(author_public/contract_path).relative_to(project).as_posix(),expert.control_diff(draft,final)),
+        ('stage',stage_ref,(author_public/stage_template).relative_to(project).as_posix(),expert.control_diff(original,stage)),
+        ('request',request_ref,None,expert.control_diff({},request)),('response',response_ref,None,expert.control_diff({},response)),
+        ('display',display,None,[]),('synthetic_response',reply,None,[])):
+        row=dict(kind=kind,logical_path=ref['path'],sha256=ref['sha256'],diff=diff)
+        if source:row['source_path']=source
+        controls.append(row)
+    require(tone.direction_binding(contract_path,final)==binding and sha(view/fit_path)==before_fit,
+        'control projection changed independent fit or canonical direction')
+    require(all(sha(view/path)==expected for path,expected in material_hashes.items()), 'control projection changed business material')
+    context=dict(format='matrix-admission-scenario/1',author_run_id=author['id'],review_run_id=review_run['id'],
+        state_path=state_path,origins=origins,control_derivations=controls)
+    checked=gate.check(view,stage,registry_root=project,seal=False)
+    completed,required=gate.framework_outputs(view,stage,checked,registry_root=project)
+    write_json(out/'gate-precheck.json',dict(checked=checked,completed=completed,required_outputs=sorted(required)))
+    refs=[tone.evidence.ref(view,file.relative_to(view).as_posix()) for file in view.rglob('*') if file.is_file()]
+    local=tone.evidence.seal_bundle(view,refs,context,destination='sealed',follow_refs=False)
+    result=dict(local,path=(view/local['path']).relative_to(project).as_posix())
+    write_json(out/'scenario-projection.json',dict(scenario_view=result,context=context,canonical_direction=binding,
+        author_contract_sha256=sha(author_public/contract_path),projected_contract_sha256=final_ref['sha256'],
+        independent_fit_sha256=before_fit,material_hashes=material_hashes,synthetic=True,
+        limit='Control view is not author original. No real human approval or controller professional conclusions.'))
+    return result
 
 
 def execute(kit, out, freeze_sha256):
@@ -557,6 +761,7 @@ def execute(kit, out, freeze_sha256):
             'prepared kit differs from the authorized frozen candidate digest')
     require(plan['runner_template_sha256'] == sha(TEMPLATE) and plan['probe_sha256'] == sha(Path(__file__)),
             'runner template or probe changed since preparation')
+    require(plan.get('instrument_hashes')==instrument_hashes(),'prepared probe or capture instrumentation changed')
     project, pm, api, boundary = installed(out)
     require(str(project) == plan['project'], 'prepared project must remain in its original isolation directory')
     pre = read_json(out / 'native-preflight.json')
@@ -575,24 +780,21 @@ def execute(kit, out, freeze_sha256):
             and runner['models'] == {MODEL: MODEL}, 'installed runner configuration changed')
     version = subprocess.check_output([runner['argv'][0], '--version'], text=True).strip()
     require(version == pre['version'], 'CLI version changed since the no-model boundary preflight')
+    author_task(project,plan.get('source_context'))
+    require(sha(out/'source-context.json')==plan.get('source_context_sha256')
+            and sha(out/'task-create-preflight.json')==plan.get('task_preflight_sha256'),'prepared source context or task preflight record changed')
+    source_record=read_json(out/'source-context.json')
+    require(source_record.get('synthetic') is True and source_record['source_context']==plan['source_context'], 'explicit synthetic source context changed')
+    require(all(sha(project/path)==expected for path,expected in source_record['files'].items()),'prepared admitted source bytes changed')
     reserve(LEDGER / 'execution.json', {'out': str(out), 'kit_manifest_sha256': freeze_sha256, 'max_sessions': 2,
                                        'authorization_scope': 'v0.37 repaired candidate-only imported product; fresh author and independent reviewer; no retry'})
     try:
-        author, public, base = run_author(pm, project, out, boundary, runner, binding)
-        review = run_reviewer(out, project, boundary, runner, author, public, base)
-        refs = author['handover']['files']
-        require(all(sha(project / path) == expected for path, expected in refs.items()), 'raw author handover changed')
-        require(pm.team.experts.admission_binding(pm.api(), project, IDENTITY) == binding, 'adaptation changed after execution')
-        report = dict(passed=True, runner=RUNNER, run_id=author['id'], model=MODEL,
-                      methods_sha256=binding['methods_sha256'], checks=review['checks'],
-                      framework_scenario=dict(reviewer=REVIEWER,
-                          readback=review['framework']['readback'] + '\n' + review['image_readback'],
-                          contract_sha256=binding['contract_sha256'], mapping_sha256=binding['mapping_sha256'],
-                          stage_state=(public / STAGE_STATE).relative_to(project).as_posix()))
-        report_ref = 'management/imported-framework-validation.json'
-        write_json(project / report_ref, report)
-        platform_call(api, project, out, 'expert.validate', dict(IDENTITY, evidence=dict(
-            runner=RUNNER, report=report_ref, source_sha256=binding['methods_sha256'])))
+        author, public, base = run_author(pm, project, out, boundary, runner, binding,plan['source_context'])
+        review_run,report_path = run_reviewer(pm,out,project,boundary,runner,author,public,base,binding)
+        require(pm.team.experts.admission_binding(pm.api(),project,IDENTITY)==binding,'adaptation changed after execution')
+        scenario_view=assemble_scenario(pm,project,out,author,review_run,report_path)
+        platform_call(api,project,out,'expert.validate',dict(IDENTITY,evidence=dict(runner=RUNNER,
+            report=report_path.relative_to(project).as_posix(),source_sha256=binding['methods_sha256'],scenario_view=scenario_view)))
         _, final = pm.team.experts.read(pm.api(), project, IDENTITY)
         require(final['state'] == 'validated', 'probe must stop at validated')
         summary = {'state': 'validated', 'model_sessions_reserved': 2, 'expert': IDENTITY, 'run_id': author['id'],

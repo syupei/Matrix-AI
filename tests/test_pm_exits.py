@@ -8,6 +8,7 @@ import tempfile
 import unittest
 
 from kit import KIT
+from practice_fixture import direction, pm_closed_fixture, put, review_state
 SOURCE = KIT
 spec = importlib.util.spec_from_file_location('pm_exits_under_test', SOURCE / 'matrix/orchestration/tools/pm_tasks.py')
 pm = importlib.util.module_from_spec(spec)
@@ -45,6 +46,25 @@ class DeliveryExits(unittest.TestCase):
         self.call('confirm_config', person='SIM-owner', quote='SIMULATED: 按配置', presented_ref='SIM shown', choices={})
         for e in TEAM['entries']:
             self.call('derive', entry=e['id'], endpoint='SIM-handle-' + e['id'])
+        self.gate = pm.admission.load_gate()
+        self.input_path = 'product/SIM-delivery-input.md'
+        put(self.root, self.input_path, 'SIMULATED static login delivery mapping. No spatial scene, moving objects or timing-sensitive activity.')
+        self.call('intake_register', id='SIM-delivery-input', source_id='SIM-delivery-family', path=self.input_path,
+                  version='1', source='SIMULATED delivery scope', profession='product')
+        self.call('intake_submit', id='SIM-delivery-input', master='product-001')
+        self.call('intake_review', 'product-001', id='SIM-delivery-input', outcome='approved',
+                  conclusion='SIMULATED input is complete for static delivery-set mechanics',
+                  resolved_risks=[], resolved_conflicts=[], open_items=[], human_required=False)
+        self.call('intake_admit', id='SIM-delivery-input')
+        put(self.root, 'product/SIM-input-stage.json', review_state(self.root, self.gate, [self.input_path]))
+        # Controller-only synthetic initial direction; not professional/model approval.
+        self.tone_contract, data = direction(self.root, self.gate.tone)
+        pm_closed_fixture(self.root, self.gate.tone, data)
+        put(self.root, 'engineering/SIM-technical-review.md', 'SIMULATED static delivery integration constraints')
+        upstream = review_state(self.root, self.gate, ['engineering/SIM-technical-review.md'], role='solution',
+                                stage='E-2.4', following='complete', scope_ids=['workspace'], prefix='SIM-upstream')
+        upstream['tone_contract'] = self.tone_contract
+        self.upstream = self.gate.check(self.root, upstream)
         self.create('ALL', owner='PM', checker='quality-engineering-001')
 
     def items(self, items):
@@ -58,9 +78,20 @@ class DeliveryExits(unittest.TestCase):
         return next(t for t in pm.execute(self.root, {'op': 'status'})['tasks'] if t['id'] == tid)
 
     def create(self, tid, **kw):
-        data = dict(id=tid, parent=None, title='SIM ' + tid, goal='SIMULATED', inputs=['SIM v1'], outputs=['SIM output'], criteria=['SIM ok'], next_action='SIM next')
+        data = dict(id=tid, parent=None, title='SIM ' + tid, goal='SIMULATED', inputs=[self.input_path], admitted_inputs=['SIM-delivery-input'],
+                    stage_transition='product/SIM-input-stage.json', outputs=['results/' + tid + '.md', 'reviews/' + tid + '.json'], criteria=['SIM ok'], next_action='SIM next')
         data.update(kw)
         data.setdefault('executor', data['owner'])
+        roles = {'product': ('product', 'P-3'), 'code-engineering': ('build', 'E-3.3'),
+                 'quality-engineering': ('quality', 'Q-2'), 'experience-design': ('design', 'D-5')}
+        profession = data['owner'].removesuffix('-001')
+        if profession in roles:
+            role, stage = roles[profession]
+            data.setdefault('practice_stage', {'role': role, 'current': stage, 'scope': ['workspace']})
+            state = data['practice_stage']
+            state.update(tone_contract=self.tone_contract)
+            if state['role'] == 'build':
+                state.update(upstream=self.upstream['upstream_state'], upstream_bundle=self.upstream['review_bundle'])
         return self.call('create', task=data)
 
     def mutate(self, op, tid, actor=None, **kw):
@@ -68,7 +99,20 @@ class DeliveryExits(unittest.TestCase):
         return self.call(op, actor or t['owner'], task_id=tid, expected_revision=t['revision'], **kw)
 
     def finish(self, tid):
-        self.mutate('update', tid, changes={'evidence': ['SIMULATED work ' + tid]}, reason='SIM work')
+        output = 'results/' + tid + '.md'
+        put(self.root, output, 'SIMULATED declared static delivery result ' + tid)
+        changes = {'evidence': [output]}
+        task = self.t(tid)
+        stage = task.get('practice_stage')
+        if stage and self.gate.framework(self.root, stage['role'], stage['current'])[1].get('complete'):
+            following = self.gate.STAGES[stage['role']][self.gate.STAGES[stage['role']].index(stage['current']) + 1]
+            completed = review_state(self.root, self.gate, [output], role=stage['role'], stage=stage['current'],
+                                     following=following, scope_ids=stage['scope'], prefix='SIM-completion-' + tid)
+            completed.update(stage)
+            name = 'reviews/' + tid + '.json'
+            put(self.root, name, completed)
+            changes.update(practice_completion=name, evidence=[output, name])
+        self.mutate('update', tid, task['manager'], changes=changes, reason='SIM manager registers actual fixture files')
         self.mutate('review', tid, self.t(tid)['checker'], outcome='passed', criteria_checked=self.t(tid)['criteria'], evidence=['SIMULATED check'])
         return self.mutate('transition', tid, self.t(tid)['manager'], state='done', reason='SIM accepted')
 
@@ -144,7 +188,7 @@ class DeliveryExits(unittest.TestCase):
         for tid, owner in tasks.items():
             role, phase = stages[tid]
             self.create(tid, owner=owner, checker='product-001',
-                        practice_stage={'role':role,'current':phase,'scope':['SIM login delivery']})
+                        practice_stage={'role':role,'current':phase,'scope':['workspace']})
         with self.assertRaisesRegex(pm.TaskError, 'another profession'):
             self.bind('R-LOGIN-07', 'production:code-engineering', 'QA')
         with self.assertRaisesRegex(pm.TaskError, 'unknown member or exit'):
@@ -162,7 +206,8 @@ class DeliveryExits(unittest.TestCase):
         rows = {r[0]: dict(zip(listed['columns'], r)) for r in listed['rows']}
         self.assertEqual('关闭 R-LOGIN-07', rows['ALL']['下一步'])
         self.assertEqual('记 R-LOGIN-08 的 交互与视觉设计 出口', rows['ART']['完成后'])
-        self.mutate('update', 'ALL', changes={'evidence': ['SIMULATED collection']}, reason='SIM')
+        put(self.root, 'results/ALL.md', 'SIMULATED collection summary for the declared delivery exits')
+        self.mutate('update', 'ALL', changes={'evidence': ['results/ALL.md']}, reason='SIM')
         self.mutate('review', 'ALL', 'quality-engineering-001', outcome='passed', criteria_checked=['SIM ok'], evidence=['SIMULATED check'])
         with self.assertRaisesRegex(pm.TaskError, 'delivery_not_current'):
             self.mutate('transition', 'ALL', 'PM', state='done', reason='SIM')

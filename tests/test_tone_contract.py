@@ -9,7 +9,7 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from kit import KIT
-from practice_fixture import PIXEL, practice_record, scope
+from practice_fixture import PIXEL, practice_record, scope, approve, capture_binding, human_receipt
 
 spec = importlib.util.spec_from_file_location('tone_test', KIT/'matrix/base/tools/tone_contract.py')
 tone = importlib.util.module_from_spec(spec)
@@ -27,7 +27,7 @@ class ToneContractTest(unittest.TestCase):
         self.png=self.put('screen.png',PIXEL)
         self.profile=dict(schema=tone.practice.SCHEMA,version='1',scopes=[scope(tone,appearance_target='yes',direct_manipulation='yes')])
         self.put('human.md','I confirm this direction')
-        self.data=dict(version='1',genre='route game',profile='游戏与玩乐',tone='warm',core_loop='choose and move',
+        self.data=dict(viewport='1280x800',capture_binding=capture_binding([self.scene],root=self.root,screenshot=self.png),version='1',genre='route game',profile='游戏与玩乐',tone='warm',core_loop='choose and move',
                        references=[dict(name=f'Ref {i}',source=f'Guide, section {i}',borrows='operate the token',observed='not observed') for i in range(2)],
                        avoid=['forms as the main scene'],
                        samples=[dict(moment=f'm{i%4}',text=f'Sample {i}',consequence='Resolve the selection') for i in range(6)],
@@ -35,7 +35,7 @@ class ToneContractTest(unittest.TestCase):
                                   practice_profile=self.put('practice.json',json.dumps(self.profile))),
                        confirmation=dict(person='owner',quote='I confirm this direction',source='human.md'))
         self.fit=dict(outcome='passed',mode='independent',checker='checker',producer='maker',artifacts=[self.scene],
-                      screenshot=self.png,viewport='1280x800',capture='browser',genre_fit='fits loop',
+                      screenshot=self.png,viewport='1280x800',capture_binding=capture_binding([self.scene],root=self.root,screenshot=self.png),capture='browser',genre_fit='fits loop',
                       application_drift='none',copy_fit='fits tone')
 
     def put(self, name, content):
@@ -46,6 +46,8 @@ class ToneContractTest(unittest.TestCase):
         return dict(path=name,version='1',sha256=tone.sha(data))
 
     def contract(self):
+        if self.data.get('confirmation') is not None and 'review_receipt' not in self.data['confirmation']:
+            approve(self.root,tone,self.data)
         return self.put(tone.DEFAULT_PATH,'# Direction\n\n```tone-contract\n'+json.dumps(self.data)+'\n```\n')
 
     def stage(self):
@@ -72,7 +74,7 @@ class ToneContractTest(unittest.TestCase):
             tone.check_stage(self.root,state,[self.scene])
         self.data['confirmation']['quote']='An invented confirmation'
         self.contract()
-        with self.assertRaisesRegex(ValueError,'quote missing'):
+        with self.assertRaisesRegex(ValueError,'quote'):
             tone.validate(self.root,tone.DEFAULT_PATH)
 
     def test_game_samples_and_checker_independence(self):
@@ -89,6 +91,7 @@ class ToneContractTest(unittest.TestCase):
         self.fit.update(mode='human',checker='owner',capture_unavailable='no browser in this host',
                         manual_review=self.put('human-viewport.md','Observed the rendered scene on desktop'))
         self.fit.pop('screenshot')
+        self.fit['human_review_receipt']=human_receipt(self.root,tone,[self.scene],person='owner')
         self.put('fit.json',json.dumps(self.fit))
         self.assertEqual(tone.check_fit(self.root,'fit.json',[self.scene])['mode'],'human')
         self.put('human-viewport.md','')
@@ -100,8 +103,14 @@ class ToneContractTest(unittest.TestCase):
         state=self.stage()
         state.update(current='P-1',next='P-2',response=self.put('response.json',json.dumps(
             {'source':'human.md','person_id':'owner'}))['path'])
+        receipt=self.data['confirmation']['review_receipt']
+        _,manifest=tone.evidence.verify_bundle(self.root,receipt)
+        shown=manifest['context']['display']
+        state['request']=self.put('p1-request.json',json.dumps(dict(request_id='synthetic-direction',scope=['workspace'],
+            display_evidence=shown['path'],display_sha256=shown['sha256'])))['path']
         self.fit.update(artifacts=[self.scene,self.samples,self.data['parts']['practice_profile']],
                         binding_mode='pre_confirmation_direction', tone_contract=tone.direction_binding(tone.DEFAULT_PATH,self.data))
+        self.fit['capture_binding']=capture_binding(self.fit['artifacts'],root=self.root,screenshot=self.png)
         self.put('fit.json',json.dumps(self.fit))
         tone.check_stage(self.root,state,[state['tone_contract']])
         self.put('response.json',json.dumps({'source':'unrelated.md','person_id':'owner'}))
@@ -146,6 +155,7 @@ class ToneContractTest(unittest.TestCase):
         self.assertNotEqual(code, 0)
         self.assertNotIn('delivery', result)
         self.data['parts']['manual_review'] = self.put('viewport.md','Reviewer saw the current selection in the preview')
+        self.data['human_review_receipt'] = human_receipt(self.root,tone,[self.scene],person='owner')
         code, result = self.draft_delivery()
         self.assertEqual(code, 0)
         self.assertEqual(result['delivery']['capture']['kind'], 'human')

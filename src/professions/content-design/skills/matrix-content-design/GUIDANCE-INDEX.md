@@ -10,4 +10,4 @@
 | N01 | 命名：以共享知识索引里的命名为准（[C26](../../../matrix/base/SHARED-INDEX.md)），命名规则由产品维护 | 审读或交接名称时 | |
 | L01 | [本专业的职级与对照](../../../matrix/professions/content-design/levels.md) | 标难度、定风险、给缺陷定级 | |
 
-方向样张任务先读[方向样张](../../../matrix/orchestration/DIRECTION-SAMPLE.md)。方向样张或 CD-1–CD-4 的范围采用游戏文案做法 → [玩法文案](references/game-copy.md)。
+方向样张任务先读[方向样张](../../../matrix/orchestration/DIRECTION-SAMPLE.md)。P-1 或 CD-1–CD-4 的范围有玩法对象、回合或时序反馈 → [玩法文案](references/game-copy.md)。

@@ -2,10 +2,12 @@
 
 import hashlib
 import json
+import importlib.util
 from pathlib import Path
 
 
 INPUTS = Path(__file__).with_name('late_game_inputs')
+EVIDENCE_PRODUCER_SHA256 = '28fa2f9113c00cd11348f71845cefb1e766bbb2ce7bd6e432ffde444817a7dc2'
 FILE_HASHES = {
     'direction.html': 'b550917ffb232a03ca0e89560ac2f3983f567049c034ba75d3cfcb7aa8a952b3',
     'direction.png': '203d18a87127dd6cdf9b0c04e7b048579684c1b5689dfa5a1ebd3c6e0a71768e',
@@ -47,6 +49,28 @@ def sample_lines():
     return '\n'.join(f'- {moment}｜{line}｜后果：{consequence}' for moment, line, consequence in SAMPLES) + '\n'
 
 
+def synthetic_approval(root, data):
+    """Bind the fixed synthetic prior confirmation equally for both tested kits."""
+    producer = Path(__file__).resolve().parents[2]/'src/base/tools/review_evidence.py'
+    if hashlib.sha256(producer.read_bytes()).hexdigest() != EVIDENCE_PRODUCER_SHA256:
+        raise ValueError('synthetic confirmation producer changed; update and freeze fixture explicitly')
+    spec = importlib.util.spec_from_file_location('fixed_fixture_evidence', producer)
+    evidence = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(evidence)
+    content = {key: value for key, value in data.items() if key != 'confirmation'}
+    direction_hash = evidence.digest(content)
+    approval = data['confirmation']
+    response = put(root, approval['source'], approval['quote']+'\n')
+    display = put(root, 'management/合成方向展示.json', json.dumps({
+        'synthetic_prior_confirmation': True, 'direction_sha256': direction_hash,
+        'artifacts': list(data['parts'].values())}, ensure_ascii=False, indent=2)+'\n')
+    binding = {'format': 'matrix-review-binding/1', 'request_id': 'fixture-prior-direction-v1', 'scope': 'solo-ridge',
+               'actor': 'user', 'person': approval['person'], 'quote': approval['quote'], 'outcome': 'approved',
+               'direction_sha256': direction_hash, 'display': display,
+               'response': dict(response, message_sha256=evidence.digest(approval['quote']))}
+    approval.update(direction_sha256=direction_hash, review_receipt=evidence.review_receipt(root, binding))
+
+
 def put(root, relative, data):
     path = root / relative
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -71,6 +95,9 @@ def populate(root, case):
     quote = '确认风脊竞走方向 v1，按这份棋盘样张、场内样句和项目做法开展后段。'
     put(root, response, '# 合成确认记录\n\n仅为固定评测输入。\n\n合成项目负责人：' + quote + '\n')
     contract = {
+        'viewport': '1280x800', 'capture_binding': {'artifacts': [scene], 'pixel_size': [1280, 800],
+            'viewport': '1280x800', 'scale': 1, 'method': 'headless Chrome screenshot of the fixed HTML',
+            'state': '第3回合，棋子停在岔路，安全线和迎风捷径尚待选择', 'source': 'synthetic fixed-direction preparation'},
         'version': '1', 'genre': '单人桌面掷骰路线竞赛', 'profile': '游戏与玩乐',
         'tone': '短促、略俏皮，后果直说', 'core_loop': '看棋盘和当前位置，选岔路、掷骰、沿路径移动、抵达营地、再走一局',
         'references': REFERENCES, 'avoid': ['把路线、棋子和落点拆成脱离棋盘的状态卡和操作列表'],
@@ -79,6 +106,10 @@ def populate(root, case):
         'samples': [{'moment': moment, 'text': line, 'consequence': consequence} for moment, line, consequence in SAMPLES],
         'confirmation': {'person': 'synthetic-owner', 'source': response, 'quote': quote},
     }
+    binding = contract['capture_binding']
+    binding['receipt'] = put(root, 'design/direction/sample.capture.json', json.dumps(
+        dict(binding, screenshot_sha256=screenshot['sha256']), ensure_ascii=False, indent=2)+'\n')
+    synthetic_approval(root, contract)
     put(root, CONTRACT, '# 已确认方向 v1 · 合成夹具\n\n正文见方向简报；场景和截图是同一视口的固定输入。\n\n'
         '```tone-contract\n' + json.dumps(contract, ensure_ascii=False, indent=2) + '\n```\n')
 

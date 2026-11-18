@@ -107,9 +107,9 @@ class CompletionPrerequisiteTests(unittest.TestCase):
         self.create('B', completion_requires=['A'])
         for field in ['completion_requires', 'dependencies']:
             with self.assertRaisesRegex(pm.TaskError, 'cycle'):
-                self.mutate('update', 'A', changes={field: ['B']}, reason='SIMULATED mutual wait',
+                self.mutate('update', 'A', actor='SIM-PM', changes={field: ['B']}, reason='SIMULATED mutual wait',
                             scope_authorization='SIMULATED decision')
-        with self.assertRaisesRegex(pm.TaskError, 'authorization'):
+        with self.assertRaisesRegex(pm.TaskError, 'responsible manager'):
             self.mutate('update', 'B', changes={'completion_requires': []}, reason='SIMULATED silent change')
 
     def test_tasks_without_prerequisites_keep_their_verification_basis(self):

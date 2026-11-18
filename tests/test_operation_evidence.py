@@ -85,11 +85,22 @@ class DirectionOperationEvidenceTest(unittest.TestCase):
         self.assertEqual([{'line': 1, 'path': self.preview}], evidence['observed_preview_reads'])
         self.assertTrue(self.audit(self.claim, [self.event(f'cat {self.preview}', body, 1)])['errors'])
 
+    def test_completed_language_and_unlinked_path_require_actual_output(self):
+        for reply in ('已经完成，design/direction/sample.html。',
+                      '做好了，原型保存在 `design/direction/sample.html`。',
+                      '方向预览已经完成。', '做好了这份方向样张。'):
+            with self.subTest(reply=reply):
+                evidence = self.audit(reply)
+                self.assertTrue(evidence['claims'])
+                self.assertTrue(evidence['errors'])
+        for reply in ('尚未完成方向样张。', '还没有生成预览。', '以后可以保存 design/direction/sample.html。'):
+            self.assertFalse(self.audit(reply)['claims'])
+
     def test_real_draft_receipt_must_match_files_and_precede_reply(self):
         late_game.populate(self.root, 'late_rendering_solution')
         base = ROOT / 'src/base'
         (self.root / TONE_TOOL).parent.mkdir(parents=True)
-        for source in (base/'tools/tone_contract.py', base/'tools/practice_profiles.py'):
+        for source in (base/'tools/tone_contract.py', base/'tools/practice_profiles.py', base/'tools/review_evidence.py'):
             shutil.copyfile(source, (self.root / TONE_TOOL).parent / source.name)
         shutil.copyfile(base/'practice-profile-example-game.json', (self.root / TONE_TOOL).parents[1]/'practice-profile-example-game.json')
         wrapper = self.root / TONE_PRODUCT_ENTRY
@@ -109,6 +120,12 @@ class DirectionOperationEvidenceTest(unittest.TestCase):
         wrapper_output = subprocess.check_output(wrapper_argv, cwd=self.root, text=True)
         wrapper_event = self.event(' '.join(wrapper_argv), wrapper_output)
         self.assertFalse(self.audit(self.claim, [wrapper_event], expects_receipt=True)['errors'])
+        alias = self.root.parent / (self.root.name + '-path-alias')
+        alias.symlink_to(self.root, target_is_directory=True)
+        self.addCleanup(alias.unlink)
+        evidence = check_direction(alias, self.claim, [wrapper_event], {}, snapshot(self.root, 'direction'), self.preview, True)
+        self.assertFalse(evidence['errors'])
+        self.assertEqual(1, len(evidence['receipts']))
         self.assertTrue(self.audit(self.claim, [self.event('python3 product/tone_contract.py --project . --draft',
                                                          wrapper_output)], expects_receipt=True)['errors'])
         wrapper.write_bytes(wrapper.read_bytes() + b'\n# modified wrapper\n')

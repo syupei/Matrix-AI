@@ -69,6 +69,7 @@ def fit_entries(pm, root, regs, db=None):
     items = data.get('entries') if isinstance(data, dict) else None
     pm.require(isinstance(items, list), 'instance-config.json: entries list required')
     seen, masters, aliases = set(), set(), set()
+    bindings = {}
     for e in items:
         pm.require(isinstance(e, dict) and set(e) <= {'id', 'profession', 'level', 'model', 'count', 'master', 'aliases', 'expert', 'runner', 'effort'}, 'instance-config.json: entry fields are id, profession, level, model, count, master, aliases, expert, runner, effort')
         eid = e.get('id')
@@ -89,7 +90,11 @@ def fit_entries(pm, root, regs, db=None):
             k = experts.key(name)
             pm.require(k not in aliases, 'duplicate instance alias')
             aliases.add(k)
-        experts.binding(pm, root, e['profession'], e.get('expert'))
+        try:
+            experts.binding(pm, root, e['profession'], e.get('expert'))
+            bindings[eid] = {}
+        except (ValueError, OSError, KeyError) as error:
+            bindings[eid] = {'binding_error': str(error)}
         if e.get('master'):
             floor = reg['levels'].get('master_min')
             pm.require(e['count'] == 1, eid + ': a master entry has count 1')
@@ -123,7 +128,7 @@ def fit_entries(pm, root, regs, db=None):
             fit = 'fit'
         else:
             fit = 'unregistered'  # model not listed, no level for this profession, or capabilities not recorded
-        out.append(dict(e, fit=fit, max_level=top, missing_capabilities=missing, review_reasons=stale))
+        out.append(dict(e, **bindings[e['id']], fit=fit, max_level=top, missing_capabilities=missing, review_reasons=stale))
     return out, sha
 
 
@@ -150,9 +155,11 @@ def confirmed(pm, root, db, entry_id=None):
     if not rec:
         return None
     try:
-        signatures = fit_signatures(pm, root, db)
+        entries = fit_entries(pm, root, registries(pm, root), db)[0]
+        signatures = fit_signatures(pm, root, db, entries)
+        valid = {e['id'] for e in entries if not e.get('binding_error')}
         selected = [entry_id] if entry_id is not None else list(signatures)
-        return rec if all(k in signatures and rec.get('fit_signatures', {}).get(k) == signatures[k] for k in selected) else None
+        return rec if all(k in valid and rec.get('fit_signatures', {}).get(k) == signatures[k] for k in selected) else None
     except (ValueError, OSError):
         return None
 
@@ -176,7 +183,7 @@ def config_state(pm, root, db):
             entries = fit_entries(pm, root, registries(pm, root), db)[0]
             signatures = fit_signatures(pm, root, db, entries)
             rec = configuration(pm, root, db)
-            state['entries'] = [dict(e, current=bool(rec and rec.get('fit_signatures', {}).get(e['id']) == signatures[e['id']])) for e in entries]
+            state['entries'] = [dict(e, current=bool(rec and not e.get('binding_error') and rec.get('fit_signatures', {}).get(e['id']) == signatures[e['id']])) for e in entries]
         except (ValueError, OSError) as error:
             state['problem'] = str(error)
     return state
@@ -314,7 +321,7 @@ def confirm(pm, root, db, cfg, tasks, cmd):
     items, sha = fit_entries(pm, root, registries(pm, root), db)
     choices = cmd.get('choices', {})
     pm.require(isinstance(choices, dict) and set(choices) <= {e['id'] for e in items}, 'choices must name configuration entries')
-    problems = []
+    problems = [e['id'] + ': ' + e['binding_error'] for e in items if e.get('binding_error')]
     for e in items:
         want, got = CHOICE.get(e['fit']), choices.get(e['id'])
         if got == want:

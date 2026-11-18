@@ -10,6 +10,7 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
 from kit import KIT as ROOT
+from practice_fixture import installed_rule_input
 def load(name, path):
     s=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
 pm=load('team_pm_test',ROOT/'matrix/orchestration/tools/pm_tasks.py')
@@ -18,7 +19,8 @@ gate=load('team_gate_test',ROOT/'matrix/base/tools/stage_gate.py')
 
 class ProjectFixture:
     def setUp(self):
-        t=tempfile.TemporaryDirectory();self.addCleanup(t.cleanup);self.root=Path(t.name);self.n=0
+        t=tempfile.TemporaryDirectory();self.addCleanup(t.cleanup);self.root=Path(t.name).resolve();self.n=0
+        self.rule_input=installed_rule_input(self.root,ROOT)
         self.call('init','PM',config=dict(project='SIMULATED',pm_actor='PM',authorization='SIMULATED',frontdoor_id='SIM',max_slots=4))
         (self.root/'authority.md').write_text('SIMULATED designation: lead manages A; workers W and X allocated.')
         (self.root/'input.md').write_text('SIMULATED baseline')
@@ -33,8 +35,12 @@ class ProjectFixture:
         role=next(x for x in pm.execute(self.root,{'op':'status'})['integrity']['instance'].values() if x['id']==iid)['role']
         return self.call('appoint','PM',id=iid,appointment=dict(mode=mode,role=role,root_tasks=roots,delegates=delegates or [],source='authority.md'))
     def create(self,tid,parent=None,actor='PM',**kw):
-        d=dict(id=tid,parent=parent,title=tid,owner='W',checker='CHECKER',goal='SIM task',inputs=['input.md'],outputs=['candidate'],criteria=['consistent'],next_action='produce',executor=kw.get('owner','W'))
-        d.update(kw);return self.call('create',actor,task=d)
+        d=dict(id=tid,parent=parent,title=tid,owner='W',checker='CHECKER',goal='SIM task',inputs=[self.rule_input],outputs=['candidate'],criteria=['consistent'],next_action='produce',executor=kw.get('owner','W'))
+        d.update(kw)
+        with pm.connect(self.root,readonly=True) as db:
+            if 'product' in pm.admission.task_professions(pm.api(),self.root,db,d):
+                d.setdefault('practice_stage',{'role':'product','current':'P-4','scope':['SIM existing approved product work']})
+        return self.call('create',actor,task=d)
     def t(self,tid):return next(t for t in pm.execute(self.root,{'op':'status'})['tasks'] if t['id']==tid)
     def mutate(self,op,tid,actor=None,**kw):
         t=self.t(tid);return self.call(op,actor or t['owner'],task_id=tid,expected_revision=t['revision'],**kw)
@@ -122,7 +128,7 @@ class Appointments(ProjectFixture, unittest.TestCase):
         self.assertIn('appointment_required',[x['code'] for x in a['issues']])
     def test_render_cannot_silently_discard_mutation(self):
         self.create('A-1','A','L');task=self.t('A-1')
-        command=dict(op='update',actor='W',event_id='CLI',task_id='A-1',expected_revision=task['revision'],changes={'next_action':'updated'},reason='SIM')
+        command=dict(op='update',actor='L',event_id='CLI',task_id='A-1',expected_revision=task['revision'],changes={'next_action':'updated'},reason='SIM')
         cli=[sys.executable,str(ROOT/'matrix/orchestration/tools/pm_tasks.py'),'--project',str(self.root)]
         rejected=subprocess.run(cli+['--render'],input=json.dumps(command),text=True,capture_output=True)
         self.assertNotEqual(0,rejected.returncode);self.assertIn('render does not execute',rejected.stdout)

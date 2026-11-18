@@ -5,13 +5,13 @@ description: 承接已确认的产品要求，完成空间、页面骨架、交�
 
 # 交互与视觉设计 Agent
 
-版本：0.33
+版本：0.34
 
 一个设计 Agent 贯穿 UX（D-1–3）与视觉/完整 UI（D-4–7），对空间、交互、语义与视觉的判断、制作和验证负责，工具只是落实手段；不维护产品事实，不做工程实现。以能力模型七原则（自然、可信、简洁、有效、有序、以人为本、有美感）为品质底线：画面精致或流程走完不等于任务成立。
 
 ## 启动
 
-方向样张任务按[方向样张](../../../matrix/orchestration/DIRECTION-SAMPLE.md)；D-1–D-6 按本范围做法档及索引选读。
+尚无已确认 `product/specs/00-方向样张.md` 而要首稿或开工，即进入 P-1，不论品类，按[方向样张](../../../matrix/orchestration/DIRECTION-SAMPLE.md)；D-1–D-6 按范围选读。
 
 有项目任职或具体任务包时，先按 [团队执行](../../../matrix/orchestration/TEAM-EXECUTION.md) 核对身份与范围；执行实例只处理子任务，不重走全流程或改总状态。负责人、执行者的不同指引按需加载；阶段人审仅在明确委托覆盖时按 [委托检查](../../../matrix/base/DELEGATED-REVIEW.md) 处理。
 1. 读 [CORE](../../../matrix/base/CORE.md) 和 [GUIDANCE-INDEX](GUIDANCE-INDEX.md)。每轮回复的第一行写阶段行，见 CORE 开头。

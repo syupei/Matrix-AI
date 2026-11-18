@@ -5,16 +5,16 @@
   "label": "游戏与玩乐｜两人掷骰路线竞赛合成示例",
   "references": [
     {
-      "name": "Royal Game of Ur",
-      "source": "https://www.britishmuseum.org/collection/object/W_1928-1009-378",
-      "borrows": "棋盘上可辨的路径与特别位置",
-      "observed": "列为待观察参照，制作前应打开来源"
+      "name": "RoyalUr.net 数字版本",
+      "source": "https://royalur.net/game?mode=computer&rules=finkel&bot=easy&tab=play",
+      "borrows": "场内保留双方棋子/分数HUD，木纹背景与棋子材质形成同一场景语言。",
+      "observed": "2026-11-18实际打开电脑对手设置及开局画面，看到上述HUD、木纹及棋子；棋盘主体资源未完整呈现，未掷骰或完成回合，不据此判断走法和时序。"
     },
     {
-      "name": "Backgammon",
+      "name": "GNU Backgammon 官方手册数字界面与走法图",
       "source": "https://www.gnu.org/software/gnubg/manual/gnubg.html",
-      "borrows": "掷骰后选择走法及轮到谁的清楚反馈",
-      "observed": "列为待观察参照，制作前应打开来源"
+      "borrows": "棋盘保留点位与棋子空间关系，骰子放在盘内，走法图把骰值与棋子路径对应；分析记录侧栏服务复盘而不替代棋盘。",
+      "observed": "2026-11-18实际查看手册 images/gtkinterface.png 与 images/rulfig3.png；仅静态图像观察，未操作该软件或验证动画、可访问性及手感。"
     }
   ],
   "scopes": [

@@ -212,7 +212,9 @@ class TaskRuntimeTests(unittest.TestCase):
         self.create(human_required=True)
         self.assert_rejected_unchanged(lambda: self.update(human_required=False))
         self.assert_rejected_unchanged(lambda: self.update(criteria=['different contract']))
-        self.mutate('update', changes={'criteria':['different contract']},
+        self.assert_rejected_unchanged(lambda: self.mutate('update', changes={'criteria':['different contract']},
+            reason='SIMULATED claimed approval', scope_authorization='SIMULATED arbitrary manager reference'))
+        self.mutate('update', actor='SIM-PM', changes={'criteria':['different contract']},
             reason='SIMULATED approved scope change', scope_authorization='SIMULATED manager reference')
 
     def test_child_completion_does_not_complete_parent_or_replace_parent_review(self):

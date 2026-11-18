@@ -62,6 +62,9 @@ ROSTER = 'management/people.json'
 # Coordination facts: who is involved, what is awaited (an expertise gap included), where a task sits in the plan.
 # Changing them does not invalidate professional verification of the work itself.
 COORDINATION = {'awaiting', 'people', 'direction', 'stage', 'derived_from', 'gap', 'order', 'timeout_minutes'}
+SEMANTIC_FIELDS = {'title','next_action','goal','inputs','outputs','criteria','dependencies','completion_requires',
+                   'executor','checker','human_required','resources','slots','source','artifact_digests',
+                   'difficulty','risk','risk_reason'} | governance.FIELDS | admission.FIELDS
 SAFE_ID = r'[A-Za-z0-9][A-Za-z0-9_.-]{0,63}'
 # Rework causes, written by the checker of a failed review or by the manager who reopens finished work.
 REWORK = {'execution', 'requirement_clarification', 'basis_changed', 'other'}
@@ -639,10 +642,22 @@ def gap_op(root, db, cmd):
     return result, touched
 
 
+class _PlanTransaction:
+    """Only the already-authorized PM batch supplies this in-process transaction context."""
+    def __init__(self, root, db, change_id, command):
+        self.root=Path(root).resolve();self.db=db;self.change_id=change_id;self.command=canon(command)
+
+
 def execute(project, cmd, _db=None, _applying=None):
     root = Path(project).resolve()
     require(root.is_dir(), 'project directory missing')
     owns_db = _db is None
+    applying_id = None
+    if _applying is not None:
+        require(not owns_db and isinstance(_applying,_PlanTransaction) and _applying.db is _db
+                and _db.in_transaction and _applying.root == root and _applying.command == canon(cmd),
+                'scope changes require the trusted internal PM plan transaction')
+        applying_id = _applying.change_id
     reads = {'status', 'events'} | integrity.READ_OPS | team.READ_OPS | views.READ_OPS | platform.READ_OPS | governance.READ_OPS | projects.READ_OPS | admission.READ_OPS | direction.READ_OPS
     db = connect(root, readonly=cmd.get('op') in reads) if owns_db else _db
     try:
@@ -797,7 +812,7 @@ def execute(project, cmd, _db=None, _applying=None):
                 after = json.loads(canon(before))
                 if op in {'update', 'transition', 'report'}:
                     # The dispatcher may also record coordination facts, such as which person the task now waits for.
-                    coordinating = op == 'update' and actor == after['manager'] and set(cmd.get('changes') or {}) <= COORDINATION | governance.FIELDS | admission.FIELDS | {'next_action', 'checker', 'dependencies'}
+                    coordinating = op == 'update' and actor == after['manager']
                     require(actor == after['owner'] or coordinating or (op == 'transition' and (actor == after['manager'] or platform.launch_bound(api(), db, cfg, cmd, before))),
                             'task state belongs to its owner')
                 if op == 'update':
@@ -807,18 +822,17 @@ def execute(project, cmd, _db=None, _applying=None):
                                'difficulty','risk','risk_reason'} | COORDINATION | governance.FIELDS | admission.FIELDS
                     require(set(changes) <= allowed, 'immutable/unknown field')
                     require(nonempty(cmd.get('reason')), 'change reason required')
-                    # Difficulty and risk are labels of the dispatcher; lowering one needs this reason, F0/F1 also a person.
-                    if set(changes) & ({'goal','inputs','outputs','criteria','dependencies','completion_requires','human_required','checker','people','derived_from','difficulty','risk','risk_reason'} | governance.FIELDS):
-                        require(actor == after['manager'] or nonempty(cmd.get('scope_authorization')), 'scope/interface change needs manager authorization reference')
+                    professional = bool(admission.task_professions(api(),root,db,after))
+                    governed = professional or any(after.get(key) for key in admission.FIELDS)
+                    semantic = set(changes) & SEMANTIC_FIELDS
+                    if governed and semantic:
+                        require(actor == after['manager'] or applying_id,
+                                'production changes must return to the PM/authorized manager; record production_feedback')
+                        require(before['state'] != 'running', 'stop admitted production before changing its task scope')
+                    elif set(changes) & ({'goal','inputs','outputs','criteria','dependencies','completion_requires','human_required','checker','people','derived_from','difficulty','risk','risk_reason'} | governance.FIELDS):
+                        require(actor == after['manager'] or applying_id, 'scope/interface change belongs to the responsible manager; record production_feedback')
                     if 'dependencies' in changes and actor == after['manager'] and before['state'] == 'running':
                         require(False, 'stop running work before changing scheduling dependencies')
-                    if set(changes) & (admission.FIELDS | {'goal','inputs','outputs','criteria','dependencies'}):
-                        instance = integrity.records(db, 'instance').get(actor, {})
-                        executor = actor == before.get('executor') and not instance.get('master')
-                        governed = before.get('admitted_inputs') or before.get('intake_review_id') or before.get('practice_stage')
-                        if set(changes) & admission.FIELDS or governed or executor:
-                            require(actor == after['manager'] or _applying, 'production changes must return to the PM; record production_feedback')
-                        require(not governed or before['state'] != 'running', 'stop admitted production before changing its task scope')
                     old_risk, new_risk = team.risk(before.get('risk')), team.risk(changes.get('risk', before.get('risk')))
                     if old_risk is not None and old_risk <= 1 and (new_risk is None or new_risk > old_risk):
                         require(nonempty(cmd.get('quote')), 'lowering an F0/F1 risk needs the deciding person and exact quote')
@@ -831,13 +845,13 @@ def execute(project, cmd, _db=None, _applying=None):
                     if set(changes) & {'executor', 'difficulty'}:
                         problem = team.level_issue(api(), db, after)
                         require(not problem, problem)
-                    if set(changes) - {'next_action','executor','source','reason'} - COORDINATION:
+                    if semantic or 'evidence' in changes:
                         after['work_revision'] += 1
                         after['review'] = after['human_review'] = None
                     after['reason'] = cmd['reason']
                 elif op == 'transition':
                     state = cmd['state']
-                    change_id = cmd.get('change_id') or _applying
+                    change_id = cmd.get('change_id') or applying_id
                     if state in RETIRED and not change_id:
                         linked = [c['id'] for c in integrity.records(db, 'change').values()
                                   if c['state'] not in {'closed', 'superseded'} and tid in c['affected_tasks']]
@@ -846,7 +860,7 @@ def execute(project, cmd, _db=None, _applying=None):
                     if state == 'cancelled' and change_id:
                         state = 'deprecated'
                     require(state in STATES and state != after['state'], 'invalid/no-op transition')
-                    retirement = integrity.deprecation(api(), db, tid, change_id, _applying) if state == 'deprecated' else None
+                    retirement = integrity.deprecation(api(), db, tid, change_id, applying_id) if state == 'deprecated' else None
                     require(retirement or nonempty(cmd.get('reason')), 'transition reason required')
                     if state == 'running':
                         fit_issue = team.instance_fit_issue(api(), root, db, integrity.records(db, 'instance').get(after.get('executor') or after['owner']))
@@ -933,8 +947,21 @@ def execute(project, cmd, _db=None, _applying=None):
                     require(cmd.get('criteria_checked') == after['criteria'], 'must explicitly check all listed criteria')
                     require(after['evidence'], 'work evidence required before review')
                     require(cmd['outcome'] == 'passed' or cmd.get('cause') in REWORK, 'a failed check records its cause: execution, requirement_clarification, basis_changed or other')
+                    admission_runs = [run for run in integrity.records(db, 'launch').values()
+                                      if run.get('admission_expert') and run.get('purpose') == 'start' and run.get('task_id') == tid]
+                    admission_review = None
+                    if admission_runs:
+                        active_reviews = [run for run in platform.active(api(), db) if run.get('purpose') == 'check'
+                                          and run.get('instance') == actor and tid in run.get('task_ids', [])]
+                        require(len(active_reviews) == 1, 'admission review requires the actual assigned independent check run')
+                        review_workspace = local(root, 'management/instances/' + actor + '/workspace/public')
+                        require(all(local(root, name).is_relative_to(review_workspace) and local(root, name).is_file()
+                                    for name in cmd['evidence']), 'admission review evidence must be actual checker public files')
+                        admission_review = dict(run_id=active_reviews[0]['id'],
+                            artifact_sha256={name:integrity.file_hash(api(), root, name) for name in cmd['evidence']})
                     after['review'] = {'basis':basis(after,tasks),'checker':actor,'outcome':cmd['outcome'],'evidence':cmd['evidence'],'at':now(),
                                        'independence':team.independence(api(), root, db, after, actor)}
+                    if admission_review:after['review'].update(admission_review)
                     after.pop('sent_back', None)
                     if cmd['outcome'] == 'failed':
                         # Sent back: the next start of this task is its rework, with this cause.
@@ -956,11 +983,12 @@ def execute(project, cmd, _db=None, _applying=None):
                             require(ranks[prev['person']] <= ranks[person], 'upstream decision stands; record this view as feedback for the upstream decider')
                     elif person is not None:
                         require(nonempty(person) and (not people or person in people['people']), 'unknown deciding person')
-                    direction.record_confirmation(api(), root, db, after, cmd)
+                    review_receipt = direction.record_confirmation(api(), root, db, after, cmd)
                     after['human_review'] = {k:cmd[k] for k in ['outcome','presented_ref','source','quote','scope']}
                     if person is not None:
                         after['human_review']['person'] = person
                     after['human_review'].update(basis=basis(after,tasks),at=now())
+                    if review_receipt:after['human_review']['review_receipt'] = review_receipt
                 elif op == 'report':
                     require(all(nonempty(cmd.get(k)) for k in ['summary','next_action','impact']), 'summary/next/impact required')
                     check_usage(cmd.get('usage'))
@@ -969,7 +997,6 @@ def execute(project, cmd, _db=None, _applying=None):
                         require(nonempty(cmd.get('receipt')), 'actual report delivery receipt required')
                     after['last_report'] = {k:cmd.get(k) for k in ['summary','next_action','impact','delivery','receipt','request_id']}
                     after['last_report'].update(at=now(), source_revision=before['revision'])
-                    after['next_action'] = cmd['next_action']
                 elif op == 'handoff':
                     require(actor == after['manager'], 'manager transfers responsibility')
                     require(after['state'] != 'running', 'stop old executor before handoff')
@@ -1024,13 +1051,15 @@ def execute(project, cmd, _db=None, _applying=None):
                 problems = admission.production_issues(api(), root, db, after, tasks, phase='planning')
                 require(not problems, canon(problems))
             if op == 'transition' and after['state'] == 'done':
+                after['handed_output_sha256'] = {name: integrity.file_hash(api(), root, name) for name in after['evidence']
+                    if local(root, name).is_file() and any(name == out or out.endswith('/') and name.startswith(out) for out in after['outputs'])}
                 direction.confirm_milestone(api(), root, db, after)
             if op == 'transition' and after['state'] == 'done' and after.get('closure'):
                 current_gates(root, db, tasks)
                 closing = projects.closure_check(api(), cfg, tasks)
                 require(closing['ready'], 'project closure gate: ' + '; '.join(closing['issues']))
             if op == 'transition' and after['state'] in {'running', 'done'}:
-                problems = integrity.blockers(api(), root, db, tasks, tid, closing=after['state']=='done', applying=_applying)
+                problems = integrity.blockers(api(), root, db, tasks, tid, closing=after['state']=='done', applying=applying_id)
                 problems += team.blockers(api(), root, db, tasks, tid, closing=after['state']=='done')
                 problems += admission.production_issues(api(), root, db, after, tasks,
                                                         phase='complete' if after['state']=='done' else 'entry')

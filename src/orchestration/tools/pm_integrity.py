@@ -424,7 +424,7 @@ def execute(pm, root, db, cmd):
                            'retirement requires a cancellation disposition')
                 pm.require(c.get('change_id', rid) == rid, 'deprecation linked to a different change')
                 child.update(state='deprecated', change_id=rid)
-            pm.execute(root, child, _db=db, _applying=rid)
+            pm.execute(root, child, _db=db, _applying=pm._PlanTransaction(root,db,rid,child))
         current = pm.task_map(db)
         for party, assessment in value['assessments'].items():
             for d in assessment.get('dispositions', []):

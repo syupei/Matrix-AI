@@ -49,7 +49,7 @@ class DirectionEvalTest(unittest.TestCase):
                 (root/'澄清.md').write_text('是一人玩还是本地双人？')
             elif name.startswith('stakeholder-'):
                 decision='answer' if name.endswith('-1') else 'confirm'
-                (root/'response.json').write_text(json.dumps(dict(decision=decision,answer='合成答复')))
+                (root/'response.json').write_text(json.dumps(dict(decision=decision,answer='合成答复-'+name)))
             elif name.startswith('fit-'):
                 (root/'fit.json').write_text(json.dumps(dict(decision='confirm',answer='合成贴合观察')))
             elif name=='product-brief':

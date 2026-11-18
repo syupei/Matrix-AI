@@ -1,7 +1,7 @@
 import importlib.util,json,tempfile,unittest,hashlib,copy
 from pathlib import Path
 from kit import KIT
-from practice_fixture import direction, practice_record
+from practice_fixture import direction, practice_record, review_state, put, approve
 P=KIT/'matrix/base/tools/stage_gate.py'
 s=importlib.util.spec_from_file_location('gate',P);g=importlib.util.module_from_spec(s);s.loader.exec_module(g)
 class GateTests(unittest.TestCase):
@@ -11,7 +11,7 @@ class GateTests(unittest.TestCase):
   self.assertEqual(g.REVIEW,{'product':{'P-1','P-2','P-3','P-4','P-5','P-6','P-7'},'design':{'D-1','D-2','D-4','D-6'},'engineering':{'E-1.4'},'solution':{'E-2.4'},'build':{'E-3.3'},'release':{'E-4.2'},'copy':set(),'quality':set()})
   self.assertEqual(g.CHAIN,['project','product','design','engineering','solution','build'])
   self.assertEqual(g.AUTHORITY,{'release':{'project','release'}})
-  self.assertEqual(g.UPSTREAM,{('build','E-3.1'):('solution','E-2.4'),('release','E-4.1'):('build','E-3.3')})
+  self.assertEqual(g.UPSTREAM,{('build','E-3.1'):('solution','E-2.4'),('build','E-3.2'):('solution','E-2.4'),('build','E-3.3'):('solution','E-2.4'),('release','E-4.1'):('build','E-3.3')})
  def test_digest_helper_matches_gate(self):
   out=g.digests(self.root,['artifact.md'])
   self.assertEqual(out['artifact_sha256'],g.artifact_digest(self.root,out['artifacts']))
@@ -20,10 +20,11 @@ class GateTests(unittest.TestCase):
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name)
   (self.root/'artifact.md').write_text('version 1');(self.root/'shown.md').write_text('visible review artifact v1');(self.root/'user.md').write_text('User confirms v1 and scope A')
   artifacts=[{'path':'artifact.md','sha256':g.digest(self.root/'artifact.md')}];h=g.artifact_digest(self.root,artifacts)
-  self.req={'request_id':'R1','role':'design','stage':'D-1','scope':['A'],'artifact_sha256':h,'display_evidence':'shown.md'}
-  self.reply={'request_id':'R1','scope':['A'],'artifact_sha256':h,'actor':'user','choice':'confirm','source':'user.md'}
+  self.req={'request_id':'R1','role':'design','stage':'D-1','scope':['A'],'artifact_sha256':h,'display_evidence':'shown.md','display_sha256':g.digest(self.root/'shown.md')}
+  self.reply={'request_id':'R1','scope':['A'],'artifact_sha256':h,'actor':'user','choice':'confirm','source':'user.md','quote':'User confirms v1 and scope A',
+              'display_sha256':g.digest(self.root/'shown.md'),'message_sha256':g.tone.evidence.digest('User confirms v1 and scope A')}
   self.state={'role':'design','current':'D-1','next':'D-2','scope':['A'],'blockers':[],'artifacts':artifacts,'request':'request.json','response':'response.json','conversation_check':'conversation.md'}
-  self.contract,_=direction(self.root,g.tone)
+  self.contract,self.contract_data=direction(self.root,g.tone)
   self.state['tone_contract']=self.contract
   self.state['practice_evidence']={'direction_contribution':{'workspace':practice_record(
    self.root,g.tone,self.contract,'direction_contribution',artifacts)}}
@@ -80,9 +81,15 @@ class GateTests(unittest.TestCase):
  def test_solution_cannot_skip_to_complete(self):
   self.state.update(role='solution',current='E-2.2',next='complete')
   with self.assertRaises(ValueError):self.run_check()
+ def reconfirm(self, person):
+  approve(self.root,g.tone,self.contract_data,person=person)
+  self.contract=put(self.root,g.tone.DEFAULT_PATH,'```tone-contract\n'+json.dumps(self.contract_data)+'\n```\n')
+  self.state['tone_contract']=self.contract
+  self.state['practice_evidence']={'direction_contribution':{'workspace':practice_record(self.root,g.tone,self.contract,'direction_contribution',self.state['artifacts'])}}
  def test_team_reply_must_name_a_deciding_person(self):
   (self.root / 'management').mkdir(parents=True, exist_ok=True)
   (self.root/'management/people.json').write_text(json.dumps({'people':[{'id':'lead','name':'P','decides':['product']},{'id':'art','name':'A','decides':['design']},{'id':'dev','name':'D'}]}))
+  self.reconfirm('lead')
   with self.assertRaises(ValueError):self.run_check()
   self.reply.update(actor='person',person_id='dev')
   with self.assertRaises(ValueError):self.run_check()
@@ -103,19 +110,27 @@ class GateTests(unittest.TestCase):
   with self.assertRaisesRegex(ValueError,'upstream'):self.run_check()  # review not confirmed by a person
   self.reply['actor']='user';(self.root/'solution.md').write_text('core review package v2')
   with self.assertRaisesRegex(ValueError,'upstream'):self.run_check()  # confirmed baseline changed since
+ def solution_upstream(self):
+  state=review_state(self.root,g,['artifact.md'],role='solution',stage='E-2.4',following='complete',scope_ids=['A'],prefix='technical')
+  state['tone_contract']=self.contract
+  put(self.root,'technical-state.json',state)
+  self.state['upstream']='technical-state.json'
  def test_build_scope_review_needs_human_confirmation(self):
+  self.solution_upstream()
   self.req.update(role='build',stage='E-3.3');self.state.update(role='build',current='E-3.3',next='complete')
   self.assertTrue(self.run_check()['allowed'])
   self.reply['actor']='assistant'
   with self.assertRaises(ValueError):self.run_check()
  def test_build_internal_step_needs_no_review(self):
+  self.solution_upstream()
   self.state.update(role='build',current='E-3.2',next='E-3.3');self.state.pop('request');self.state.pop('response');self.assertTrue(self.run_check()['allowed'])
  def test_release_decision_needs_still_valid_scope_review(self):
   (self.root/'scope.md').write_text('scope complete package v1')
   arts=[{'path':'scope.md','sha256':g.digest(self.root/'scope.md')}];h=g.artifact_digest(self.root,arts)
   self.req.update(role='build',stage='E-3.3',artifact_sha256=h);self.reply['artifact_sha256']=h
-  (self.root/'e3-gate.json').write_text(json.dumps({'role':'build','current':'E-3.3','next':'complete','scope':['A'],'blockers':[],'artifacts':arts,'request':'request.json','response':'response.json'}))
-  self.state.update(role='release',current='E-4.1',next='E-4.2');self.state.pop('request');self.state.pop('response')
+  self.solution_upstream()
+  (self.root/'e3-gate.json').write_text(json.dumps({'role':'build','current':'E-3.3','next':'complete','scope':['A'],'blockers':[],'artifacts':arts,'request':'request.json','response':'response.json','upstream':'technical-state.json','tone_contract':self.contract}))
+  self.state.update(role='release',current='E-4.1',next='E-4.2');self.state.pop('upstream',None);self.state.pop('request');self.state.pop('response')
   with self.assertRaisesRegex(ValueError,'upstream'):self.run_check()  # no scope review record
   self.state['upstream']='e3-gate.json'
   self.assertEqual('e3-gate.json',self.run_check()['upstream'])

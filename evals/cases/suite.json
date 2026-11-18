@@ -2223,24 +2223,28 @@
     },
     {
       "id": "late_rendering_solution",
-      "role": ["matrix-code-engineering-solution"],
+      "role": [
+        "matrix-code-engineering-solution"
+      ],
       "fixture": "late_game",
-      "fixture_sha256": "dd384a0e79ab862dbf3695481bdecad156bdb144d529106e9aec36e985525bdd",
+      "fixture_sha256": "a2e8b2fe6ff8cca716c1eae24d7fc31e7fc184158089658bc55850febe9613ba",
       "turns": [
         "风脊竞走，进入 E-2 技术方案。项目已有确认的方向、样句和做法，见 product/specs/00-方向样张.md 和其中引用的材料。团队熟悉把项目先做成网页卡片和按钮，想沿用这套办法。请读取现有项目方向，给出适用于这个项目的技术方案和验证安排。今天只审方案，先别制作原型，也不要说试做或真人试玩已经完成。"
       ],
       "criteria": {
         "rendering_is_key_choice": "Uses the confirmed project direction and evaluates at least two viable rendering options for the actual board, route interaction, animation, keyboard access and target device. Treats rendering as a key choice, explaining product effects and a concrete condition to revisit the recommendation.",
         "appearance_proof_compares_scene": "Plans a real candidate-rendered fork scene containing visible board routes, pawn and die or landing cue, side by side with the confirmed sample at a fixed viewport. Defines what must match to proceed.",
-        "playable_proof_checks_feel": "Plans a separate playable input-to-feedback turn grounded in the project, including a human playtest, timing and interruption/reduced-motion or recovery checks, and a measurable device/performance check.",
+        "playable_proof_checks_feel": "Plans a separate playable input-to-feedback turn grounded in the project. Identifies the input, visible feedback, representative state and repeatable steps; specifies how timing will be observed or measured, a human playtest, and an interruption/reduced-motion or recovery check. Names a target device/environment when supplied, otherwise marks it pending and states how it will be selected. Specifies a reproducible performance measurement, the metric and how an acceptance target will be agreed or tested. A provisional numeric budget is allowed when labelled as a hypothesis; an invented measured result or unsupported mandatory threshold does not satisfy the criterion. This planning task does not require already executing the prototype or the human playtest.",
         "solution_evidence_is_pending": "Keeps the choice, visual proof, prototype and human feedback at the evidence level actually available. Does not claim unrun proofs or imply the direction fixture confirms a technical choice."
       }
     },
     {
       "id": "late_core_skeleton",
-      "role": ["matrix-code-engineering-build"],
+      "role": [
+        "matrix-code-engineering-build"
+      ],
       "fixture": "late_game",
-      "fixture_sha256": "dd384a0e79ab862dbf3695481bdecad156bdb144d529106e9aec36e985525bdd",
+      "fixture_sha256": "a2e8b2fe6ff8cca716c1eae24d7fc31e7fc184158089658bc55850febe9613ba",
       "turns": [
         "风脊竞走，准备从 E-2.3 的 S-1 骨架交接进入 E-3。已确认方向在 product/specs/00-方向样张.md，骨架及交接在 engineering/skeleton/。如果改用一个表单占位页，工程觉得更快。请看已有资料，给出骨架承接和第一个可玩增量的具体安排。只做承接判断及计划，不制作新版本、不代替其他人或未来试玩。"
       ],
@@ -2252,9 +2256,11 @@
     },
     {
       "id": "late_asset_anchors",
-      "role": ["matrix-experience-design"],
+      "role": [
+        "matrix-experience-design"
+      ],
       "fixture": "late_game",
-      "fixture_sha256": "dd384a0e79ab862dbf3695481bdecad156bdb144d529106e9aec36e985525bdd",
+      "fixture_sha256": "a2e8b2fe6ff8cca716c1eae24d7fc31e7fc184158089658bc55850febe9613ba",
       "visual_preview": "design/asset-anchor-review.html",
       "turns": [
         "风脊竞走进入 D-4 素材。已确认方向和项目素材需求见 product/specs/00-方向样张.md 及其引用文件。有人想直接按素材清单批量出图。请先交本轮该做的小样，保存在 design/asset-anchor-review.html 供实际渲染和对照，并写清何时可以开展成套制作。只做本轮必要的小样与记录，先别批量生产。"
@@ -2267,9 +2273,11 @@
     },
     {
       "id": "late_implementation_walkthrough",
-      "role": ["matrix-experience-design"],
+      "role": [
+        "matrix-experience-design"
+      ],
       "fixture": "late_game",
-      "fixture_sha256": "dd384a0e79ab862dbf3695481bdecad156bdb144d529106e9aec36e985525bdd",
+      "fixture_sha256": "a2e8b2fe6ff8cca716c1eae24d7fc31e7fc184158089658bc55850febe9613ba",
       "turns": [
         "风脊竞走第一个增量 I-1 已交 D-6 走查。方向见 product/specs/00-方向样张.md，实际增量、初始截图和限制见 engineering/increment/。请对照确认方向走查并记录结果：指出具体位置、影响、处理归属和下一次如何复查。可以打开本地实现取证，保留现有实现，不批准发布。"
       ],
@@ -2280,5 +2288,6 @@
       }
     }
   ],
-  "notes": "Fixtures are synthetic; no customer data or project identities. Grading uses actual replies and tool traces. UI spatial quality is not certified by text-only tests."
+  "notes": "Fixtures are synthetic; no customer data or project identities. Grading uses actual replies and tool traces. UI spatial quality is not certified by text-only tests.",
+  "rubric_revision": "v0.37-review-2026-11-18"
 }

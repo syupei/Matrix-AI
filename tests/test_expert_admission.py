@@ -19,10 +19,11 @@ class Admission(base.Fixture, unittest.TestCase):
 
     def package(self):
         base.Experts.package(self)
+        self.original_report=json.loads((self.root/self.report_ref).read_text())
 
     def report(self, **change):
-        p=self.root/'management/sim-validation.json';data=json.loads(p.read_text());data.update(change);p.write_text(json.dumps(data))
-        return dict(self.ident,evidence=dict(runner='SIM-worker',report='management/sim-validation.json',source_sha256=data['methods_sha256']))
+        p=self.root/self.report_ref;data=copy.deepcopy(self.original_report);data.update(change);p.write_text(json.dumps(data))
+        return dict(self.ident,evidence=dict(runner='SIM-worker',report=self.report_ref,source_sha256=data['methods_sha256']))
 
     def test_real_run_binding_state_model_and_presence_are_required(self):
         self.package()
@@ -52,11 +53,60 @@ class Admission(base.Fixture, unittest.TestCase):
         lifecycle=load('admission_test_lifecycle',REPO/'evals/admission_run.py')
         boundary=load('admission_test_boundary',KIT/'matrix/orchestration/tools/isolated_runner.py')
         runner={'argv':[sys.executable,'-c',"from pathlib import Path;Path('management/instances/ADMISSION/workspace/public/admission.md').write_text('SIM result')"]}
-        result=lifecycle.run(pm,boundary,self.root,self.ident,'SIM-kernel',runner,'SIM-model','medium','SIM prompt')
+        result=lifecycle.run(pm,boundary,self.root,self.ident,'SIM-kernel',runner,'SIM-model','medium','SIM prompt',synthetic=True)
         with pm.connect(self.root,readonly=True) as db:run=pm.integrity.records(db,'launch')[result['run_id']]
         self.assertEqual(('exited',0,True),(run['state'],run['exit_code'],run['handed']))
         self.assertGreater(run['pid'],0)
         self.assertEqual(self.e.admission_binding(pm.api(),self.root,self.ident),run['admission_expert'])
+        task=self.t(result['task_id'])
+        with pm.connect(self.root) as db:inputs=pm.integrity.records(db,'input_admission')
+        self.assertEqual(2,len(task['admitted_inputs']))
+        self.assertIn('experts/sim-expert/1/METHODS.md',task['inputs'])
+        for key in task['admitted_inputs']:
+            source=inputs[key]
+            self.assertEqual('admitted',source['state'])
+            self.assertIn(source['path'],task['inputs'])
+            self.assertEqual(self.e.digest((self.root/source['path']).read_bytes()),source['sha256'])
+        self.assertEqual('waiting_review',task['state'])
+
+    def test_runner_does_not_infer_synthetic_authorization_from_missing_config(self):
+        import importlib.util
+        from kit import REPO
+        self.package()
+        spec=importlib.util.spec_from_file_location('admission_preflight_test',REPO/'evals/admission_run.py')
+        lifecycle=importlib.util.module_from_spec(spec);spec.loader.exec_module(lifecycle)
+        with pm.connect(self.root) as db:before=pm.integrity.records(db,'instance')
+        with self.assertRaisesRegex(ValueError,'explicitly select an isolated synthetic fixture'):
+            lifecycle.run(pm,None,self.root,self.ident,'SIM',{},'SIM-model','medium','Actual supplied source')
+        with pm.connect(self.root) as db:self.assertEqual(before,pm.integrity.records(db,'instance'))
+        self.assertFalse((self.root/'management/instance-config.json').exists())
+        self.assertFalse((self.root/'management/admission-inputs').exists())
+
+    def test_supplied_source_context_does_not_appoint_instances(self):
+        import importlib.util
+        from kit import REPO
+        self.package()
+        spec=importlib.util.spec_from_file_location('admission_context_authority_test',REPO/'evals/admission_run.py')
+        lifecycle=importlib.util.module_from_spec(spec);spec.loader.exec_module(lifecycle)
+        with pm.connect(self.root) as db:before=pm.integrity.records(db,'instance')
+        with self.assertRaisesRegex(ValueError,'appoint the author and independent reviewer explicitly'):
+            lifecycle.run(pm,None,self.root,self.ident,'SIM',{},'SIM-model','medium','Supplied business source',
+                source_context=dict(inputs=['actual-source.md'],admitted_inputs=['already-admitted'],stage_transition='actual-stage.json'))
+        with pm.connect(self.root) as db:self.assertEqual(before,pm.integrity.records(db,'instance'))
+        self.assertFalse((self.root/'management/instance-config.json').exists())
+
+    def test_explicit_synthetic_mode_preserves_an_existing_configuration(self):
+        import importlib.util
+        from kit import REPO
+        self.package()
+        self.write('instance-config.json',dict(entries=[],user_note='Preserve this unconfirmed human draft'))
+        path=self.root/'management/instance-config.json';before=path.read_bytes()
+        spec=importlib.util.spec_from_file_location('admission_existing_config_test',REPO/'evals/admission_run.py')
+        lifecycle=importlib.util.module_from_spec(spec);spec.loader.exec_module(lifecycle)
+        with self.assertRaisesRegex(ValueError,'preserve the existing configuration'):
+            lifecycle.run(pm,None,self.root,self.ident,'SIM',{},'SIM-model','medium','SYNTHETIC bounded source',synthetic=True)
+        self.assertEqual(before,path.read_bytes())
+        self.assertFalse((self.root/'management/admission-inputs').exists())
 
     def test_enable_requires_authorization_and_retains_operator(self):
         self.package();base,m=self.e.read(pm.api(),self.root,self.ident)

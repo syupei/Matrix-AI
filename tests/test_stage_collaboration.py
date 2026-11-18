@@ -5,6 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from kit import KIT
+from practice_fixture import installed_rule_input, put
 
 spec = importlib.util.spec_from_file_location('pm_governance_test', KIT / 'matrix/orchestration/tools/pm_tasks.py')
 pm = importlib.util.module_from_spec(spec)
@@ -23,6 +24,7 @@ class CollaborationTests(unittest.TestCase):
                        {'id': 'engineer', 'name': 'Engineer', 'masters': ['code-engineering']},
                        {'id': 'delegate', 'name': 'Delegate'}]
         self.roster()
+        self.rule_input = installed_rule_input(self.root, KIT)
 
     def roster(self):
         (self.root / 'management/people.json').write_text(json.dumps({'people': self.people}))
@@ -126,13 +128,15 @@ class CollaborationTests(unittest.TestCase):
 
     def task(self, tid, **kw):
         return self.call('create', task=dict(id=tid, title=tid, parent=None, owner='PM', executor='PM', checker='QA',
-                                            goal='SIM', inputs=['SIM'], outputs=['SIM'], criteria=['SIM'], next_action='SIM next', **kw))
+                                            goal='SIM personnel and decision routing only', inputs=[self.rule_input], outputs=['SIM'], criteria=['SIM'], next_action='SIM next', **kw))
 
     def test_actual_human_review_uses_same_route(self):
         self.configure(delegations=[self.delegation()])
         self.task('EXPORT', profession='product', decision_scope='export', human_required=True)
-        args = dict(task_id='EXPORT', expected_revision=1, outcome='approved', presented_ref='SIM review',
-                    source='SIM reply', quote='SIM approved', scope='export')
+        put(self.root, 'SIM-review.md', 'SIMULATED displayed export decision')
+        put(self.root, 'SIM-reply.md', 'SIM approved')
+        args = dict(task_id='EXPORT', expected_revision=1, outcome='approved', presented_ref='SIM-review.md',
+                    source='SIM-reply.md', quote='SIM approved', scope='export')
         with self.assertRaises(pm.TaskError):
             self.call('human_review', person='product', **args)
         self.call('human_review', person='delegate', **args)

@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 from test_pm_instances import Fixture, pm
 from kit import KIT
-from practice_fixture import direction, fit_record, practice_record, put, scope
+from practice_fixture import direction, fit_record, practice_record, put, scope, capture_binding, PIXEL
 
 s=importlib.util.spec_from_file_location('expert_api_test', KIT/'matrix/orchestration/tools/platform_api.py')
 api=importlib.util.module_from_spec(s);s.loader.exec_module(api)
@@ -33,8 +33,13 @@ class Experts(Fixture, unittest.TestCase):
     def scenario(self, profession):
         gate = pm.admission.load_gate()
         tone = gate.tone
-        workspace = self.root/'management/instances/SIM-admission-instance/workspace/public'
+        workspace = self.root/'management/instances'/getattr(self,'admission_author','SIM-admission-instance')/'workspace/public'
         ref, data = direction(workspace, tone)
+        # SIMULATED controller-pinned approval lives in the original project, never an author DB.
+        shutil.copytree(workspace/'management/evidence',self.root/'management/evidence',dirs_exist_ok=True)
+        with pm.connect(self.root) as db:
+            pm.integrity.save(pm.api(),db,'direction_sample',dict(id='SIM-direction',tasks=[],closed=True,
+                reviewed_direction=tone.direction_binding(tone.DEFAULT_PATH,data),confirmation_receipt=data['confirmation']['review_receipt']))
         if profession == 'product':
             arts = [ref]
             fit = fit_record(workspace, tone.direction_binding(tone.DEFAULT_PATH,data),
@@ -42,9 +47,10 @@ class Experts(Fixture, unittest.TestCase):
                              binding_mode='pre_confirmation_direction')
             content_hash = gate.artifact_digest(workspace, arts)
             req = put(workspace,'request.json',dict(request_id='SIM',role='product',stage='P-1',scope=['workspace'],
-                      artifact_sha256=content_hash,display_evidence='direction-brief.md'))
+                      artifact_sha256=content_hash,display_evidence='direction-brief.md',display_sha256=data['parts']['brief']['sha256']))
             reply = put(workspace,'reply.json',dict(request_id='SIM',actor='user',choice='confirm',scope=['workspace'],
-                        artifact_sha256=content_hash,source=data['confirmation']['source']))
+                        artifact_sha256=content_hash,source=data['confirmation']['source'],quote=data['confirmation']['quote'],
+                        display_sha256=data['parts']['brief']['sha256'],message_sha256=tone.evidence.digest(data['confirmation']['quote'])))
             state = dict(role='product',current='P-1',next='P-2',artifacts=arts,request=req['path'],response=reply['path'],
                          tone_fit_review=fit['path'])
         else:
@@ -59,31 +65,224 @@ class Experts(Fixture, unittest.TestCase):
                  for file in workspace.rglob('*') if file.is_file()}
         return (workspace/saved['path']).relative_to(self.root).as_posix(),paths
 
-    def package(self, review_points=True, profession='code-engineering'):
+    def package(self, review_points=True, profession='code-engineering', enable=True, validate=True, token=''):
+        if profession == 'product':
+            return self.composed_package(validate=validate,enable=enable)
         params=Experts.prepare_params(self, profession)
         if review_points:
             params['review']['review_points']=[{'who':'master','what':'Review engineering baseline and open risks'}]
-        self.e.adapt(pm.api(),self.root,params)
+        adapted = self.e.adapt(pm.api(),self.root,params)
+        if adapted['state'] == 'blocked':
+            return adapted
         base,m=self.e.read(pm.api(),self.root,self.ident)
         sha=self.e.digest((base/'METHODS.md').read_bytes())
+        author, reviewer = 'SIM-admission-instance'+token, 'SIM-independent-reviewer'+token
+        self.admission_author=author
+        task_id, author_run, review_run = 'SIM-admission-task'+token, 'SIM-admission'+token, 'SIM-review'+token
+        for iid in (author, reviewer):
+            self.call('register_instance',id=iid,instance=dict(role=profession,endpoint='SIM-'+iid,
+                      write_roots=['management/instances/'+iid+'/workspace']))
+        installed=self.root/'matrix/base/MATRIX.md'
+        installed.parent.mkdir(parents=True,exist_ok=True)
+        shutil.copyfile(KIT/'matrix/base/MATRIX.md',installed)
+        self.call('create',task=dict(id=task_id,title='SIM actual lifecycle',owner=author,executor=author,
+                  checker=reviewer,goal='SIM admission',inputs=['matrix/base/MATRIX.md'],outputs=['management/instances/'+author+'/workspace/public/'],
+                  criteria=['SIM method and framework'],next_action='SIM bounded exercise'))
+        self.call('launch_start',id=author_run,task_id=task_id,purpose='start',instance=author,
+                  model='SIM-model',session='SIM-admission',command=['SIM'],admission_expert=self.ident,admission_runner='SIM-worker')
+        self.call('launch_started',id=author_run,pid=4242)
         stage, paths = Experts.scenario(self, profession)
+        self.call('hand_over',actor=author,run=author_run,evidence=sorted(paths),summary='SIM actual file handover')
+        self.call('launch_exit',actor='launcher',id=author_run,exit_code=0)
         scenario = dict(stage_state=stage,contract_sha256=m['framework_contract_sha256'],mapping_sha256=m['framework_mapping_sha256'],
-                        reviewer='SIM-controller',readback='Synthetic fixture checked manually in the test')
-        self.write('sim-validation.json',dict(passed=True, methods_sha256=sha,runner='SIM-worker',run_id='SIM-admission',model='SIM-model',
-                     checks={k:dict(passed=True,evidence='SIMULATED only') for k in ('method_preservation','write_isolation','handoff_contract')},
-                     framework_scenario=scenario))
-        with pm.connect(self.root) as db:
-            pm.integrity.save(pm.api(),db,'launch',dict(id='SIM-admission',task_id='SIM-admission-task',task_ids=['SIM-admission-task'],
-                             instance='SIM-admission-instance',purpose='start',started_at=pm.now(),after_seq=0,state='exited',exit_code=0,
-                             handed=True,running_at=pm.now(),finished_at=pm.now(),model='SIM-model',admission_runner='SIM-worker',
-                             handover=dict(files=paths,event_id='SIM-handover'),
-                             admission_expert=self.e.admission_binding(pm.api(),self.root,self.ident)))
-        self.e.validate(pm.api(),self.root,dict(self.ident,evidence=dict(runner='SIM-worker',report='management/sim-validation.json',source_sha256=sha)),operator='SIM-controller')
-        self.e.enable(pm.api(),self.root,dict(self.ident,person='SIM-person',quote='SIMULATED enable authorization'),operator='SIM-controller')
+                        reviewer=reviewer,readback='Synthetic fixture checked manually in the test')
+        self.call('launch_start',id=review_run,task_id=task_id,purpose='check',instance=reviewer,
+                  model='SIM-model',session='SIM-review',command=['SIM'])
+        self.call('launch_started',id=review_run,pid=4243)
+        gate=pm.admission.load_gate()
+        workspace=self.root/'management/instances'/author/'workspace/public'
+        state=json.loads((self.root/stage).read_text())
+        checked=gate.check(workspace,state,registry_root=self.root)
+        completed,_=gate.framework_outputs(workspace,state,checked,registry_root=self.root)
+        tested={(checked['from'],r['requirement']) for r in completed}
+        expected={(r['stage'],r['requirement']) for r in self.e.framework_contract(pm.api(),self.root,profession)['requirements']}
+        report=dict(passed=True, methods_sha256=sha,runner='SIM-worker',run_id=author_run,model='SIM-model',review_run_id=review_run,
+                    checks={k:dict(passed=True,evidence='SIMULATED only') for k in ('method_preservation','write_isolation','handoff_contract')},
+                    framework_scenario=scenario,
+                    tested_requirements=[dict(stage=a,requirement=b) for a,b in sorted(tested)],
+                    untested_requirements=[dict(stage=a,requirement=b) for a,b in sorted(expected-tested)])
+        self.report_ref='management/instances/'+reviewer+'/workspace/public/report.json'
+        dest=self.root/self.report_ref;dest.parent.mkdir(parents=True,exist_ok=True);dest.write_text(json.dumps(report))
+        task=self.t(task_id)
+        self.call('review',actor=reviewer,task_id=task['id'],expected_revision=task['revision'],outcome='passed',
+                  criteria_checked=task['criteria'],evidence=[self.report_ref])
+        self.call('launch_exit',actor='launcher',id=review_run,exit_code=0)
+        self.validation_params=dict(self.ident,evidence=dict(runner='SIM-worker',report=self.report_ref,source_sha256=sha))
+        if validate:
+            self.e.validate(pm.api(),self.root,self.validation_params,operator='SIM-controller')
+        if enable:
+            self.e.enable(pm.api(),self.root,dict(self.ident,person='SIM-person',quote='SIMULATED enable authorization'),operator='SIM-controller')
+        return self.e.read(pm.api(),self.root,self.ident)[1]
 
-    def test_enable_requires_master_review_points(self):
-        with self.assertRaisesRegex(ValueError,'master review points'):
-            self.package(review_points=False)
+    def composed_package(self, validate=True, enable=False, mutate=None, fit_transform=None):
+        """No model: real author/check lifecycles with immutable, separately owned files."""
+        self.write('expert-professions.json',dict(schema='matrix-expert-professions/1',professions=['product'],configured_by='SIM',authorization='SIM'))
+        params=self.prepare_params('product');params['review']['review_points']=[dict(who='master',what='SIM independent direction')]
+        self.e.adapt(pm.api(),self.root,params)
+        author,reviewer,task_id='VIEW-author','VIEW-checker','VIEW-task'
+        for iid in (author,reviewer):
+            self.call('register_instance',id=iid,instance=dict(role='product',endpoint='SIM-'+iid,write_roots=['management/instances/'+iid+'/workspace']))
+        trusted=self.root/'matrix/base/MATRIX.md';trusted.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(KIT/'matrix/base/MATRIX.md',trusted)
+        author_public=self.root/'management/instances'/author/'workspace/public'
+        checker_public=self.root/'management/instances'/reviewer/'workspace/public'
+        self.call('create',task=dict(id=task_id,title='SIM two producer admission',owner=author,executor=author,checker=reviewer,
+            goal='SIM P1',inputs=['matrix/base/MATRIX.md'],outputs=[author_public.relative_to(self.root).as_posix()+'/'],criteria=['SIM real independent fit'],next_action='SIM draft'))
+        self.call('launch_start',id='VIEW-author-run',task_id=task_id,purpose='start',instance=author,model='SIM-model',session='SIM',command=['SIM'],admission_expert=self.ident,admission_runner='SIM-worker')
+        self.call('launch_started',id='VIEW-author-run',pid=4242)
+        tone=pm.admission.load_gate().tone;gate=pm.admission.load_gate()
+        _,draft=direction(author_public,tone);draft.pop('confirmation')
+        contract_ref=put(author_public,tone.DEFAULT_PATH,'# Direction\n\n```tone-contract\n'+json.dumps(draft)+'\n```\n')
+        original=dict(role='product',current='P-1',next='P-2',scope=['workspace'],blockers=[],artifacts=[contract_ref],tone_contract=contract_ref,
+            conversation_check='conversation.md',request='pending-request.json',response='pending-response.json',tone_fit_review='pending-fit.json')
+        put(author_public,'conversation.md','P-1 -> P-2');put(author_public,'stage-template.json',original)
+        author_paths={p.relative_to(self.root).as_posix():self.e.digest(p.read_bytes()) for p in author_public.rglob('*')
+            if p.is_file() and 'management' not in p.relative_to(author_public).parts and not p.name.startswith('synthetic-')}
+        self.call('hand_over',actor=author,run='VIEW-author-run',evidence=sorted(author_paths),summary='SIM unconfirmed author originals')
+        self.call('launch_exit',actor='launcher',id='VIEW-author-run',exit_code=0)
+        self.assertEqual('waiting_review',self.t(task_id)['state'])
+        self.call('launch_start',id='VIEW-review-run',task_id=task_id,purpose='check',instance=reviewer,model='SIM-model',session='SIM',command=['SIM'])
+        self.call('launch_started',id='VIEW-review-run',pid=4243)
+        binding=tone.direction_binding(tone.DEFAULT_PATH,draft)
+        observed=[draft['parts'][key] for key in ('scene','preview','samples','practice_profile')]
+        screenshot=put(checker_public,'fit.png',PIXEL)
+        fit_data=dict(tone_contract=binding,artifacts=observed,screenshot=screenshot,
+            viewport='1280x800',capture_binding=capture_binding(observed,root=checker_public,screenshot=screenshot),capture='SIM deterministic render',
+            genre_fit='SIM flow visible',application_drift='SIM activity preserved',copy_fit='SIM consequence words observed',outcome='passed',
+            producer=author,checker=reviewer,mode='independent',review_task=task_id,binding_mode='pre_confirmation_direction')
+        if fit_transform:fit_transform(fit_data)
+        put(checker_public,'fit.json',fit_data)
+        _,manifest=self.e.read(pm.api(),self.root,self.ident)
+        contract=self.e.framework_contract(pm.api(),self.root,'product');tested={(row['stage'],row['requirement']) for row in contract['requirements'] if row['stage']=='P-1'}
+        expected={(row['stage'],row['requirement']) for row in contract['requirements']}
+        source_sha=self.e.admission_binding(pm.api(),self.root,self.ident)['methods_sha256']
+        report=dict(passed=True,methods_sha256=source_sha,runner='SIM-worker',run_id='VIEW-author-run',review_run_id='VIEW-review-run',model='SIM-model',
+            checks={key:dict(passed=True,evidence='SIM independently read actual draft') for key in ('method_preservation','write_isolation','handoff_contract')},
+            framework_scenario=dict(stage_state='stage.json',reviewer=reviewer,readback='SIM actual independent observations',contract_sha256=manifest['framework_contract_sha256'],mapping_sha256=manifest['framework_mapping_sha256']),
+            tested_requirements=[dict(stage=a,requirement=b) for a,b in sorted(tested)],untested_requirements=[dict(stage=a,requirement=b) for a,b in sorted(expected-tested)])
+        put(checker_public,'report.json',report)
+        self.report_ref=(checker_public/'report.json').relative_to(self.root).as_posix()
+        review_paths={p.relative_to(self.root).as_posix():self.e.digest(p.read_bytes()) for p in checker_public.rglob('*') if p.is_file() and 'management' not in p.relative_to(checker_public).parts}
+        task=self.t(task_id)
+        self.call('review',actor=reviewer,task_id=task_id,expected_revision=task['revision'],outcome='passed',criteria_checked=task['criteria'],evidence=sorted(review_paths))
+        self.call('launch_exit',actor='launcher',id='VIEW-review-run',exit_code=0)
+        view=self.root/'management/scenario-draft';view.mkdir()
+        origins=[]
+        for producer,paths,public in (('author',author_paths,author_public),('review',review_paths,checker_public)):
+            for source,sha in paths.items():
+                logical=(self.root/source).relative_to(public).as_posix()
+                if logical==tone.DEFAULT_PATH:logical='author-direction-original.md'
+                if logical=='stage-template.json':logical='author-stage-original.json'
+                if logical=='report.json':logical='review-report.json'
+                put(view,logical,(self.root/source).read_bytes())
+                origins.append(dict(logical_path=logical,source_path=source,sha256=sha,origin=producer))
+        display=put(self.root,'control-display.md','Synthetic display of actual author direction and independent fit; no production approval')
+        reply=put(self.root,'control-message.md','Synthetic isolated exercise approval only')
+        approval_binding=dict(format='matrix-review-binding/1',request_id='VIEW-request',scope=['workspace'],actor='user',direction_sha256=binding['direction_sha256'],
+            display=display,response=dict(reply,message_sha256=tone.evidence.digest('Synthetic isolated exercise approval only')),person='fixture-person',quote='Synthetic isolated exercise approval only',outcome='approved')
+        receipt=tone.evidence.review_receipt(self.root,approval_binding)
+        final=dict(draft,confirmation=dict(person='fixture-person',quote=approval_binding['quote'],source=reply['path'],direction_sha256=binding['direction_sha256'],review_receipt=receipt))
+        final_ref=put(view,tone.DEFAULT_PATH,'# Direction\n\n```tone-contract\n'+json.dumps(final)+'\n```\n')
+        content_hash=gate.artifact_digest(view,[final_ref])
+        request=dict(request_id='VIEW-request',role='product',stage='P-1',scope=['workspace'],artifact_sha256=content_hash,display_evidence=display['path'],display_sha256=display['sha256'])
+        response=dict(request_id='VIEW-request',actor='user',choice='confirm',scope=['workspace'],artifact_sha256=content_hash,source=reply['path'],quote=approval_binding['quote'],display_sha256=display['sha256'],message_sha256=approval_binding['response']['message_sha256'])
+        request_ref=put(view,'request.json',request);response_ref=put(view,'response.json',response)
+        stage=dict(original,artifacts=[final_ref],tone_contract=final_ref,request='request.json',response='response.json',tone_fit_review='fit.json')
+        stage_ref=put(view,'stage.json',stage)
+        controls=[]
+        for kind,ref,source,diff in (
+            ('contract_confirmation',final_ref,(author_public/tone.DEFAULT_PATH).relative_to(self.root).as_posix(),self.e.control_diff(draft,final)),
+            ('stage',stage_ref,(author_public/'stage-template.json').relative_to(self.root).as_posix(),self.e.control_diff(original,stage)),
+            ('request',request_ref,None,self.e.control_diff({},request)),('response',response_ref,None,self.e.control_diff({},response)),
+            ('display',put(view,display['path'],(self.root/display['path']).read_bytes()),None,[]),
+            ('synthetic_response',put(view,reply['path'],(self.root/reply['path']).read_bytes()),None,[])):
+            row=dict(kind=kind,logical_path=ref['path'],sha256=ref['sha256'],diff=diff)
+            if source:row['source_path']=source
+            controls.append(row)
+        context=dict(format='matrix-admission-scenario/1',author_run_id='VIEW-author-run',review_run_id='VIEW-review-run',state_path='stage.json',origins=origins,control_derivations=controls)
+        self.scenario_view,self.scenario_context=view,context
+        if mutate:mutate(view,context)
+        refs=[tone.evidence.ref(view,p.relative_to(view).as_posix()) for p in view.rglob('*') if p.is_file()]
+        local_ref=tone.evidence.seal_bundle(view,refs,context,destination='sealed',follow_refs=False)
+        scenario_view=dict(local_ref,path=(view/local_ref['path']).relative_to(self.root).as_posix())
+        self.validation_params=dict(self.ident,evidence=dict(runner='SIM-worker',report=self.report_ref,source_sha256=source_sha,scenario_view=scenario_view))
+        if validate:self.e.validate(pm.api(),self.root,self.validation_params,operator='SIM-controller')
+        if enable:self.e.enable(pm.api(),self.root,dict(self.ident,person='SIM-person',quote='SIM enable'),operator='SIM-controller')
+        return self.e.read(pm.api(),self.root,self.ident)[1]
+
+    def test_composed_view_accepts_real_independent_fit_and_freezes_sources(self):
+        manifest=self.composed_package(enable=True)
+        self.assertEqual('enabled',manifest['state'])
+        self.assertTrue(manifest['validation']['gate_receipt']['view_files'])
+        for path in self.root.glob('management/instances/*/workspace/public/**/*'):
+            if path.is_file():path.write_text('SIM later work')
+        self.e.binding(pm.api(),self.root,'product',self.ident)
+
+    def test_composed_view_rejects_unattributed_file(self):
+        with self.assertRaisesRegex(ValueError,'every scenario view file'):
+            self.composed_package(mutate=lambda view,context:put(view,'unattributed-business.md','SIM invented'))
+
+    def test_composed_view_rejects_controller_business_rewrite(self):
+        def mutate(view,context):
+            row=next(r for r in context['control_derivations'] if r['kind']=='contract_confirmation')
+            data=pm.admission.load_gate().tone.read(view,row['logical_path']);data['core_loop']='Controller invented business'
+            changed=put(view,row['logical_path'],'# Direction\n\n```tone-contract\n'+json.dumps(data)+'\n```\n');row['sha256']=changed['sha256']
+        with self.assertRaisesRegex(ValueError,'only add confirmation'):
+            self.composed_package(mutate=mutate)
+
+    def test_composed_view_rejects_changed_checker_fit(self):
+        def mutate(view,context):
+            row=next(r for r in context['origins'] if r['logical_path']=='fit.json')
+            data=json.loads((view/'fit.json').read_text());data['copy_fit']='Controller replaced independent conclusion'
+            row['sha256']=put(view,'fit.json',data)['sha256']
+        with self.assertRaisesRegex(ValueError,'producer trusted handback'):
+            self.composed_package(mutate=mutate)
+
+    def test_composed_view_rejects_controller_scope_or_blocker_changes(self):
+        def mutate(view,context):
+            row=next(r for r in context['control_derivations'] if r['kind']=='stage')
+            data=json.loads((view/'stage.json').read_text());data['scope']=['workspace','invented']
+            row['sha256']=put(view,'stage.json',data)['sha256'];row['diff'].append(dict(field='scope',before=['workspace'],after=data['scope']))
+        with self.assertRaisesRegex(ValueError,'business scope, blockers or workflow'):
+            self.composed_package(mutate=mutate)
+
+    def test_composed_view_rejects_missing_actual_fit_capture_binding(self):
+        with self.assertRaisesRegex(ValueError,'artifact reference must include'):
+            self.composed_package(fit_transform=lambda fit:fit['capture_binding'].pop('receipt'))
+
+    def test_composed_view_cannot_rewrite_independent_report_passed(self):
+        def mutate(view,context):
+            row=next(r for r in context['origins'] if r['logical_path']=='review-report.json')
+            data=json.loads((view/'review-report.json').read_text());data['passed']=False
+            row['sha256']=put(view,'review-report.json',data)['sha256']
+        with self.assertRaisesRegex(ValueError,'producer trusted handback'):
+            self.composed_package(mutate=mutate)
+
+    def test_composed_view_cannot_claim_author_as_actual_checker(self):
+        with self.assertRaisesRegex(ValueError,'actual author and review runs'):
+            self.composed_package(mutate=lambda view,context:context.update(review_run_id='VIEW-author-run'))
+
+    def test_composed_p1_does_not_close_downstream_direction(self):
+        self.composed_package()
+        view=self.scenario_view
+        with self.assertRaisesRegex(ValueError,'milestone is not closed'):
+            pm.admission.load_gate().tone.validate(view,pm.admission.load_gate().tone.DEFAULT_PATH,registry_root=self.root,require_closed=True)
+
+    def test_missing_review_points_blocks_before_admission(self):
+        adapted=self.package(review_points=False)
+        self.assertEqual('blocked',adapted['state'])
+        self.assertIn('master review points',' '.join(adapted['unresolved']))
+        with self.assertRaisesRegex(ValueError,'adaptation must be complete'):
+            self.e.admission_binding(pm.api(),self.root,self.ident)
 
     def test_adaptation_blocks_missing_conflicting_or_duplicate_mapping(self):
         params = self.prepare_params()
@@ -119,7 +318,10 @@ class Experts(Fixture, unittest.TestCase):
         self.package()
         self.staff(self.config())
         tone = pm.admission.load_gate().tone
-        contract, _ = direction(self.root,tone,[scope(tone,appearance_target='yes')])
+        contract, data = direction(self.root,tone,[scope(tone,appearance_target='yes')])
+        with pm.connect(self.root) as db:
+            pm.integrity.save(pm.api(),db,'direction_sample',dict(id='SIM-stage-direction',tasks=[],closed=True,
+                reviewed_direction=tone.direction_binding(tone.DEFAULT_PATH,data),confirmation_receipt=data['confirmation']['review_receipt']))
         stage = dict(role='solution',current='E-2.3',scope=['workspace'],tone_contract=contract)
         for iid in ('code-engineering-001','code-engineering-002'):
             with self.subTest(instance=iid):
@@ -136,7 +338,7 @@ class Experts(Fixture, unittest.TestCase):
         path=self.root/'external'
         path.mkdir()
         (path/'prd.md').write_text('Synthetic external input')
-        self.call('intake_register',id='PRD',path='external/prd.md',version='1',source='fixture',profession='product')
+        self.call('intake_register',id='PRD',path='external/prd.md',version='1',source='fixture',source_id='SIM-PRD',profession='product')
         r=self.call('intake_submit',id='PRD',master='product-001')['input']
         self.assertEqual(r['expert']['id'],'sim-expert')
         with self.assertRaisesRegex(ValueError,'not admitted'):
@@ -211,6 +413,103 @@ class Experts(Fixture, unittest.TestCase):
         self.e.disable(pm.api(),self.root,dict(self.ident,reason='SIM failed review'))
         with self.assertRaisesRegex(ValueError,'not enabled'):
             self.e.entry(pm.api(),self.root,self.instance('code-engineering-002'))
+
+    def test_public_paths_can_evolve_after_validation_but_snapshot_cannot(self):
+        m=self.package(enable=False)
+        for root in (self.root/'management/instances'/iid/'workspace/public' for iid in
+                     ('SIM-admission-instance','SIM-independent-reviewer')):
+            for path in root.rglob('*'):
+                if path.is_file(): path.write_text('SIM normal later work')
+        # Every authority dependency is frozen as well; later consumers need no live evidence.
+        self.assertTrue(m['validation']['gate_receipt']['authority_files'])
+        for name in m['validation']['gate_receipt']['authority_files']:
+            (self.root/name).write_text('SIM later authority-resource evolution')
+        self.e.enable(pm.api(),self.root,dict(self.ident,person='SIM-person',quote='SIM enable'),operator='SIM-controller')
+        self.e.binding(pm.api(),self.root,'code-engineering',self.ident)
+        view,_=self.e.evidence_bundles.verify_bundle(self.root,m['validation']['bundle'])
+        next(path for path in view.rglob('*') if path.is_file()).write_text('SIM tamper')
+        with self.assertRaisesRegex(ValueError,'stale artifact'):
+            self.e.binding(pm.api(),self.root,'code-engineering',self.ident)
+
+    def test_invalid_import_only_blocks_its_entry(self):
+        first=self.ident.copy()
+        self.package()
+        self.ident=dict(id='second-expert',version='1')
+        self.package(token='-two')
+        self.staff({'entries':[
+            dict(id='builtin',profession='code-engineering',level='T4',model='SIM-big',count=1),
+            dict(id='first',profession='code-engineering',level='T4',model='SIM-big',count=1,expert=first),
+            dict(id='second',profession='code-engineering',level='T4',model='SIM-big',count=1,expert=self.ident),
+            dict(id='other-profession',profession='quality-engineering',level='T4',model='SIM-big',count=1)]})
+        self.e.disable(pm.api(),self.root,dict(first,reason='SIM local failure'))
+        entries={e['id']:e for e in self.team()['instance_config']['entries']}
+        self.assertFalse(entries['first']['current'])
+        self.assertIn('not enabled',entries['first']['binding_error'])
+        for entry in ('builtin','second','other-profession'):
+            self.assertTrue(entries[entry]['current'])
+        with pm.connect(self.root) as db:
+            for iid in ('code-engineering-001','code-engineering-003','quality-engineering-001'):
+                self.assertIsNone(pm.team.instance_fit_issue(pm.api(),self.root,db,self.instance(iid)))
+            self.assertIsNotNone(pm.team.instance_fit_issue(pm.api(),self.root,db,self.instance('code-engineering-002')))
+
+    def test_malformed_import_manifest_does_not_invalidate_builtin_entry(self):
+        self.package();self.staff(self.config())
+        base,_=self.e.read(pm.api(),self.root,self.ident)
+        (base/'manifest.json').write_text('[]')
+        entries={e['id']:e for e in self.team()['instance_config']['entries']}
+        self.assertTrue(entries['internal']['current'])
+        self.assertFalse(entries['imported']['current'])
+        self.assertIn('manifest must be an object',entries['imported']['binding_error'])
+
+    def test_contract_change_only_invalidates_related_import(self):
+        self.package(); self.staff(self.config())
+        registry_dir=self.root/'matrix/professions'
+        shutil.copytree(KIT/'matrix/professions',registry_dir)
+        path=registry_dir/'code-engineering/profession.json'
+        registry=json.loads(path.read_text());registry['framework_requirements']['E-2.1']['complete']=['rendering_choice']
+        path.write_text(json.dumps(registry))
+        entries={e['id']:e for e in self.team()['instance_config']['entries']}
+        self.assertTrue(entries['internal']['current'])
+        self.assertFalse(entries['imported']['current'])
+        self.assertIn('framework contract changed',entries['imported']['binding_error'])
+
+    def test_author_cannot_self_sign_validation_report(self):
+        self.package(enable=False,validate=False)
+        path=self.root/self.report_ref
+        data=json.loads(path.read_text());data['framework_scenario']['reviewer']='SIM-admission-instance'
+        path.write_text(json.dumps(data))
+        with self.assertRaisesRegex(ValueError,'reviewer must differ'):
+            self.e.validate(pm.api(),self.root,self.validation_params,operator='SIM-controller')
+
+    def test_report_requires_real_review_run_and_handed_back_bytes(self):
+        self.package(enable=False,validate=False)
+        path=self.root/self.report_ref; original=path.read_text();data=json.loads(original)
+        data['review_run_id']='nonexistent';path.write_text(json.dumps(data))
+        with self.assertRaisesRegex(ValueError,'review run must exist'):
+            self.e.validate(pm.api(),self.root,self.validation_params,operator='SIM-controller')
+        data=json.loads(original);data['checks']['method_preservation']['evidence']='Author replaced independent findings'
+        path.write_text(json.dumps(data))
+        with self.assertRaisesRegex(ValueError,'report changed after reviewer handback'):
+            self.e.validate(pm.api(),self.root,self.validation_params,operator='SIM-controller')
+
+    def test_missing_handover_output_cannot_be_frozen(self):
+        self.package(enable=False,validate=False)
+        with pm.connect(self.root) as db:
+            run=pm.integrity.records(db,'launch')['SIM-admission']
+            output=next(name for name in run['handover']['files'] if name.endswith('/direction-brief.md'))
+            del run['handover']['files'][output]
+            pm.integrity.save(pm.api(),db,'launch',run)
+        with self.assertRaisesRegex(ValueError,'evidence closure and resources must be actual handed-over'):
+            self.e.validate(pm.api(),self.root,self.validation_params,operator='SIM-controller')
+        self.assertFalse((self.root/'management/expert-validations').exists())
+
+    def test_trusted_original_review_receipt_cannot_be_replaced_after_validation(self):
+        self.package()
+        with pm.connect(self.root) as db:
+            run=pm.integrity.records(db,'launch')['SIM-review'];run['model']='SIM changed model'
+            pm.integrity.save(pm.api(),db,'launch',run)
+        with self.assertRaisesRegex(ValueError,'receipt changed'):
+            self.e.binding(pm.api(),self.root,'code-engineering',self.ident)
 
     def test_source_nested_manifest_is_hashed(self):
         self.package();base,m=self.e.read(pm.api(),self.root,self.ident)

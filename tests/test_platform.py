@@ -10,6 +10,7 @@ import time
 import unittest
 
 from kit import KIT
+from practice_fixture import review_state, put
 TOOLS = KIT / 'matrix/orchestration/tools'
 spec = importlib.util.spec_from_file_location('pm_platform_under_test', TOOLS / 'pm_tasks.py')
 pm = importlib.util.module_from_spec(spec)
@@ -40,6 +41,7 @@ if purpose == '执行':
     if how == 'sleep':
         time.sleep(30)
     if how == 'handover':
+        (root / ('SIM result ' + tid)).write_text('Synthetic worker completed its declared output')
         call({'op': 'hand_over', 'actor': iid, 'event_id': rid + '-handover', 'run': rid, 'evidence': ['SIM result ' + tid], 'summary': 'SIM done'})
 print(json.dumps({'type': 'turn.completed', 'usage': {'input_tokens': 120, 'cached_input_tokens': 100, 'output_tokens': 7}}))
 print(json.dumps({'type': 'item.completed', 'item': {'type': 'agent_message', 'text': 'SIM final message'}}))
@@ -81,6 +83,11 @@ class Project:
         for entry in ['P-M', 'P-E', 'P-E']:  # product-001 (master), product-002, product-003; P-E has room for one more
             self.call('derive', entry=entry, endpoint='platform')
         (self.root / 'input.md').write_text('SIMULATED input v1')
+        self.call('intake_register',id='SIM-input',source_id='SIM-input-family',path='input.md',version='1',source='Synthetic source',profession='product')
+        self.call('intake_submit',id='SIM-input',master='product-001')
+        self.call('intake_review','product-001',id='SIM-input',outcome='approved',conclusion='Synthetic scope ready',resolved_risks=[],resolved_conflicts=[],open_items=[],human_required=False)
+        self.call('intake_admit',id='SIM-input')
+        put(self.root,'input-stage.json',review_state(self.root,pm.admission.load_gate(),['input.md']))
         self.task('A')
         self.task('B', dependencies=['A'])
 
@@ -90,8 +97,11 @@ class Project:
 
     def task(self, tid, parent=None, actor='PM', **kw):
         data = dict(id=tid, parent=parent, title='SIM ' + tid, owner='product-001', executor='product-001', checker='PM', goal='SIMULATED',
-                    inputs=['input.md'], outputs=['SIM output'], criteria=['SIM correct'], next_action='SIM next')
+                    inputs=['input.md'], outputs=['SIM output','SIM work '+tid,'SIM result','SIM result '+tid,'result.md'], criteria=['SIM correct'], next_action='SIM next')
         data.update(kw)
+        if data.get('inputs') == ['input.md']:
+            data.setdefault('admitted_inputs',['SIM-input'])
+            data.setdefault('stage_transition','input-stage.json')
         if data.get('kind', 'work') == 'work':
             data.setdefault('practice_stage', {'role':'product','current':'P-3','scope':['SIM object rules']})
         return self.call('create', actor, task=data)
@@ -108,6 +118,7 @@ class Project:
 
     def hand_over(self, tid):
         t = self.t(tid)
+        (self.root/('SIM work '+tid)).write_text('Synthetic completed result')
         self.call('transition', t['owner'], task_id=tid, expected_revision=t['revision'], state='waiting_review', reason='SIM handed over',
                   stop_evidence='SIM stopped', evidence=['SIM work ' + tid])
 
@@ -124,7 +135,7 @@ class Records(Project, unittest.TestCase):
         inst = pm.execute(self.root, {'op':'status'})['integrity']['instance']['product-001']
         self.call('appoint', id='product-001', appointment=dict(mode='lead', role=inst['role'],
                   root_tasks=['A'], delegates=[], source='authority.md'))
-        self.call('update', 'product-001', task_id='A', expected_revision=self.t('A')['revision'],
+        self.call('update', 'PM', task_id='A', expected_revision=self.t('A')['revision'],
                   changes={'checker':'product-001'}, reason='SIM invalid self-check assignment',
                   scope_authorization='SIM PM assignment')
         rid = self.launch('A')
@@ -198,8 +209,9 @@ class Records(Project, unittest.TestCase):
 
     def test_the_dispatcher_records_whom_a_stopped_task_waits_for(self):
         self.exit(self.launch('A'), 0)  # ended without handover; retrying will not help, a person must decide
-        with self.assertRaisesRegex(pm.TaskError, 'belongs to its owner'):
-            self.call('update', task_id='A', expected_revision=self.t('A')['revision'], changes={'goal': 'SIM other'}, reason='SIM')
+        before=self.t('A')['work_revision']
+        self.call('update', task_id='A', expected_revision=self.t('A')['revision'], changes={'goal': 'SIM other'}, reason='SIM')
+        self.assertGreater(self.t('A')['work_revision'],before)
         self.call('update', task_id='A', expected_revision=self.t('A')['revision'], reason='SIM 模型不可用',
                   changes={'awaiting': [{'person': 'SIM-owner', 'action': 'decide', 'item': 'SIM 选可用的模型并重新确认实例配置'}]})
         s = self.summary()
@@ -214,6 +226,7 @@ class Records(Project, unittest.TestCase):
         rid = self.launch('A')
         with self.assertRaisesRegex(pm.TaskError, 'active start run of product-002'):
             self.call('hand_over', 'product-002', run=rid, evidence=['SIM'])
+        (self.root/'SIM result').write_text('Synthetic completed declared result')
         self.call('hand_over', 'product-001', run=rid, evidence=['SIM result'], summary='SIM 自检完成')
         self.assertEqual(('waiting_review', ['SIM result']), (self.t('A')['state'], self.t('A')['evidence']))
         self.task('C', owner='product-002', executor='product-002', parent='A', actor='product-001')
@@ -462,9 +475,20 @@ class Commands(Project, unittest.TestCase):
         rid = out['record']['id']
         self.assertTrue(out['queued'])
         self.assertEqual(('starting', None), (self.records()[rid]['state'], self.records()[rid].get('pid')))
-        self.tool('scheduler.py', '--once')
-        self.wait(lambda: self.records()[rid]['state'] == 'exited')
+        # Exercise the scheduler's real queue selection with a joined wrapper: completion is a
+        # subprocess exit event, not a race against a 60-second polling window.
+        scheduler_spec=importlib.util.spec_from_file_location('joined_scheduler', TOOLS/'scheduler.py')
+        scheduler=importlib.util.module_from_spec(scheduler_spec);scheduler_spec.loader.exec_module(scheduler)
+        class JoinedLauncher:
+            def spawn(_, pm_api, root, record, actor):
+                pm_api.execute(root,dict(op='launch_started',actor=actor,event_id=record['id']+'-joined-start',id=record['id'],pid=__import__('os').getpid()))
+                done=subprocess.run([sys.executable,'-B',str(TOOLS/'launch.py'),'--project',str(root),'--run',record['id']],
+                                    capture_output=True,text=True,timeout=20)
+                self.assertEqual(done.returncode,0,done.stdout+done.stderr)
+        self.assertEqual([rid],scheduler.start_queued(pm.api(),self.root,JoinedLauncher()))
+        self.assertEqual('exited',self.records()[rid]['state'])
         self.assertEqual('waiting_review', self.t('A')['state'])
+        self.assertEqual([],scheduler.start_queued(pm.api(),self.root,JoinedLauncher()))
 
     def test_the_scheduler_starts_ready_work_itself_and_keeps_the_views(self):
         self.plan({'pm': 'hang'})  # a PM run would hang: nothing here may need one
@@ -504,7 +528,7 @@ class Commands(Project, unittest.TestCase):
         self.assertIn('stopped; the next wake starts a new session', (self.root / 'management/runtime/scheduler.log').read_text())
 
     def test_the_scheduler_tells_the_person_when_work_waits_for_them(self):
-        self.call('update', 'product-001', task_id='A', expected_revision=self.t('A')['revision'], changes={'human_required': True}, reason='SIM 需要人审',
+        self.call('update', 'PM', task_id='A', expected_revision=self.t('A')['revision'], changes={'human_required': True}, reason='SIM 需要人审',
                   scope_authorization='SIM')
         def tick():
             self.tool('scheduler.py', '--once')

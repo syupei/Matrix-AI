@@ -4,7 +4,7 @@ import json
 import unittest
 
 from test_pm_instances import Fixture, pm
-from practice_fixture import direction, practice_record, put, scope
+from practice_fixture import direction, practice_record, put, scope, review_state, pm_closed_fixture
 
 
 class ProductionTest(Fixture, unittest.TestCase):
@@ -16,22 +16,18 @@ class ProductionTest(Fixture, unittest.TestCase):
 
     def stage(self, path, confirmed=True):
         gate = pm.admission.load_gate()
-        d = gate.digests(self.root, [path])
-        review = dict(request_id='R', stage='P-7', role='product', artifact_sha256=d['artifact_sha256'],
-                      scope=['release'], display_evidence=self.add_file('display.md','Presented approved product scope'))
-        response = dict(request_id='R', artifact_sha256=d['artifact_sha256'], scope=['release'],
-                        actor='person' if confirmed else 'assistant', choice='confirm',
-                        source=self.add_file('approval.md','Confirmed'))
-        return self.add_file('stage.json',dict(role='product',current='P-7',next='complete',scope=['release'],blockers=[],
-                   artifacts=d['artifacts'],request=self.add_file('request.json',review), response=self.add_file('response.json',response),
-                   conversation_check=self.add_file('conversation.md','P-7 → complete')))
+        state=review_state(self.root,gate,[path])
+        if not confirmed:
+            reply=json.loads((self.root/state['response']).read_text());reply['actor']='assistant'
+            self.add_file(state['response'],reply)
+        return self.add_file('stage.json',state)
 
     def test_external_input_gates_create_and_start(self):
         self.staff()
         path=self.add_file('external/prd.md','Synthetic PRD')
         with self.assertRaisesRegex(ValueError,'admitted input'):
             self.create('A', inputs=[path], outputs=['engineering/output.md'])
-        self.call('intake_register',id='PRD-1',path=path,version='1',source='external sample',profession='product')
+        self.call('intake_register',id='PRD-1',source_id='PRD-family',path=path,version='1',source='external sample',profession='product')
         self.call('intake_submit',id='PRD-1',master='product-001')
         with self.assertRaisesRegex(ValueError,'master records'):
             self.call('intake_review',id='PRD-1')
@@ -44,7 +40,9 @@ class ProductionTest(Fixture, unittest.TestCase):
         self.call('intake_review','product-001',id='PRD-1',outcome='approved',conclusion='Ready',resolved_risks=[],resolved_conflicts=[],open_items=[],human_required=True)
         with self.assertRaisesRegex(ValueError,'confirmation'):
             self.call('intake_admit',id='PRD-1')
-        self.call('intake_admit',id='PRD-1',person='SIM-owner',quote='Confirmed')
+        self.call('human_attention',id='intake-display',kind='confirmation',intake_id='PRD-1',scope='PRD-1',display=self.add_file('input-display.md','Displayed current input'))
+        self.call('human_attention',id='intake-display',response=self.add_file('input-reply.md','Confirmed'))
+        self.call('intake_admit',id='PRD-1',person='SIM-owner',quote='Confirmed',attention_id='intake-display',scope='PRD-1')
         with self.assertRaisesRegex(ValueError,'human confirmation'):
             self.create('A',inputs=[path],admitted_inputs=['PRD-1'],stage_transition=self.stage(path,False),outputs=['engineering/output.md'])
         self.create('A',inputs=[path],admitted_inputs=['PRD-1'],stage_transition=self.stage(path),outputs=['engineering/output.md'])
@@ -62,7 +60,7 @@ class ProductionTest(Fixture, unittest.TestCase):
     def test_successful_admitted_start_and_scoped_submission(self):
         self.staff()
         path=self.add_file('external/prd.md','Synthetic PRD')
-        self.call('intake_register',id='PRD-1',path=path,version='1',source='external sample',profession='product')
+        self.call('intake_register',id='PRD-1',source_id='PRD-family',path=path,version='1',source='external sample',profession='product')
         self.call('intake_submit',id='PRD-1',master='product-001')
         self.call('intake_review','product-001',id='PRD-1',outcome='approved',conclusion='Ready',resolved_risks=[],resolved_conflicts=[],open_items=[],human_required=False)
         self.call('intake_admit',id='PRD-1')
@@ -80,7 +78,7 @@ class ProductionTest(Fixture, unittest.TestCase):
                         reason='direct instruction',scope_authorization='unverified user message')
         r=self.call('production_feedback','legacy-worker',task_id='legacy',instruction='Please change input')
         self.assertEqual(r['feedback']['recipient'],'PM')
-        self.assertEqual(self.t('legacy')['inputs'],['SIM v1'])
+        self.assertEqual(self.t('legacy')['inputs'],['matrix/base/MATRIX.md'])
 
     def test_direction_chain_and_human_attention(self):
         assignments=[('product','product','T7',True),('design','experience-design','T7',True),
@@ -88,7 +86,7 @@ class ProductionTest(Fixture, unittest.TestCase):
                      ('qa','quality-engineering','T6',True),('fit','quality-engineering','T6',False)]
         self.staff({'entries':[dict(id=key,profession=role,level=level,model='SIM-big',count=1,master=lead)
                                for key,role,level,lead in assignments]})
-        path=self.add_file('project-brief.md','Synthetic direction brief')
+        path='matrix/base/MATRIX.md'
         result=self.call('direction_sample',id='direction',brief=path,profile='业务管理与查询',
             combined_review_authorization='Owner requested one P-1 review',person='SIM-owner',
             assigned={'product':'product-001','experience-design':'experience-design-001',
@@ -106,12 +104,13 @@ class ProductionTest(Fixture, unittest.TestCase):
         self.call('human_attention',id='A1',response=self.add_file('response.md','Confirmed'))
         status=pm.execute(self.root,{'op':'human_attention_status'})
         self.assertEqual(status['answered'],1)
-        self.assertEqual(status['characters'],len('Synthetic direction brief'))
+        self.assertEqual(status['characters'],len((self.root/path).read_text()))
 
     def test_dispatch_checks_only_prerequisites_and_close_checks_current_phase(self):
         self.staff()
         tone = pm.admission.load_gate().tone
-        contract, _ = direction(self.root, tone, [scope(tone, appearance_target='yes')])
+        contract, data = direction(self.root, tone, [scope(tone, appearance_target='yes')])
+        pm_closed_fixture(self.root,tone,data)
         entry = dict(role='solution',current='E-2.2',scope=['workspace'],tone_contract=contract)
         self.create('TRY',practice_stage=entry,practice_completion='gate.json',outputs=['gate.json','result.md'])
         self.mutate('transition','TRY',state='running',reason='start',execution_receipt='receipt')

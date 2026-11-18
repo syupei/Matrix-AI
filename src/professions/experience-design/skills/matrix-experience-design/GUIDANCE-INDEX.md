@@ -21,4 +21,4 @@
 | T01 | [工作区模板](assets/design-workspace-template.md) | 创建设计文件时 | |
 | L01 | [本专业的职级与对照](../../../matrix/professions/experience-design/levels.md) | 标难度、定风险、给缺陷定级 | |
 
-按本范围做法档选读：样张任务或 D-1–D-3 游戏交互 → [活动场景](references/activity-centered.md)；D-1/D-4–D-6 游戏美术 → [美术](references/game-art.md)。
+按本范围做法档选读：P-1 或 D-1–D-3，玩法范围有场景/直接操作/时序特征 → [活动场景](references/activity-centered.md)；D-1/D-4–D-6，玩法范围有外观目标/素材家族 → [美术](references/game-art.md)。

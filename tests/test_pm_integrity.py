@@ -10,6 +10,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 
 from kit import KIT
+from practice_fixture import installed_rule_input
 SOURCE = KIT
 spec = importlib.util.spec_from_file_location('pm_integrity_test_runtime', SOURCE / 'matrix/orchestration/tools/pm_tasks.py')
 pm = importlib.util.module_from_spec(spec)
@@ -21,6 +22,7 @@ class IntegrityTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory(prefix='pm-integrity-simulated-')
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name).resolve()
+        self.rule_input=installed_rule_input(self.root,KIT)
         self.seq = 0
         self.call('init', 'PM', config=dict(project='SIMULATED', pm_actor='PM', authorization='SIMULATED only',
                   frontdoor_id='SIMULATED', max_slots=8))
@@ -34,9 +36,12 @@ class IntegrityTests(unittest.TestCase):
 
     def create(self, tid, parent=None, actor=None, **kw):
         data = dict(id=tid, parent=parent, title='SIM '+tid, owner='DEV-1', checker='QA-1',
-                    goal='SIMULATED delivery', inputs=['SIM v1'], outputs=['SIM output'], criteria=['SIM correct'],
+                    goal='SIMULATED delivery', inputs=[self.rule_input], outputs=['SIM output'], criteria=['SIM correct'],
                     next_action='SIM next', executor='DEV-1')
         data.update(kw)
+        with pm.connect(self.root,readonly=True) as db:
+            if 'code-engineering' in pm.admission.task_professions(pm.api(),self.root,db,data):
+                data.setdefault('practice_stage',{'role':'engineering','current':'E-1.2','scope':['SIM interface model']})
         return self.call('create', actor or ('PM' if parent is None or data.get('project_level') else self.t(parent)['owner']), task=data)
 
     def mutate(self, op, tid, actor=None, **kw):
@@ -160,6 +165,16 @@ class IntegrityTests(unittest.TestCase):
         after=pm.execute(self.root,{'op':'status'})
         self.assertEqual(before['tasks'],after['tasks']); self.assertEqual(before['revision'],after['revision'])
         self.assertEqual('assessing',self.record('change','C')['state'])
+
+    def test_json_or_string_cannot_impersonate_the_internal_plan_transaction(self):
+        self.create('WORK')
+        command=dict(op='update',actor='DEV-1',event_id='forged-plan',task_id='WORK',expected_revision=1,
+                     changes={'inputs':['Unapproved new input']},reason='Claimed PM plan',_applying={'change_id':'C'})
+        with self.assertRaisesRegex(pm.TaskError,'responsible manager'):
+            pm.execute(self.root,command)
+        with self.assertRaisesRegex(pm.TaskError,'trusted internal'):
+            pm.execute(self.root,command,_applying='C')
+        self.assertEqual(self.t('WORK')['revision'],1)
 
     def test_pm_cannot_impersonate_owner_in_batch(self):
         self.create('WORK'); self.change(); self.assess([{'action':'keep','task_id':'WORK'}])

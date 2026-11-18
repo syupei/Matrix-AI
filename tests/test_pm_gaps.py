@@ -9,6 +9,7 @@ import tempfile
 import unittest
 
 from kit import KIT
+from practice_fixture import installed_rule_input
 SOURCE = KIT
 spec = importlib.util.spec_from_file_location('pm_gaps_under_test', SOURCE / 'matrix/orchestration/tools/pm_tasks.py')
 pm = importlib.util.module_from_spec(spec)
@@ -38,6 +39,7 @@ class Fixture:
         tmp = tempfile.TemporaryDirectory(prefix='pm-gaps-simulation-')
         self.addCleanup(tmp.cleanup)
         self.root = Path(tmp.name).resolve()
+        self.rule_input=installed_rule_input(self.root,KIT)
         (self.root / 'management').mkdir(parents=True, exist_ok=True)
         for name, data in [('model-fit.json', MODELS), ('instance-config.json', TEAM), ('people.json', PEOPLE)]:
             (self.root / 'management' / name).write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
@@ -68,7 +70,7 @@ class Fixture:
 
     def create(self, tid, parent=None, **kw):
         data = dict(id=tid, parent=parent, title='SIM ' + tid, owner='code-engineering-001', checker='quality-engineering-001', goal='SIMULATED',
-                    inputs=['SIM v1'], outputs=['SIM output'], criteria=['SIM correct'], next_action='SIM next ' + tid)
+                    inputs=[self.rule_input], outputs=['SIM output'], criteria=['SIM correct'], next_action='SIM next ' + tid)
         data.update(kw)
         data.setdefault('executor', data['owner'])
         if data['owner'].startswith('code-engineering-'):

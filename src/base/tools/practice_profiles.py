@@ -25,35 +25,37 @@ FIT_COMPARISON = {
 # Conditions are a fixed OR over declared features, never expressions from project data.
 # A record with fields is scoped JSON with those observations and actual artifact references.
 REQUIREMENTS = {
-    'tone_contract': {'features': (), 'record': 'tone_contract', 'version': 2},
-    'direction_profile': {'features': (), 'record': 'practice_profile', 'version': 2},
-    'direction_fit': {'features': (), 'record': 'tone_fit_review', 'version': 2},
+    'tone_contract': {'features': (), 'record': 'tone_contract', 'version': 3},
+    'direction_profile': {'features': (), 'record': 'practice_profile', 'version': 3},
+    'direction_fit': {'features': (), 'record': 'tone_fit_review', 'version': 3},
     'direction_contribution': {'features': (), 'record': 'direction_contribution',
                                'fields': ('contribution', 'profile_check'), 'version': 1},
     'appearance_target': {'features': ('appearance_target',), 'record': 'appearance_target',
                           'fields': ('visual_features', 'anchor', 'comparison'), 'version': 1},
     'scene_structure': {'features': ('scene_centered',), 'record': 'scene_structure',
                         'fields': ('core_activity', 'operation_locations', 'comparison'), 'version': 1},
-    'design_fit': {'features': ('scene_centered', 'appearance_target'), 'record': 'tone_fit_review', 'version': 1},
+    'design_fit': {'features': ('scene_centered', 'appearance_target'), 'record': 'tone_fit_review', 'version': 2},
     'asset_anchors': {'features': ('asset_family',), 'record': 'asset_anchors',
                       'fields': ('scene_comparison', 'series_production'), 'version': 1},
-    'asset_fit': {'features': ('asset_family',), 'record': 'tone_fit_review', 'version': 1},
+    'asset_fit': {'features': ('asset_family',), 'record': 'tone_fit_review', 'version': 2},
     'implementation_walkthrough': {'features': VISUAL, 'record': 'implementation_walkthrough',
-                                    'fields': ('locations', 'activity_effect', 'corrections'), 'version': 1},
+                                    'fields': ('locations', 'activity_effect', 'preserved_states', 'preservation_basis',
+                                               'design_recheck_states', 'recheck_method', 'corrections'),
+                                    'design_review_stages': ('E-3.2',), 'version': 2},
     'rendering_choice': {'features': VISUAL, 'record': 'rendering_choice',
                          'fields': ('options', 'chosen', 'product_impact'), 'version': 1},
     'appearance_proof': {'features': VISUAL, 'record': 'appearance_proof',
-                         'fields': ('candidate_technology', 'core_scene', 'comparison'), 'version': 1},
+                         'fields': ('candidate_technology', 'core_scene', 'comparison'), 'version': 2},
     'playable_prototype': {'features': MOTION, 'record': 'playable_prototype',
-                           'fields': ('play_instructions', 'timing', 'interruption', 'performance_budget', 'playtest'), 'version': 1},
+                           'fields': ('play_instructions', 'timing', 'interruption', 'performance_budget', 'playtest', 'environment'), 'version': 2},
     'load_test_plan': {'features': ('traffic_peak',), 'record': 'load_test_plan',
                        'fields': ('target', 'basis', 'scenario'), 'version': 1},
     'core_scene_skeleton': {'features': ('appearance_target',), 'record': 'core_scene_skeleton',
-                            'fields': ('core_scene', 'run_instructions'), 'version': 1},
+                            'fields': ('core_scene', 'run_instructions'), 'version': 2},
     'skeleton_fit': {'features': ('appearance_target',), 'record': 'tone_fit_review',
-                     'comparison': FIT_COMPARISON, 'version': 2},
+                     'comparison': FIT_COMPARISON, 'version': 3},
     'increment_fit': {'features': VISUAL, 'record': 'tone_fit_review',
-                      'comparison': FIT_COMPARISON, 'version': 2},
+                      'comparison': FIT_COMPARISON, 'version': 3},
     'direction_acceptance_plan': {'features': ('appearance_target',), 'record': 'direction_acceptance_plan',
                                   'fields': ('direction_comparison', 'screenshot_plan'), 'version': 1},
     'motion_acceptance_plan': {'features': MOTION, 'record': 'motion_acceptance_plan',
@@ -104,6 +106,8 @@ def validate(data, verify_ref):
             require(isinstance(declaration, dict) and set(declaration) == {'value', 'basis'}
                     and declaration['value'] in ('yes', 'no', 'pending') and nonempty(declaration['basis']),
                     sid + ': practice feature needs yes/no/pending and business grounds: ' + name)
+            require(not re.fullmatch(r'<[^>]+>|TODO|TBD|pending|待定|待填', declaration['basis'].strip(), re.I),
+                    sid + ': replace template placeholder with concrete business grounds: ' + name)
         practices = scope.get('practices')
         require(isinstance(practices, dict) and set(practices) == set(PROFESSIONS),
                 sid + ': project-specific practice is needed for each participating profession')
@@ -182,7 +186,7 @@ def professional_contract(registry):
         for stage, declared in sorted(phases.items())
         for key in sorted({key for keys in declared.values() for key in keys})
     ]
-    flow_fields = ('key', 'stages', 'review', 'authority', 'authority_rank', 'upstream')
+    flow_fields = ('key', 'stages', 'review', 'authority', 'authority_rank', 'upstream', 'inherit_upstream')
     body = {
         'schema': 'matrix-expert-framework/1', 'profession': registry['id'],
         'stages': [{key: flow[key] for key in flow_fields if key in flow} for flow in registry.get('stage_flows', [])],

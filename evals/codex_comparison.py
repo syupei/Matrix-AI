@@ -89,6 +89,8 @@ def run(a):
                 '--runner', a.runner] + (['--model', a.model] if a.model else []) + (['--effort', a.effort] if a.effort else []) + (['--resume'] if a.resume else [])
         if getattr(a, 'record_native', False):
             argv.append('--record-native')
+        if getattr(a, 'author_capture', False):
+            argv.append('--author-capture')
         todo.append((case['id'], argv, out / '_logs' / (case['id'] + '.log')))
     print(a.side, len(todo), 'cases to run', flush=True)
     result = pool(todo, a.jobs, a.side)
@@ -120,12 +122,23 @@ def scorer(work, name, prompt, model, output):
     folder = work / 'scorers' / name
     folder.mkdir(parents=True, exist_ok=True)
     (folder / 'prompt.md').write_text(prompt, encoding='utf-8')
+    packet_match = re.search(r'<!-- scoring-packet=(.+) -->', prompt)
+    images = []
+    if packet_match:
+        packet_path = Path(packet_match[1])
+        packet = json.loads(packet_path.read_bytes())
+        (folder/'packet.json').write_bytes(packet_path.read_bytes())
+        for ref in packet['images']:
+            if sha(ref['path']) != ref['sha256']:
+                raise ValueError('scoring image changed after packet preparation')
+            images.append(ref['path'])
     quote = lambda x: "'" + x.replace("'", "'\\''") + "'"
     if RUNNER == 'claude':
         # The scorer works in its own folder and may write only there; its final message is read from the trace.
         argv = ['claude', '-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits'] + (['--model', model] if model else [])
         return name, ['sh', '-c', 'cd ' + quote(str(folder)) + ' && ' + ' '.join(quote(x) for x in argv) + ' < prompt.md'], folder / 'run.log'
     argv = ['codex', 'exec', '--skip-git-repo-check', '--sandbox', 'workspace-write', '--json', '-C', str(folder), '-o', str(folder / 'last.md')]
+    argv += ['--image=' + path for path in images]
     argv += (['-m', model] if model else []) + ['-c', 'model_reasoning_effort="medium"', '-']
     return name, ['sh', '-c', ' '.join(quote(x) for x in argv) + ' < ' + str(folder / 'prompt.md')], folder / 'run.log'
 
@@ -147,14 +160,24 @@ def last_message(folder):
 def collect(folder, output):
     """The scorer's JSON: its output file, or the block it returned between the markers."""
     if output.is_file():
-        return json.loads(output.read_text(encoding='utf-8'))
+        data = json.loads(output.read_text(encoding='utf-8'))
+        validate_visual_inputs(folder)
+        return data
     text = last_message(folder)
     m = re.search(r'=== JSON START ===\s*(.*?)\s*=== JSON END ===', text, re.S)
     if not m:
         raise SystemExit('no scores from ' + folder.name)
     data = json.loads(m.group(1))
     output.write_text(json.dumps(data, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
+    validate_visual_inputs(folder)
     return data
+
+
+def validate_visual_inputs(folder):
+    packet = folder/'packet.json'
+    if packet.is_file():
+        from scoring_packet import verify_received_images
+        verify_received_images(folder, json.loads(packet.read_bytes()))
 
 
 SECOND = '## 本批要复评的判据（你是第二位评分员）'
@@ -178,10 +201,18 @@ def stage_supported(checks, records):
 
 
 def brief(work, ids, recheck=None, title=SECOND):
+    from scoring_packet import prepare
+    packet_path, packet = prepare(work, ids, SUITE, EVALS/'README.md', recheck)
     text = (EVALS / 'scoring-brief.md').read_text(encoding='utf-8')
-    for k, v in {'suite': SUITE, 'readme': EVALS / 'README.md', 'fixtures': EVALS / 'fixtures', 'workspace': work / 'ws',
+    for k, v in {'suite': packet['selected_suite']['path'], 'readme': packet['selected_guide']['path'],
+                 'fixtures': EVALS / 'fixtures', 'workspace': work / 'ws',
                  'output': 'scores.json'}.items():
         text = text.replace('{' + k + '}', str(v))
+    text += '\n<!-- scoring-packet=' + str(packet_path) + ' -->\n'
+    text += '\n本批冻结材料清单与图片顺序\n' + json.dumps(packet, ensure_ascii=False) + '\n'
+    text += '\n本批完整情境定义\n' + Path(packet['selected_suite']['path']).read_text() + '\n'
+    text += '\n本批适用的冻结评分说明\n' + Path(packet['selected_guide']['path']).read_text() + '\n'
+    text += '\n本批完整回复和业务文本成果\n' + Path(packet['business_materials']['path']).read_text() + '\n'
     if recheck:
         return text + '\n\n' + title + '\n\n' + json.dumps(recheck, ensure_ascii=False) + '\n' + CHECK
     return text + '\n\n## 本批情境\n\n' + '、'.join(ids) + '\n' + CHECK
@@ -353,6 +384,7 @@ def main():
     r.add_argument('--out', required=True); r.add_argument('--jobs', type=int, default=4); r.add_argument('--model'); r.add_argument('--effort'); r.add_argument('--cases')
     r.add_argument('--resume', action='store_true', help='later turns resume the first turn\'s session (pilot of E5)')
     r.add_argument('--record-native', action='store_true', help='retain a fresh Codex native session for accounting')
+    r.add_argument('--author-capture', action='store_true', help='provide a preflighted capture-only author command')
     s = sub.add_parser('score'); s.add_argument('--out', required=True); s.add_argument('--work', required=True)
     s.add_argument('--batch', type=int, default=7); s.add_argument('--jobs', type=int, default=3); s.add_argument('--model'); s.add_argument('--cases', help='explicit approved subset; retains every normal recheck condition')
     m = sub.add_parser('assemble'); m.add_argument('--out', required=True); m.add_argument('--work', required=True)

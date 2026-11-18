@@ -90,7 +90,7 @@ class TeamTests(unittest.TestCase):
         self.assertEqual(before, self.task('D-1')['work_revision'])
         with self.assertRaises(pm.TaskError):
             self.update('D-1', people={'decide': ['pm-lead']})  # reassigning a decider needs manager authority
-        self.update('D-1', authorization='SIMULATED designation recorded by the project lead', people={'decide': ['pm-lead']})
+        self.update('D-1', actor='SIM-PM', authorization='SIMULATED designation recorded by the project lead', people={'decide': ['pm-lead']})
 
     def test_stage_reference_must_be_a_stage(self):
         self.create('W', title='work')

@@ -12,7 +12,7 @@ from visual_evidence import IMAGE_MAGIC
 
 SIDES = ('baseline', 'candidate')
 COMPLETION = {'codex exec': 'turn.completed', 'claude -p': 'result'}
-ENVIRONMENT = ('runner', 'cli_version', 'model', 'effort', 'turns')
+ENVIRONMENT = ('runner', 'cli_version', 'model', 'effort', 'turns', 'author_capture_revision')
 INPUTS = 'scoring-inputs.json'
 
 
@@ -62,7 +62,7 @@ def run_record(out, side, case, suite_hash, expected=None):
     require(run.get('source_hash') and (expected is None or run['source_hash'] == expected),
             'run source mismatch: ' + prefix)
     runner = run.get('runner')
-    require(runner in COMPLETION and all(run.get(key) for key in ENVIRONMENT), 'run environment missing: ' + prefix)
+    require(runner in COMPLETION and all(run.get(key) for key in ENVIRONMENT[:-1]), 'run environment missing: ' + prefix)
     records = run.get('cases')
     require(isinstance(records, list) and len(records) == 1 and records[0].get('id') == cid,
             'wrong case in run: ' + prefix)
@@ -110,7 +110,7 @@ def paired(out, cases, suite_hash, sources=None):
         by_side[side] = set()
         for case in cases:
             run, saved = run_record(out, side, case, suite_hash, sources[side] if sources else None)
-            environments.add(tuple(run[key] for key in ENVIRONMENT))
+            environments.add(tuple(run.get(key) for key in ENVIRONMENT))
             by_side[side].add(run['source_hash'])
             runs.setdefault(case['id'], {})[side] = saved
     require(len(environments) == 1, 'paired runs must match runner, CLI version, model, effort and turn mode')
@@ -197,7 +197,8 @@ def summarize(args, suite_path, release_manifests):
     require(args.reviewer.strip(), 'review attribution is required')
     suite_bytes = suite_path.read_bytes()
     suite_hash = hashlib.sha256(suite_bytes).hexdigest()
-    suite = json.loads(suite_bytes)['cases']
+    suite_data = json.loads(suite_bytes)
+    suite = suite_data['cases']
     cases = select(suite, args.cases)
     require(len(cases) < len(suite), 'limited summary requires a strict subset of the suite')
     require(Path(args.baseline_ref).name == args.baseline_ref, 'baseline ref must be a release name')
@@ -222,6 +223,12 @@ def summarize(args, suite_path, release_manifests):
                                                    'errors': read(out / path)['errors']})
     ids = [case['id'] for case in cases]
     omitted = [case['id'] for case in suite if case['id'] not in ids]
+    capability_groups = {}
+    for name, selected in (('existing_behaviors', [cid for cid in ids if cid != 'genre_dice']),
+                           ('added_product_direction_routing', [cid for cid in ids if cid == 'genre_dice'])):
+        capability_groups[name] = {'cases': selected, 'first_scorer_scores': {
+            side: {'met': sum(sum(scores['cases'][cid][side].values()) for cid in selected),
+                   'criteria': sum(len(scores['cases'][cid][side]) for cid in selected)} for side in SIDES}}
     scoring_files = [work / name for name in (INPUTS, 'labels.json', 'merged.json', 'recheck.json', 'second.json', 'combined.json')]
     scorer_dir = work / 'scorers'
     raw_scores = evidence(out, scorer_dir)
@@ -234,6 +241,7 @@ def summarize(args, suite_path, release_manifests):
                    'baseline_ref': args.baseline_ref, 'baseline_hash': sources['baseline'],
                    'candidate_hash': sources['candidate'], 'candidate_files': files, 'suite_hash': suite_hash,
                    'suite_snapshot': {'path': snapshot.name, 'sha256': suite_hash}, 'reviewer': args.reviewer,
+                   'rubric_revision': suite_data.get('rubric_revision'), 'capability_groups': capability_groups,
                    'environment': inputs['environment'], 'selected_cases': ids, 'not_run_cases': omitted,
                    'coverage': {'suite_cases': len(suite), 'paired_cases': len(ids), 'not_run': len(omitted)},
                    'scoring_files': saved_scores | raw_scores,

@@ -11,7 +11,7 @@ from scoring import audit_records
 CLAIMS = {
     'draft': re.compile(r'已(?:生成|形成|保存|写(?:入|好|成)|落盘|交付)[^\n。；]{0,24}(?:草稿|草案|规格)|(?:草稿|草案)[^\n。；]{0,12}已(?:保存|落盘|生成)'),
     'feedback': re.compile(r'已(?:记录|登记|记下)|已(?:将|把)[^\n。；]{0,70}(?:登记|写入|记入|记录在)'),
-    'direction': re.compile(r'已(?:完成|生成|保存|提交|交付|做好|写入|创建|准备好)[^\n。；]{0,45}(?:样张|方向稿|原型|预览)|(?:样张|方向稿|原型|预览)[^\n。；]{0,30}已(?:完成|生成|保存|提交|交付|做好|写入|创建)'),
+    'direction': re.compile(r'(?:已(?:经)?(?:完成|生成|保存|提交|交付|做好|写入|创建|准备好)|做好了)[^\n。；]{0,45}(?:样张|方向稿|原型|预览)|(?:样张|方向稿|原型|预览)[^\n。；]{0,30}(?:已(?:经)?(?:完成|生成|保存|提交|交付|做好|写入|创建)|做好了)'),
 }
 LINK = re.compile(r'(?<!!)\[[^\]\n]+\]\(\s*(?:<([^>\n]+)>|([^\s)]+))\s*\)')
 DIRECTION_CASES = {'genre_dice', 'genre_card', 'genre_business'}
@@ -22,6 +22,8 @@ TONE_PRODUCT_ENTRY = Path('kit/.agents/skills/matrix-product/scripts/tone_contra
 TONE_FILE = 'product/specs/00-方向样张.md'
 PREVIEW_TYPES = {'.html', '.htm', '.svg'}
 IMAGE_TYPES = {'.png', '.jpg', '.jpeg', '.webp'}
+REPORTED_IMAGE_PATH = re.compile(r'(?:(?:/(?:[^\s`<>"\[\]()，。；]+/)*))?(?:design|product|content|shared|management)/[^\s`<>"\[\]()，。；]+\.(?:html?|svg|png|jpe?g|webp)\b', re.I)
+COMPLETED = re.compile(r'已(?:经)?(?:完成|生成|保存|提交|交付|做好|写入|创建)|做好了')
 
 
 def snapshot(root, kind=None):
@@ -190,6 +192,7 @@ def check_delivery(root, value, contract, allowed_preview, after):
 
 def trusted_direction_tools(root):
     """Verify the shared checker and its product entry against the installed manifest."""
+    root = Path(root).resolve()
     kit = root / 'kit'
     try:
         files = json.loads((kit / 'MANIFEST.json').read_text(encoding='utf-8'))['files']
@@ -206,6 +209,7 @@ def trusted_direction_tools(root):
 
 
 def direction_readback(root, preview, after, calls):
+    root = Path(root).resolve()
     receipts, reads = [], []
     trusted_tools = trusted_direction_tools(root)
     for record, output in calls:
@@ -248,18 +252,23 @@ def direction_readback(root, preview, after, calls):
 
 
 def check_direction(root, reply, events, before, after, preview, expects_receipt):
+    root = Path(root).resolve()
     changed = {path for path, digest in after.items() if before.get(path) != digest}
     links = [path for left, right in LINK.findall(reply)
              if (path := project_path(left or right, root, DIRECTION_DIRS))
              and Path(path).suffix.lower() in PREVIEW_TYPES | IMAGE_TYPES]
+    reported_paths = sorted({path for match in REPORTED_IMAGE_PATH.finditer(reply)
+                             if (path := project_path(match.group(), root, DIRECTION_DIRS))})
     claims = [match.group() for match in CLAIMS['direction'].finditer(reply)]
+    if preview in reported_paths:
+        claims.extend(match.group() for match in COMPLETED.finditer(reply) if match.group() not in claims)
     screenshot_claims = [match.group() for match in SCREENSHOT_CLAIM.finditer(reply)]
     receipts, reads = direction_readback(root, preview, after, successful(events, reply))
     pictures = sorted(path for path in changed if Path(path).suffix.lower() in IMAGE_TYPES
                       and (path in links or path.startswith('design/')) and valid_picture(root, path))
     receipt_captures = [receipt['delivery']['capture'] for receipt in receipts]
-    errors = [f'方向链接不存在: {path}' for path in links if path not in after]
-    if claims or preview in links or receipts:
+    errors = [f'方向链接或所报路径不存在: {path}' for path in sorted(set(links) | set(reported_paths)) if path not in after]
+    if claims or preview in links or preview in reported_paths or receipts:
         rendered_source = preview in changed and re.search(r'<(?:!doctype html|html|body|main|div|svg|canvas|button)\b',
                                                            (root / preview).read_text(encoding='utf-8', errors='replace'), re.I)
         if not rendered_source:
@@ -270,6 +279,7 @@ def check_direction(root, reply, events, before, after, preview, expects_receipt
             errors.append('缺作者答复前的成功预览回读或相关实际截图')
     if screenshot_claims and not (pictures or any(capture['kind'] == 'screenshot' for capture in receipt_captures)):
         errors.append('缺作者答复前的实际截图，评测宿主稍后截图不补证作者声明')
-    return {'kind': 'direction', 'preview': preview, 'claims': claims, 'links': links, 'changed': sorted(changed),
+    return {'kind': 'direction', 'preview': preview, 'claims': claims, 'links': links,
+            'reported_paths': reported_paths, 'changed': sorted(changed),
             'receipts': receipts, 'observed_preview_reads': reads, 'screenshot_claims': screenshot_claims,
             'pre_final_pictures': pictures, 'errors': errors}

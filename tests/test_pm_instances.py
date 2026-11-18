@@ -40,6 +40,9 @@ class Fixture:
         self.call('init', 'PM', config=dict(project='SIMULATED', pm_actor='PM', authorization='SIMULATED only',
                                              frontdoor_id='SIMULATED', max_slots=8))
         self.write('model-fit.json', MODELS)
+        rule = self.root/'matrix/base/MATRIX.md'
+        rule.parent.mkdir(parents=True,exist_ok=True)
+        rule.write_bytes((KIT/'matrix/base/MATRIX.md').read_bytes())
 
     def write(self, name, data):
         (self.root / 'management' / name).write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
@@ -74,7 +77,7 @@ class Fixture:
 
     def create(self, tid, parent=None, actor=None, **kw):
         data = dict(id=tid, parent=parent, title='SIM ' + tid, owner='code-engineering-001', checker='quality-engineering-001',
-                    goal='SIMULATED delivery', inputs=['SIM v1'], outputs=['SIM output'], criteria=['SIM correct'], next_action='SIM next')
+                    goal='SIMULATED delivery', inputs=['matrix/base/MATRIX.md'], outputs=['SIM output'], criteria=['SIM correct'], next_action='SIM next')
         data.update(kw)
         data.setdefault('executor', data['owner'])
         if 'practice_stage' not in data and data.get('kind', 'work') == 'work':
@@ -294,10 +297,10 @@ class Levels(Fixture, unittest.TestCase):
             self.create('HARD', 'P', owner='code-engineering-002', difficulty='T5', checker='code-engineering-001')
         self.create('W', 'P', owner='code-engineering-002', difficulty='T4', checker='code-engineering-001')
         with self.assertRaisesRegex(pm.TaskError, 'below difficulty'):
-            self.mutate('update', 'W', changes={'difficulty': 'T6'}, reason='SIM harder', scope_authorization='SIM master decision')
-        with self.assertRaisesRegex(pm.TaskError, 'manager authorization'):
+            self.mutate('update', 'W', 'code-engineering-001', changes={'difficulty': 'T6'}, reason='SIM harder', scope_authorization='SIM master decision')
+        with self.assertRaisesRegex(pm.TaskError, 'production_feedback'):
             self.mutate('update', 'W', changes={'difficulty': 'T3'}, reason='SIM relabel')
-        self.mutate('update', 'W', 'code-engineering-002', changes={'difficulty': 'T3'}, reason='SIM split: interface part moved out', scope_authorization='SIM master split')
+        self.mutate('update', 'W', 'code-engineering-001', changes={'difficulty': 'T3'}, reason='SIM split: interface part moved out', scope_authorization='SIM master split')
         lowering = [e for e in pm.execute(self.root, {'op': 'events', 'limit': 1000, 'full': True})['events'] if e['command'].get('changes', {}).get('difficulty') == 'T3']
         self.assertEqual('SIM split: interface part moved out', lowering[0]['command']['reason'])
         with self.assertRaisesRegex(pm.TaskError, 'difficulty must be'):
@@ -324,7 +327,8 @@ class Levels(Fixture, unittest.TestCase):
             task = dict(id='X', parent=None, title='SIM', owner='OLD', checker='C', goal='g', inputs=['i'], outputs=['o'], criteria=['c'], next_action='n')
             with self.assertRaisesRegex(pm.TaskError, 'has no level'):
                 pm.execute(root, dict(op='create', actor='PM', event_id='L3', task=dict(task, difficulty='T3')))
-            pm.execute(root, dict(op='create', actor='PM', event_id='L4', task=task))
+            rule=root/'matrix/base/MATRIX.md';rule.parent.mkdir(parents=True,exist_ok=True);rule.write_bytes((KIT/'matrix/base/MATRIX.md').read_bytes())
+            pm.execute(root, dict(op='create', actor='PM', event_id='L4', task=dict(task,inputs=['matrix/base/MATRIX.md'])))
 
     def test_project_tasks_from_the_pm_go_to_the_master(self):
         with self.assertRaisesRegex(pm.TaskError, 'project-level tasks go to the master'):
@@ -339,14 +343,14 @@ class Levels(Fixture, unittest.TestCase):
         self.create('T-1', owner='code-engineering-001', risk='F1', risk_reason='SIM billing')
         changes = dict(changes={'risk': 'F3'}, reason='SIM relabel', scope_authorization='SIM PM decision')
         with self.assertRaisesRegex(pm.TaskError, 'person and exact quote'):
-            self.mutate('update', 'T-1', **changes)
+            self.mutate('update', 'T-1', 'PM', **changes)
         (self.root / 'management/people.json').write_text(json.dumps({'people': [
             {'id': 'boss', 'name': 'BOSS', 'decides': ['project']}, {'id': 'dev', 'name': '工程师'}]}))
         with self.assertRaisesRegex(pm.TaskError, 'no decision authority'):
-            self.mutate('update', 'T-1', person='dev', quote='SIMULATED ok', **changes)
-        self.mutate('update', 'T-1', person='boss', quote='SIMULATED: 这个只是展示，降到 F3', **changes)
+            self.mutate('update', 'T-1', 'PM', person='dev', quote='SIMULATED ok', **changes)
+        self.mutate('update', 'T-1', 'PM', person='boss', quote='SIMULATED: 这个只是展示，降到 F3', **changes)
         self.assertEqual('F3', self.t('T-1')['risk'])
-        self.mutate('update', 'T-1', changes={'risk': 'F4'}, reason='SIM minor', scope_authorization='SIM PM decision')  # below F1 needs no person
+        self.mutate('update', 'T-1', 'PM', changes={'risk': 'F4'}, reason='SIM minor', scope_authorization='SIM PM decision')  # below F1 needs no person
 
     def test_dispatcher_is_the_manager_and_cannot_be_changed(self):
         self.create('T-1', owner='code-engineering-001')
@@ -492,7 +496,7 @@ class Independence(Fixture, unittest.TestCase):
         self.assertEqual('not_independent', self.independence('F1'))
         with self.assertRaisesRegex(pm.TaskError, r'F1 work needs an independent check \(recorded: not_independent\): assign another checker'):
             self.close('F1')  # quality-engineering-001 runs another model
-        self.mutate('update', 'F1', changes={'checker': 'quality-engineering-001'}, reason='SIM other model', scope_authorization='SIM master')
+        self.mutate('update', 'F1', self.t('F1')['manager'], changes={'checker': 'quality-engineering-001'}, reason='SIM other model', scope_authorization='SIM master')
         self.check('F1')
         self.assertEqual('not_independent', self.independence('F1'))  # configured for another model, but no recorded run shows it
         self.checking('F1', 'SIM-big')

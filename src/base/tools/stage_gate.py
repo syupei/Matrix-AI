@@ -24,7 +24,11 @@ def load_flows(directory=PROFESSIONS):
             review[key]=set(flow.get('review',[]))
             if flow.get('authority'):authority[key]=set(flow['authority'])
             if 'authority_rank' in flow:rank[key]=flow['authority_rank']
-            for stage,(up,up_stage) in flow.get('upstream',{}).items():upstream[(key,stage)]=(up,up_stage)
+            inherited = None
+            for stage in flow['stages']:
+                if stage in flow.get('upstream', {}):inherited = tuple(flow['upstream'][stage])
+                if stage in flow.get('upstream', {}) or flow.get('inherit_upstream') and inherited:
+                    upstream[(key,stage)] = inherited
     # Upstream first: a confirmation may come from a decider of this flow or of any flow above it.
     chain=['project']+sorted(rank,key=rank.get)
     return stages,review,chain,authority,upstream
@@ -48,11 +52,18 @@ def upstream_check(root, role, current, state, registry_root=None):
     if need:
         if not state.get('upstream'):
             raise ValueError('upstream review record required: %s %s' % need)
-        up = json.loads(checked_file(root, state['upstream']).read_text())
+        upstream_root = root
+        if state.get('upstream_bundle'):
+            upstream_root, manifest = tone.evidence.verify_bundle(registry_root or root, state['upstream_bundle'])
+            if manifest['context'].get('state_path') != state['upstream']:
+                raise ValueError('upstream snapshot does not bind the required review state')
+        up = json.loads(checked_file(upstream_root, state['upstream']).read_text())
+        if state.get('tone_contract') and up.get('tone_contract') != state['tone_contract']:
+            raise ValueError('upstream review is for a different confirmed tone contract')
         if (up.get('role'), up.get('current')) != need:
             raise ValueError('upstream record is not the required review: %s %s' % need)
         try:
-            check(root, up, conversation=False, registry_root=registry_root)
+            check(upstream_root, up, conversation=False, registry_root=registry_root or root, seal=False)
         except (ValueError, KeyError, TypeError) as error:
             raise ValueError('upstream review not confirmed or changed: ' + str(error)) from error
     return need
@@ -64,7 +75,7 @@ def check_entry(root, state):
         raise ValueError('dispatch must name a registered professional stage')
     profession, requirements = framework(root, role, stage)
     upstream_check(root, role, stage, state)
-    triggered = tone.check_stage(root, state, [], requirements, phase='entry')
+    triggered = tone.check_stage(root, state, [], requirements, phase='entry', registry_root=root)
     return {'profession': profession, 'triggered': triggered}
 
 def framework_outputs(root, state, result, registry_root=None):
@@ -105,7 +116,8 @@ def artifact_digest(root,artifacts):
     for a in artifacts:
         actual=digest(checked_file(root,a['path']))
         if a.get('sha256')!=actual:raise ValueError('artifact changed: '+a['path'])
-        pairs.append([a['path'],actual])
+        reviewed = tone.direction_binding(tone.DEFAULT_PATH,tone.read(root,tone.DEFAULT_PATH))['direction_sha256'] if a['path'] == tone.DEFAULT_PATH else actual
+        pairs.append([a['path'],reviewed])
     if len({p[0] for p in pairs})!=len(pairs):raise ValueError('duplicate artifact')
     return hashlib.sha256(json.dumps(sorted(pairs),ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
 
@@ -121,7 +133,7 @@ def deciding_person(root,role,reply):
     if not allowed&set(people[pid].get('decides',[])):raise ValueError('person has no decision authority for this flow or its upstream')
     return pid
 
-def check(root,state,conversation=True,registry_root=None):
+def check(root,state,conversation=True,registry_root=None,seal=True):
     root=Path(root).resolve();role=state['role'];stages=STAGES[role]
     current=state['current'];following=state['next']
     if current not in stages[:-1] or stages[stages.index(current)+1]!=following:raise ValueError('invalid or skipped stage transition')
@@ -148,20 +160,50 @@ def check(root,state,conversation=True,registry_root=None):
         if req.get('artifact_sha256')!=content_hash or set(req.get('scope',[]))!=set(scope):raise ValueError('request content or scope is stale')
         shown=checked_file(root,req['display_evidence'])
         if not shown.read_text().strip():raise ValueError('missing displayed review evidence')
+        if req.get('display_sha256') != digest(shown):raise ValueError('displayed review evidence changed or was not frozen')
         if reply.get('actor') not in {'user','person'} or reply.get('choice')!='confirm':raise ValueError('explicit human confirmation required')
         person=deciding_person(root,role,reply)
         if reply.get('request_id')!=req['request_id'] or reply.get('artifact_sha256')!=content_hash or set(reply.get('scope',[]))!=set(scope):raise ValueError('reply is stale or partially scoped')
         evidence=checked_file(root,reply['source'])
         if not evidence.read_text().strip():raise ValueError('response source is empty')
+        message = tone.evidence.response_message(root, reply['source'], reply.get('response_id'))
+        if reply.get('quote') != message:raise ValueError('reply quote must equal the complete response message')
+        if reply.get('display_sha256') != req['display_sha256']:raise ValueError('reply is bound to another display')
+        if reply.get('message_sha256') != tone.evidence.digest(message):raise ValueError('reply message changed')
     need=upstream_check(root, role, current, state, registry_root)
     profession, requirements = framework(registry_root or root, role, current)
-    triggered = tone.check_stage(root, state, state['artifacts'], requirements)
+    triggered = tone.check_stage(root, state, state['artifacts'], requirements, registry_root=registry_root or root, seal=seal)
     result={'allowed':True,'role':role,'from':current,'to':following,'scope':scope,'artifact_sha256':content_hash,'limitation':'Validates records and files, not human identity or professional quality.'}
     if triggered:
         result['framework'] = {'profession': profession, 'triggered': triggered, 'tone_contract': state['tone_contract']}
     result.update(delegated)
     if current in REVIEW[role] and person:result['confirmed_by']=person
     if need:result['upstream']=state['upstream']
+    if seal:
+        # Only a successful check creates a frozen closure. Persist returned refs for later stages.
+        token = tone.evidence.digest(state)
+        state_path = 'management/stage-reviews/' + token + '/state.json'
+        dest = Path(root) / state_path
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        body = json.dumps(state, ensure_ascii=False, sort_keys=True, indent=2) + '\n'
+        if dest.exists() and dest.read_text(encoding='utf-8') != body:raise ValueError('stage review state is immutable')
+        dest.write_text(body, encoding='utf-8')
+        refs = [tone.evidence.ref(root, state_path), *state['artifacts']]
+        for key in ('request', 'response', 'conversation_check', 'tone_fit_review'):
+            if state.get(key):refs.append(tone.evidence.ref(root, state[key]))
+        if current in REVIEW[role] and not delegated:
+            refs.extend([tone.evidence.ref(root, req['display_evidence']), tone.evidence.ref(root, reply['source'])])
+        # Historical entries live in their own verified bundles. They may reference an older
+        # version of the same logical source path, so never merge them into the current view.
+        current_refs = [state['tone_contract']] if state.get('tone_contract') else []
+        for key in requirements.get('complete', []):
+            current_refs.extend(state.get('practice_evidence', {}).get(key, {}).values())
+        current_files = tone.evidence.closure(root, current_refs) if current_refs else {}
+        refs.extend({'path':name,'sha256':sha} for name,sha in current_files.items())
+        result['review_bundle'] = tone.evidence.seal_bundle(root, refs,
+            {'role':role, 'stage':current, 'scope':scope, 'tone_contract':state.get('tone_contract'), 'state_path':state_path},follow_refs=False)
+        result['upstream_state'] = state_path
+        result['practice_evidence'] = state.get('practice_evidence', {})
     return result
 
 def digests(root,paths):

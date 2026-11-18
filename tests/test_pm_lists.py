@@ -9,6 +9,7 @@ import tempfile
 import unittest
 
 from kit import KIT
+from practice_fixture import installed_rule_input, direction, approve, put, pm_closed_fixture
 SOURCE = KIT
 spec = importlib.util.spec_from_file_location('pm_lists_under_test', SOURCE / 'matrix/orchestration/tools/pm_tasks.py')
 pm = importlib.util.module_from_spec(spec)
@@ -35,6 +36,7 @@ class Fixture:
         tmp = tempfile.TemporaryDirectory(prefix='pm-lists-simulation-')
         self.addCleanup(tmp.cleanup)
         self.root = Path(tmp.name).resolve()
+        self.rule_input=installed_rule_input(self.root,KIT)
         (self.root / 'management').mkdir(parents=True, exist_ok=True)
         for name, data in [('model-fit.json', MODELS), ('instance-config.json', TEAM), ('people.json', PEOPLE)]:
             (self.root / 'management' / name).write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
@@ -45,6 +47,11 @@ class Fixture:
             for _ in range(e['count']):
                 self.call('derive', entry=e['id'], endpoint='SIM-handle-' + str(self.n))
         # code-engineering-001 (T7 master), -002/-003 (T4); quality-engineering-001 (T6 master); product-001 (T7 master), product-002 (T5)
+        tone=pm.admission.load_gate().tone
+        self.contract,data=direction(self.root,tone,label='Synthetic static task-list mechanism; no interactive product activity')
+        approve(self.root,tone,data,person='boss')
+        self.contract=put(self.root,tone.DEFAULT_PATH,'```tone-contract\n'+json.dumps(data)+'\n```\n')
+        pm_closed_fixture(self.root,tone,data)
 
     def call(self, op, actor='PM', **kw):
         self.n += 1
@@ -55,7 +62,7 @@ class Fixture:
 
     def create(self, tid, parent=None, **kw):
         data = dict(id=tid, parent=parent, title='SIM ' + tid, owner='code-engineering-001', checker='quality-engineering-001', goal='SIMULATED',
-                    inputs=['SIM v1'], outputs=['SIM output'], criteria=['SIM correct'], next_action='SIM next ' + tid)
+                    inputs=[self.rule_input], outputs=['SIM output'], criteria=['SIM correct'], next_action='SIM next ' + tid)
         data.update(kw)
         data.setdefault('executor', data['owner'])
         if data.get('kind', 'work') == 'work':
@@ -64,7 +71,7 @@ class Fixture:
             elif data['owner'].startswith('product-'):
                 data.setdefault('practice_stage', {'role':'product','current':'P-4','scope':['SIM login behavior']})
             elif data['owner'].startswith('quality-engineering-'):
-                data.setdefault('practice_stage', {'role':'quality','current':'Q-2','scope':['SIM login verification']})
+                data.setdefault('practice_stage', {'role':'quality','current':'Q-2','scope':['SIM login verification'],'tone_contract':self.contract})
         return self.call('create', 'PM' if parent is None else self.t(parent)['owner'], task=data)
 
     def mutate(self, op, tid, actor=None, **kw):
