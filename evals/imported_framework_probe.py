@@ -26,7 +26,10 @@ IDENTITY = {'id': 'imported-product-v037', 'version': '4'}
 PROJECT_ID = 'SIM-IMPORTED-PRODUCT-037-ROUND2-REPAIR'
 MODEL, EFFORT, RUNNER = 'gpt-6-luna', 'medium', 'codex'
 TEMPLATE = REPO / 'docs/platforms/codex-0.167.0.json'
-LEDGER = REPO / 'eval-results/v0.37-round2-import-call-ledger'
+# Fresh user authorization (2026-11-18): one author/checker pair, 1800s each.
+# Keep the previous 600s failure and its consumed reservations immutable.
+LEDGER = REPO / 'eval-results/v0.37-round2-import-1800-call-ledger'
+SESSION_TIMEOUT = 1800
 AUTHOR, REVIEWER = 'ADMISSION', 'SIM-INDEPENDENT-REVIEWER'
 TASK_ID = 'SIM-ADMISSION-037-REPAIR'
 STAGE_STATE = 'product/reviews/P-1-gate.json'
@@ -452,9 +455,10 @@ def run_session(out, project, boundary, iid, runner, prompt, phase, started=None
     images = [Path(arg.removeprefix('--image=')) for arg in command if arg.startswith('--image=')]
     require(images,'actual input image required')
     write_json(out / f'{phase}.command.json', {'argv': command, 'cwd': str(cwd), 'model': MODEL, 'effort': EFFORT,
+                                               'timeout_seconds': SESSION_TIMEOUT,
                                                'image_inputs': [{'path':str(image),'sha256':sha(image)} for image in images]})
     with (out / f'{phase}.stdout.jsonl').open('w', encoding='utf-8') as stdout, (out / f'{phase}.stderr.log').open('w', encoding='utf-8') as stderr:
-        result = boundary.run(project, iid, [], prompt, timeout=600, stdout=stdout, stderr=stderr,
+        result = boundary.run(project, iid, [], prompt, timeout=SESSION_TIMEOUT, stdout=stdout, stderr=stderr,
                               started=started, adapter=runner['adapter'], model=MODEL, effort=EFFORT, template=runner)
     write_json(out / f'{phase}.process.json', result)
     return result
@@ -847,6 +851,7 @@ def execute(kit, out, freeze_sha256):
     require(source_record.get('synthetic') is True and source_record['source_context']==plan['source_context'], 'explicit synthetic source context changed')
     require(all(sha(project/path)==expected for path,expected in source_record['files'].items()),'prepared admitted source bytes changed')
     reserve(LEDGER / 'execution.json', {'out': str(out), 'kit_manifest_sha256': freeze_sha256, 'max_sessions': 2,
+                                       'timeout_seconds': SESSION_TIMEOUT,
                                        'authorization_scope': 'v0.37 repaired candidate-only imported product; fresh author and independent reviewer; no retry'})
     try:
         author, public, base = run_author(pm, project, out, boundary, runner, binding,plan['source_context'])

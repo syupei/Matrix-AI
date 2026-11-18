@@ -27,6 +27,27 @@ finally:
 
 
 class ImportedFrameworkProbe(unittest.TestCase):
+    def test_authorized_timeout_is_recorded_and_does_not_retry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            image = root / 'input.png'
+            image.write_bytes(b'synthetic-image-for-command-binding')
+            calls = []
+            stopped = dict(exit_code=-15, timed_out=True, stopped=True)
+            def run(*args, **kwargs):
+                calls.append(kwargs)
+                return stopped
+            boundary = SimpleNamespace(safe_workspace=lambda project, iid: root,
+                command_template=lambda *args: (['synthetic', '--image='+str(image), '-'], root, None, None),
+                run=run)
+            result = probe.run_session(root, root, boundary, 'SIM', {'adapter':'kernel'},
+                'synthetic prompt, no model', 'author')
+            self.assertEqual(stopped, result)
+            self.assertEqual(1, len(calls))
+            self.assertEqual(1800, calls[0]['timeout'])
+            self.assertEqual(1800, probe.read_json(root/'author.command.json')['timeout_seconds'])
+            self.assertTrue(probe.read_json(root/'author.process.json')['timed_out'])
+
     def test_reservation_keeps_first_session_and_refuses_reuse(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'ledger/author.json'
