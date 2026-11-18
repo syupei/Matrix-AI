@@ -56,6 +56,9 @@ class Experts(Fixture, unittest.TestCase):
         contract=self.e.framework_contract(pm.api(),self.root,profession)
         mapping=[dict(stage=row['stage'],requirement=row['requirement'],source=dict(path='SKILL.md',section='SIM professional method'),
                       adapted_method='Use SIM professional method',records=[row['definition']['record']]) for row in contract['requirements']]
+        for row, requirement in zip(mapping, contract['requirements']):
+            if requirement['definition'].get('submission'):
+                row['pre_review_check']=requirement['definition']['submission']
         review=dict(reviewer='SIM',source_entry='SKILL.md',license='SIM permission',preserved_methods='SIM method',
                     directory_changes='SIM destinations mapped',dependencies='none',framework_mapping=mapping)
         return dict(self.ident,methods='Use SIM professional method. Save under workspace/private/ or workspace/public/.',review=review)
@@ -609,6 +612,14 @@ class Experts(Fixture, unittest.TestCase):
         self.assertEqual('blocked',result['state'])
         with self.assertRaisesRegex(ValueError,'adaptation must be complete'):
             self.e.admission_binding(pm.api(),self.root,self.ident)
+
+    def test_design_mapping_must_include_pre_review_comparison_check(self):
+        self.write('expert-professions.json',dict(schema='matrix-expert-professions/1',professions=['experience-design'],configured_by='SIM',authorization='SIM design'))
+        params=self.prepare_params('experience-design')
+        row=next(row for row in params['review']['framework_mapping'] if (row['stage'],row['requirement'])==('D-4','asset_anchors'))
+        row.pop('pre_review_check')
+        result=self.e.adapt(pm.api(),self.root,params)
+        self.assertEqual('blocked',result['state'])
 
     def test_design_d4_missing_anchor_record_is_rejected_by_common_gate(self):
         self.package()

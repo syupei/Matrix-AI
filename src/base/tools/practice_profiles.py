@@ -7,6 +7,8 @@ import re
 
 
 SCHEMA = 'matrix-practice-profile/1'
+ASSET_PLACEHOLDERS = {'无', 'none', 'n/a', 'na', '-', '稍后', '待补', '待补充', '待对照', '待比较',
+                      'todo', 'tbd', 'to be compared', 'compare later', 'pending', '待定', '不适用', '同上', '以后再看', '稍后对照'}
 FEATURES = (
     'scene_centered', 'appearance_target', 'asset_family', 'direct_manipulation',
     'continuous_animation', 'timing_feedback', 'traffic_peak',
@@ -39,7 +41,9 @@ REQUIREMENTS = {
                       'fields': ('scene_comparison', 'series_production'),
                       'comparison': {'fields': ('confirmed_features','rows','review_page','scene_sample'),
                                      'row_fields': ('feature','reference','reference_observation','anchor','anchor_observation','status','difference'),
-                                     'statuses': ('achieved','close','unmet')}, 'version': 2},
+                                     'statuses': ('achieved','close','unmet')},
+                      'submission': {'command':'tone_contract.py --asset-comparison',
+                                     'receipt':'asset-comparison-receipt/1','before':'review B'}, 'version': 3},
     'asset_fit': {'features': ('asset_family',), 'record': 'tone_fit_review', 'version': 3},
     'implementation_walkthrough': {'features': VISUAL, 'record': 'implementation_walkthrough',
                                     'fields': ('locations', 'activity_effect', 'preservation_basis', 'recheck_method'),

@@ -33,4 +33,4 @@ implementation_walkthrough仍写scope、tone_contract、实际artifacts及locati
 
 不能用“无”几句空话代逐状态记录。PM下D6快照须来自真实已关闭的设计专业D-6任务；E-3.2的design_review:{bundle,state_path}引用它并覆盖本次实现。纯设计的implementation_handoff须有实际依据和全部artifacts，不拿design_only豁免实现交回；D-6自身不重复填design_review。这些是既有走查/复核的证据结构，不加人审节点。
 
-本轮tone_contract/方向贴合、设计/素材贴合、外观试做/骨架、骨架/增量贴合、走查和实际试玩的共同定义版本已变；导入专家须按当前professional_contract重做对应映射与验证，旧摘要不静默沿用。未改变的asset_anchors不增加关卡。
+导入专家按当前professional_contract映射并验证各阶段共同记录；定义变化后旧摘要不静默沿用。D-4交审与完成均核[锚点对照回执](ASSET-COMPARISON.md)。

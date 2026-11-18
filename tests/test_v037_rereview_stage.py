@@ -73,6 +73,12 @@ class StageRegressions(unittest.TestCase):
         digest=gate.artifact_digest(self.root,artifacts)
         prefix='reviews/stage-'+str(self.serial)
         shown=self.put(prefix+'-display.md','Displayed all synthetic stage artifacts')
+        if role=='design' and stage=='D-4' and extra.get('practice_evidence',{}).get('asset_anchors'):
+            receipts={}
+            for sid, record in extra['practice_evidence']['asset_anchors'].items():
+                result=tone.asset_comparison_receipt(self.root,record['path'])
+                receipts[sid]=result['asset_comparison_receipt'];shown=result['review_page']
+            extra['asset_comparison_receipts']=receipts
         message='Confirmed synthetic stage '+str(self.serial)
         reply=self.put(prefix+'-human.md',message)
         request=self.put(prefix+'-request.json',dict(request_id=prefix,role=role,stage=stage,scope=['board'],artifact_sha256=digest,display_evidence=shown['path'],display_sha256=shown['sha256']))
@@ -124,6 +130,19 @@ class StageRegressions(unittest.TestCase):
         self.assertTrue(gate.check(view,saved,registry_root=self.root,seal=False)['allowed'])
         next_state=dict(role='build',current='E-3.1',scope=['board'],tone_contract=self.contract,upstream=result['upstream_state'],upstream_bundle=result['review_bundle'])
         self.assertTrue(gate.check_entry(self.root,next_state))
+
+        # New decisions use current time; successful historical decisions use their
+        # sealed check timestamp, including the next stage's upstream replay.
+        from datetime import datetime, timezone
+        from unittest.mock import patch
+        class Future(datetime):
+            @classmethod
+            def now(cls,tz=None):return cls(2100,1,1,tzinfo=timezone.utc)
+        with patch.object(gate,'datetime',Future):
+            self.assertTrue(gate.check(view,saved,registry_root=self.root,seal=False)['allowed'])
+            self.assertTrue(gate.check_entry(self.root,next_state))
+            with self.assertRaisesRegex(ValueError,'expired'):
+                gate.check(self.root,state)
 
     def test_partial_upstream_is_rejected_before_a_success_receipt(self):
         result=self.solution_review()
@@ -373,7 +392,7 @@ class StageRegressions(unittest.TestCase):
         self.assertIn('asset_anchors',active['board'])
         contract=tone.practice.professional_contract(registry)
         definition=next(row['definition'] for row in contract['requirements'] if row['stage']=='D-4' and row['requirement']=='asset_anchors')
-        self.assertEqual(definition['version'],2)
+        self.assertEqual(definition['version'],3)
         self.assertIn('comparison',definition)
 
     def test_cross_root_sealing_requires_explicit_read_only_view(self):

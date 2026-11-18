@@ -3,7 +3,7 @@ import json
 from datetime import datetime, timezone
 
 
-def check(gate, root, state, content_hash):
+def check(gate, root, state, content_hash, *, checked_at=None):
     if state['role'] == 'release' and state['current'] == 'E-4.2':
         raise ValueError('release decision cannot be delegated')
     registry = json.loads(gate.checked_file(root, 'management/delegations.json').read_text())
@@ -16,7 +16,8 @@ def check(gate, root, state, content_hash):
     if not grant or grant.get('revoked') is not False or type(grant.get('revision')) is not int or grant['revision'] < 1 or reply.get('delegation_revision') != grant.get('revision'):
         raise ValueError('delegation missing, revoked or stale')
     expiry = datetime.fromisoformat(grant['expires_at'])
-    if expiry.tzinfo is None or expiry <= datetime.now(timezone.utc):
+    decided = datetime.fromisoformat(checked_at) if checked_at else datetime.now(timezone.utc)
+    if expiry.tzinfo is None or decided.tzinfo is None or expiry <= decided:
         raise ValueError('delegation expired or timezone missing')
     if grant.get('role') != state['role'] or state['current'] not in grant.get('stages', []) or not set(state['scope']) <= set(grant.get('scope', [])):
         raise ValueError('decision outside delegated stage or scope')

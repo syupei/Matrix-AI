@@ -145,11 +145,13 @@ def closure(root, refs):
     return found
 
 
-def seal_bundle(root, refs, context, destination=None, *, follow_refs=True):
+def seal_bundle(root, refs, context, destination=None, *, follow_refs=True, source_roots=None):
     root = Path(root).resolve()
-    files = closure(root, refs) if follow_refs else {value['path']: ref(root, value['path'])['sha256'] for value in refs}
+    source_roots=source_roots or {}
+    require(not source_roots or not follow_refs, 'alternate immutable sources require explicit members')
+    files = closure(root, refs) if follow_refs else {value['path']: ref(source_roots.get(value['path'],root), value['path'])['sha256'] for value in refs}
     if not follow_refs:
-        for value in refs:verify_ref(root, value)
+        for value in refs:verify_ref(source_roots.get(value['path'],root), value)
     manifest = {'format': 'matrix-evidence-bundle/1', 'context': context,
                 'files': [{'logical_path': name, 'sha256': sha} for name, sha in sorted(files.items())]}
     token = digest(manifest)
@@ -169,7 +171,7 @@ def seal_bundle(root, refs, context, destination=None, *, follow_refs=True):
     with tempfile.TemporaryDirectory(prefix='.evidence-',dir=base.parent) as temporary:
         staging=Path(temporary)
         for name,expected in files.items():
-            payload=file(root,name).read_bytes()
+            payload=file(source_roots.get(name,root),name).read_bytes()
             require(hashlib.sha256(payload).hexdigest() == expected, 'source changed during evidence sealing: ' + name)
             target=staging/'files'/name
             target.parent.mkdir(parents=True,exist_ok=True)
@@ -279,14 +281,12 @@ def review_receipt(root, binding):
     if registration.exists():
         require(json.loads(file(root, registration.relative_to(root).as_posix()).read_text()) == authority,
                 'the same response is already bound to another display, scope or direction')
-    else:
-        registration.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            with registration.open('x', encoding='utf-8') as stream:
-                json.dump(authority, stream, ensure_ascii=False, sort_keys=True)
-        except FileExistsError:
-            require(json.loads(registration.read_text()) == authority, 'response binding changed')
-    return seal_bundle(root, [binding['display'], {'path': response['path'], 'sha256': response['sha256']}], binding, follow_refs=False)
+    # A failed display/hash check must not consume the person's real reply. The
+    # content-addressed bundle is harmless until registration succeeds atomically.
+    bundle = seal_bundle(root, [binding['display'], {'path': response['path'], 'sha256': response['sha256']}], binding, follow_refs=False)
+    publish_immutable(root, registration.relative_to(root).as_posix(),
+                      json.dumps(authority, ensure_ascii=False, sort_keys=True))
+    return bundle
 
 
 def verify_response_registration(root, binding):
@@ -427,6 +427,19 @@ def main():
     args=parser.parse_args()
     try:
         binding=json.loads(file(args.project,args.review_binding).read_text(encoding='utf-8'))
+        if binding.get('direction_sha256'):
+            import importlib.util
+            spec=importlib.util.spec_from_file_location('review_direction',Path(__file__).with_name('tone_contract.py'))
+            tone=importlib.util.module_from_spec(spec);spec.loader.exec_module(tone)
+            draft=binding.get('direction_draft')
+            require(isinstance(draft,dict),'direction binding needs direction_draft:{path,sha256}; show this version and record the new response')
+            verify_ref(args.project,draft)
+            data=tone.validate(args.project,draft['path'],confirmed=False,_pending_human=True)
+            expected=tone.direction_binding(tone.DEFAULT_PATH,data)['direction_sha256']
+            require(binding['direction_sha256']==expected,'direction digest differs from the current draft; correct the binding before retrying')
+            shown=verify_ref(args.project,binding['display']).read_text(encoding='utf-8')
+            require(expected in shown,'display must identify this direction digest; show the new version and record its actual new response')
+            binding['response']['message_sha256']=digest(response_message(args.project,binding['response']['path'],binding['response'].get('response_id')))
         result={'allowed':True,'review_receipt':review_receipt(args.project,binding),
                 'limitation':'Binds recorded bytes and scope; does not authenticate the human or establish professional quality.'}
     except (ValueError,OSError,KeyError,TypeError,AttributeError) as error:

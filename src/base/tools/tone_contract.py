@@ -308,16 +308,31 @@ def check_fit(root, record, artifacts, contract=None, *, pre_confirmation=False,
         actual_producers=set()
         if task_context:
             for item in observed:
-                producer=task_context.get('producers',{}).get(item['path'])
-                require(producer in instances and task_context.get('handed_files',{}).get(item['path'])==item['sha256'],
+                producer=task_context.get('subject_producers',{}).get(item['path']) or task_context.get('producers',{}).get(item['path'])
+                handed=dict(task_context.get('handed_files',{}),**task_context.get('review_subjects',{}))
+                require(producer in instances and handed.get(item['path'])==item['sha256'],
                         'each reviewed artifact needs its exact task handover and actual producer: '+item['path'])
                 actual_producers.add(producer)
         else:
             with evidence.authority_connection(authority,authority_db) as db:
                 tasks=[json.loads(row[0]) for row in db.execute('SELECT data FROM tasks')]
                 launches=[json.loads(row[0]) for row in db.execute("SELECT data FROM pm_records WHERE kind='launch'")]
+                records={(kind,key):json.loads(raw) for kind,key,raw in db.execute('SELECT kind,id,data FROM pm_records')}
             task_index={item['id']:item for item in tasks}
             sources=[(item.get('executor') or item.get('owner'),item.get('handed_output_sha256',{})) for item in tasks]
+            gap_sources={}
+            if pre_confirmation:
+                for (kind,_), direction in records.items():
+                    if kind!='direction_sample' or direction.get('outputs',{}).get('fit')!=record:continue
+                    for resolution in direction.get('gap_resolutions',{}).values():
+                        gap=records.get(('gap',resolution.get('gap')), {})
+                        if (gap.get('status')!='closed' or gap.get('revision')!=resolution.get('gap_revision')
+                                or gap.get('decision')!=resolution.get('decision') or resolution.get('task_id')):continue
+                        admitted=[records.get(('input_admission',key),{}) for key in resolution.get('admitted_inputs',[])]
+                        for item in resolution.get('artifacts',[]):
+                            if any(row.get('state')=='admitted' and row.get('path')==item['path']
+                                   and row.get('sha256')==item['sha256'] for row in admitted):
+                                gap_sources[(item['path'],item['sha256'])]='human-gap:'+gap['id']
             for run in launches:
                 source_task=task_index.get(run.get('task_id'),{})
                 produced=(run.get('handover') or {}).get('files',{})
@@ -327,6 +342,8 @@ def check_fit(root, record, artifacts, contract=None, *, pre_confirmation=False,
                     sources.append((run['instance'],produced))
             for item in observed:
                 matched=set()
+                human=gap_sources.get((item['path'],item['sha256']))
+                if human:matched.add(human)
                 for producer,files in sources:
                     if producer not in instances:continue
                     try:name=handed_path(root,authority,producer,item['path'],item['sha256'])
@@ -388,7 +405,7 @@ def check_fit_comparison(root, record, direction, schema):
 
 def confirmed_contract(root, ref, *, require_closed=True, registry_root=None):
     require(isinstance(ref, dict) and set(ref) == {'path', 'version', 'sha256'}
-            and ref.get('path') == DEFAULT_PATH, 'reference the current tone contract and its version')
+            and ref.get('path') == DEFAULT_PATH, 'enter P-1 to confirm the direction sample; reference the current tone contract and its version')
     verify_ref(root, ref)
     result = validate(root, ref['path'], require_closed=require_closed, registry_root=registry_root)
     require(result['version'] == ref.get('version'), 'tone contract version changed')
@@ -446,7 +463,7 @@ def check_asset_comparison(root, record, contract):
     from urllib.parse import urlparse, unquote
     data=record.get('comparison')
     require(isinstance(data,dict),'asset_anchors needs the actual structured direction comparison')
-    specific=lambda value: text(value) and not re.search(r'^(?:无|none|n/?a|-)$|稍后|待补|待对照|待比较|TODO|TBD|to be compared|compare later|pending',value.strip(),re.I)
+    specific=lambda value: text(value) and value.strip().strip('.。').lower() not in practice.ASSET_PLACEHOLDERS
     features=data.get('confirmed_features')
     require(isinstance(features,list) and features and all(specific(value) for value in features)
             and len(set(features))==len(features),'list the confirmed observable appearance features')
@@ -455,10 +472,17 @@ def check_asset_comparison(root, record, contract):
     require(isinstance(rows,list) and len(rows)==len(features) and all(isinstance(row,dict) for row in rows)
             and {row.get('feature') for row in rows}==set(features),'comparison rows must cover every declared confirmed feature')
     sample=data.get('scene_sample');sample_path=verify_ref(root,sample)
+    direction=read(root,contract['path'])
+    direction_hashes={row['sha256'] for row in direction['parts'].values()}
+    require(sample['sha256'] not in direction_hashes and all(row['sha256'] not in direction_hashes for row in record['anchors']),
+            'current scene sample and anchors cannot copy the confirmed direction files')
     observed={(row['path'],row['sha256']) for row in record['artifacts']}
     require((sample['path'],sample['sha256']) in observed,'current scene sample must belong to the actual asset artifacts')
     if sample_path.suffix.lower()=='.png':
-        check_capture(root,dict(screenshot=sample,capture_binding=data.get('capture_binding'),viewport=data.get('viewport')),None,artifacts=record['artifacts'])
+        require(viewport(data.get('viewport'))==viewport(direction['viewport']), 'asset sample viewport differs from confirmed direction')
+        sources=[row for row in record['artifacts'] if row['path'] not in {sample['path'],data.get('review_page',{}).get('path')}]
+        require(sources,'PNG scene sample needs the actual source artifacts used to render it')
+        check_capture(root,dict(screenshot=sample,capture_binding=data.get('capture_binding'),viewport=data.get('viewport')),None,artifacts=sources)
     else:check_preview(root,sample)
     page=data.get('review_page');page_path=verify_ref(root,page)
     require(page_path.suffix.lower() in {'.html','.htm'},'actual side-by-side HTML review page required')
@@ -478,7 +502,8 @@ def check_asset_comparison(root, record, contract):
     anchors={(ref['path'],ref['sha256']) for ref in record['anchors']}|{(sample['path'],sample['sha256'])}
     expected={sample['path']}
     for row in rows:
-        require(all(specific(row.get(key)) for key in ('feature','reference_observation','anchor_observation','difference')),
+        require(all(specific(row.get(key)) or key=='difference' and row.get('status')=='achieved'
+                    and row.get(key) in {'无','none'} for key in ('feature','reference_observation','anchor_observation','difference')),
                 'comparison observations and differences must be actual, not placeholders or future plans')
         require(row.get('status') in schema['statuses'],'comparison status must be achieved, close or unmet')
         before=row.get('reference');after=row.get('anchor');verify_ref(root,before);verify_ref(root,after)
@@ -488,6 +513,74 @@ def check_asset_comparison(root, record, contract):
         expected.update((before['path'],after['path']))
         require(row['status']!='unmet','an unmet appearance feature cannot release the asset family for production')
     require(expected<=embedded.paths,'side-by-side review page must embed the actual direction and current scene/anchors')
+
+
+def asset_comparison_page(root, record_path, output, contract_path=DEFAULT_PATH):
+    """Generate an editable comparison page, never a passed inspection."""
+    from html import escape
+    import os
+    record=json.loads(file(root,record_path).read_text())
+    data=validate(root,contract_path)
+    comparison=record.get('comparison',{})
+    features=comparison.get('confirmed_features',[])
+    require(features and all(text(value) for value in features),'provide comparison.confirmed_features before generating the review page')
+    target=Path(root)/output
+    require(not Path(output).is_absolute() and '..' not in Path(output).parts and target.resolve().is_relative_to(Path(root).resolve()),'review page must be a safe project path')
+    require(not target.exists(),'review page already exists; edit it instead of overwriting observations')
+    sample=comparison.get('scene_sample');verify_ref(root,sample)
+    direction=data['parts']['screenshot'];verify_ref(root,direction)
+    values={'SCOPE':record.get('scope',''),'VIEWPORT':data['viewport'],'STATE':comparison.get('state','待填写代表状态'),
+            'MISSING_INPUT_LIMITATIONS':'待填写缺失输入和本轮限制',
+            'CONFIRMED_DIRECTION_IMAGE':os.path.relpath(Path(root)/direction['path'],target.parent),
+            'CURRENT_SCENE_IMAGE':os.path.relpath(Path(root)/sample['path'],target.parent)}
+    page=(Path(__file__).parent.parent/'asset-comparison-template.html').read_text()
+    for key,value in values.items():page=page.replace('{{'+key+'}}',escape(str(value),quote=True))
+    rows=''.join('<tr><td>'+escape(value)+'</td><td>待观察</td><td>待观察</td><td>待判定</td><td>待填写差异和影响</td></tr>' for value in features)
+    page=page.replace('{{COMPARISON_ROWS}}',rows)
+    target.parent.mkdir(parents=True,exist_ok=True);target.write_text(page)
+    return dict(allowed=True,status='draft_only',review_page=evidence.ref(root,output),
+                limitation='Generated placeholders are not an inspection or permission to submit review B.')
+
+
+def asset_comparison_receipt(root, record_path, contract_path=DEFAULT_PATH):
+    """Public pre-review check; its receipt binds the materials before asking the person."""
+    data=validate(root,contract_path)
+    contract=dict(evidence.ref(root,contract_path),version=data['version'])
+    record_ref=evidence.ref(root,record_path)
+    record=json.loads(file(root,record_path).read_text())
+    check_record(root,'asset_anchors',record.get('scope'),record_ref,contract)
+    refs={row['path']:row['sha256'] for row in evidence.references(record)}
+    refs.update({row['path']:row['sha256'] for row in data['parts'].values()})
+    payload=dict(format='asset-comparison-receipt/1',allowed=True,record=record_ref,contract=contract,
+                 scope=record['scope'],review_page=record['comparison']['review_page'],
+                 materials=[dict(path=name,sha256=sha) for name,sha in sorted(refs.items())])
+    receipt=evidence.publish_immutable(root,'management/asset-comparisons/'+evidence.digest(payload)+'.json',
+                                      json.dumps(payload,ensure_ascii=False,sort_keys=True))
+    return dict(allowed=True,asset_comparison_receipt=receipt,review_page=payload['review_page'])
+
+
+def check_asset_submission(root,state,display=None,*,registry_root=None,historical=False):
+    if state.get('role')!='design' or state.get('current')!='D-4':return
+    authority=registry_root or root
+    contract=state.get('tone_contract')
+    data=confirmed_contract(root,contract,require_closed=not historical,registry_root=authority)
+    active=practice.active(profile(root,data),['asset_anchors'],state.get('practice_scope'))
+    for sid, requirements in active.items():
+        if 'asset_anchors' not in requirements:continue
+        record_ref=state.get('practice_evidence',{}).get('asset_anchors',{}).get(sid)
+        require(record_ref,'missing practice evidence: asset_anchors')
+        record=json.loads(verify_ref(root,record_ref).read_text())
+        check_asset_comparison(root,record,contract)
+        receipt_ref=state.get('asset_comparison_receipts',{}).get(sid)
+        require(receipt_ref,'before review B run tone_contract.py --asset-comparison and bind its receipt')
+        receipt=json.loads(verify_ref(root,receipt_ref).read_text())
+        require(receipt.get('format')=='asset-comparison-receipt/1' and receipt.get('allowed') is True
+                and receipt.get('record')=={key:record_ref[key] for key in ('path','sha256')}
+                and receipt.get('contract')==contract and receipt.get('scope')==sid
+                and receipt.get('review_page')==record['comparison']['review_page'], 'asset comparison receipt is stale or belongs to other material')
+        for ref in receipt['materials']:verify_ref(root,ref)
+        if display is not None:
+            require(display==receipt['review_page']['path'], 'review B must show the page bound by the asset comparison receipt')
 
 
 def check_record(root, key, scope, ref, contract, *, registry_root=None, stage=None):
@@ -757,8 +850,17 @@ def main():
     parser.add_argument('--draft',action='store_true',help='validate and persist the current draft delivery receipt')
     parser.add_argument('--refresh-draft',action='store_true',help='refresh actual part digests in an unconfirmed draft; never fabricate capture evidence')
     parser.add_argument('--receipt',help='project-relative successful tool receipt; defaults to <contract>.delivery.json')
+    parser.add_argument('--asset-comparison',help='check the asset_anchors record before review B; no human response required')
+    parser.add_argument('--asset-page',help='generate a draft review page from the comparison record')
+    parser.add_argument('--page-output',help='new project-relative HTML path for --asset-page')
     args=parser.parse_args()
     try:
+        if args.asset_page:
+            require(args.page_output and not args.asset_comparison and not args.draft and not args.refresh_draft,'asset page generation needs --page-output and no other mode')
+            print(json.dumps(asset_comparison_page(args.project,args.asset_page,args.page_output,args.contract),ensure_ascii=False));return 0
+        if args.asset_comparison:
+            require(not args.draft and not args.refresh_draft,'asset comparison is a separate pre-review operation')
+            print(json.dumps(asset_comparison_receipt(args.project,args.asset_comparison,args.contract),ensure_ascii=False));return 0
         require(not args.refresh_draft or args.draft,'--refresh-draft requires --draft')
         if args.refresh_draft:refresh_draft(args.project,args.contract)
         record=validate(args.project,args.contract,confirmed=not args.draft)

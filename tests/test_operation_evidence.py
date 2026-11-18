@@ -10,11 +10,34 @@ import shutil
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'evals'))
 
-from operation_evidence import check, check_direction, shell_commands, snapshot, TONE_PRODUCT_ENTRY, TONE_TOOL
+from operation_evidence import check, check_direction, shell_commands, snapshot, TONE_PRODUCT_ENTRY, TONE_TOOL, check_asset_observation
 from fixtures import late_game
 
 
 class OperationEvidenceTest(unittest.TestCase):
+    def test_asset_observer_records_current_receipt_without_changing_a_score(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);tool=root/TONE_TOOL;tool.parent.mkdir(parents=True)
+            tool.write_text('synthetic trusted checker')
+            digest=lambda path:hashlib.sha256(path.read_bytes()).hexdigest()
+            (root/'kit/MANIFEST.json').write_text(json.dumps({'files':{TONE_TOOL.relative_to('kit').as_posix():digest(tool)}}))
+            def put(name,body):
+                path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(body)
+                return dict(path=name,sha256=digest(path))
+            record=put('design/record.json','{}');contract=put('product/contract.json','{}');page=put('design/review.html','<main>synthetic</main>')
+            ref=put('management/asset-comparisons/receipt.json',json.dumps(dict(format='asset-comparison-receipt/1',record=record,contract=contract,review_page=page,materials=[])))
+            output=json.dumps(dict(allowed=True,asset_comparison_receipt=ref))
+            command='python3 '+str(TONE_TOOL)+' --project . --asset-comparison design/record.json'
+            def event(cmd,code=0):return {'type':'item.completed','item':{'id':'test','type':'command_execution','command':cmd,'exit_code':code,'aggregated_output':output}}
+            after=snapshot(root,'asset_comparison')
+            result=check_asset_observation(root,'',[event('cd . && '+command)],after)
+            self.assertEqual(1,len(result['receipts']));self.assertEqual([],result['errors'])
+            bad=check_asset_observation(root,'',[event(command+'; cat management/asset-comparisons/receipt.json')],after)
+            self.assertEqual([],bad['receipts'])
+            (root/page['path']).write_text('changed after receipt')
+            stale=check_asset_observation(root,'',[event(command)],snapshot(root,'asset_comparison'))
+            self.assertEqual([],stale['receipts'])
+
     def test_real_product_receipt_and_frozen_failure_examples(self):
         script = ROOT / 'src/professions/product/skills/matrix-product/scripts/product_contract.py'
         with tempfile.TemporaryDirectory() as directory:

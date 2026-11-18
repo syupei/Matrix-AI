@@ -2,6 +2,7 @@
 Generic registered mechanism roles are not claims of built-in professional production.
 """
 import json
+from public_review_fixture import stage_receipt
 from practice_fixture import put, review_state
 from test_pm_instances import MODELS
 
@@ -39,7 +40,8 @@ def business_source(fixture, pm, *, pm_actor='PM', actors=(), person=None):
     request=json.loads((fixture.root/state['request']).read_text());reply=json.loads((fixture.root/state['response']).read_text())
     call('human_attention',id=prefix,kind='confirmation',display=request['display_evidence'],scope=state['scope'],inputs=[path])
     call('human_attention',id=prefix,response=reply['source'],**({'response_id':reply['response_id']} if reply.get('response_id') else {}))
-    with pm.connect(fixture.root) as db:reply['review_receipt']=pm.direction.bind_attention(pm.api(),fixture.root,db,prefix,person=person,quote=reply['quote'],scope=state['scope'],expected={})
+    put(fixture.root,state['response'],reply)
+    reply['review_receipt']=stage_receipt(fixture,state,prefix,person,actor=pm_actor)
     put(fixture.root,state['response'],reply)
     return dict(inputs=[path],admitted_inputs=[key],stage_transition=put(fixture.root,'SIM-input-stage.json',state)['path'])
 
@@ -91,11 +93,13 @@ def confirmed_direction(fixture, pm, basis, *, checker='code-engineering-001', f
 
 def bound_review_state(fixture,pm,paths,*,role='product',stage='P-7',following='complete',scope_ids=None,prefix='SIM-stage',person='boss'):
     gate=pm.admission.load_gate();state=review_state(fixture.root,gate,paths,role=role,stage=stage,following=following,scope_ids=scope_ids,person=person,prefix=prefix)
+    if stage not in gate.REVIEW[role]:return state
     request=json.loads((fixture.root/state['request']).read_text());reply=json.loads((fixture.root/state['response']).read_text())
     quote='SIM approves the complete displayed scope '+prefix
     put(fixture.root,reply['source'],dict(messages=[dict(id=prefix+'-reply',text=quote)]))
     reply.update(quote=quote,response_id=prefix+'-reply',message_sha256=gate.tone.evidence.digest(quote))
     fixture.call('human_attention','PM',id=prefix,kind='confirmation',display=request['display_evidence'],scope=state['scope'],inputs=paths)
     fixture.call('human_attention','PM',id=prefix,response=reply['source'],**({'response_id':reply['response_id']} if reply.get('response_id') else {}))
-    with pm.connect(fixture.root) as db:reply['review_receipt']=pm.direction.bind_attention(pm.api(),fixture.root,db,prefix,person=person,quote=reply['quote'],scope=state['scope'],expected={})
+    put(fixture.root,state['response'],reply)
+    reply['review_receipt']=stage_receipt(fixture,state,prefix,person)
     put(fixture.root,state['response'],reply);return state

@@ -8,6 +8,7 @@ import tempfile
 import unittest
 
 from kit import KIT
+from public_review_fixture import stage_receipt
 SOURCE = KIT
 spec = importlib.util.spec_from_file_location('pm_instances_under_test', SOURCE / 'matrix/orchestration/tools/pm_tasks.py')
 pm = importlib.util.module_from_spec(spec)
@@ -39,8 +40,8 @@ def confirmed_stage(fixture, paths, prefix='SIM-stage'):
     put(fixture.root,reply['source'],quote);reply.update(quote=quote,message_sha256=gate.tone.evidence.digest(quote))
     fixture.call('human_attention',id=prefix,kind='confirmation',display=request['display_evidence'],scope=state['scope'],inputs=paths)
     fixture.call('human_attention',id=prefix,response=reply['source'])
-    with pm.connect(fixture.root) as db:
-        reply['review_receipt']=pm.direction.bind_attention(pm.api(),fixture.root,db,prefix,person='SIM-owner',quote=quote,scope=state['scope'],expected={})
+    put(fixture.root,state['response'],reply)
+    reply['review_receipt']=stage_receipt(fixture,state,prefix,'SIM-owner')
     put(fixture.root,state['response'],reply)
     return put(fixture.root,prefix+'.json',state)['path']
 
@@ -112,8 +113,7 @@ class Fixture:
         reply=__import__('json').loads((self.root/state['response']).read_text());request=__import__('json').loads((self.root/state['request']).read_text())
         self.call('human_attention',id='SIM-business-confirm',kind='confirmation',display=request['display_evidence'],scope=state['scope'],inputs=[path])
         self.call('human_attention',id='SIM-business-confirm',response=reply['source'])
-        with pm.connect(self.root) as db:
-            reply['review_receipt']=pm.direction.bind_attention(pm.api(),self.root,db,'SIM-business-confirm',person='SIM-fixture-owner',quote=reply['quote'],scope=state['scope'],expected={})
+        reply['review_receipt']=stage_receipt(self,state,'SIM-business-confirm','SIM-fixture-owner')
         put(self.root,state['response'],reply);stage=put(self.root,'SIM-business-stage.json',state)['path']
         self._business_fixture=dict(inputs=['matrix/base/MATRIX.md',path],admitted_inputs=[key],stage_transition=stage)
         return self._business_fixture

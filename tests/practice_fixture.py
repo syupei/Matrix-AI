@@ -81,7 +81,7 @@ def scope(tone, sid='workspace', **values):
     }
 
 
-def direction(root, tone, rows=None, *, label='Synthetic operations'):
+def direction(root, tone, rows=None, *, label='Synthetic operations', unconfirmed=False):
     profile = {'schema': tone.practice.SCHEMA, 'version': '1', 'scopes': rows or [scope(tone)]}
     parts = {
         'practice_profile': put(root, 'practice.json', profile),
@@ -101,7 +101,8 @@ def direction(root, tone, rows=None, *, label='Synthetic operations'):
                     for i in range(6)],
         'confirmation': {'person': 'fixture-person', 'quote': 'Synthetic approval', 'source': 'synthetic-human.md'},
     }
-    approve(root, tone, data)
+    if unconfirmed:data.pop('confirmation')
+    else:approve(root, tone, data)
     return put(root, tone.DEFAULT_PATH, '# Direction\n\n```tone-contract\n' + json.dumps(data) + '\n```\n'), data
 
 

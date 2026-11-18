@@ -482,8 +482,10 @@ def verify_author_capture(out, public, screenshot=FIT_SCREENSHOT, receipt=FIT_CA
             and row.get('sha256')==sha(public/screenshot)
             and ref.get('path')==receipt and ref.get('sha256')==sha(public/receipt)):
             matching.append(row)
-    require(len(matching)==1,'author fit PNG/receipt do not match one actual broker capture')
-    return matching[0]
+    require(matching,'author fit PNG/receipt do not match an actual broker capture')
+    # Identical-input recapture can reproduce identical PNG and receipt bytes.
+    # Every match still authenticates the current paths and both current hashes.
+    return matching[-1]
 
 
 def author_handover(pm, project, out, public, run_id, delivery_receipts):

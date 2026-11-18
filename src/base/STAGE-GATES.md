@@ -17,7 +17,6 @@
 - request：`request_id`、`role`、`stage`、`scope`、`artifact_sha256`、`display_evidence`（实际展示来源）、其实际文件摘要 `display_sha256`。
 - response：同一 `request_id/scope/artifact_sha256`，`actor`、`choice:"confirm"`、`source`、完整 `quote`、同一 `display_sha256`、`message_sha256`，可用 `response_id` 定位完整消息。[证据格式](REVIEW-EVIDENCE.md#展示与完整答复)说明答复绑定与计算方式。离线[审阅页](tools/review.html)导出的回复同样需保留真实来源，缺字段明确补核，不能默认通过。
 - 只有一个人且无名单时actor写user；有人员名单（含单人）写person并加person_id。按[团队 §3](../orchestration/TEAM.md)查本流程或上游决定权；发布决定只认项目级或release决定人。
-
 ## 做法档证据
 
 - 状态写 `tone_contract:{path,version,sha256}`。默认覆盖全部活动；部分范围用 `practice_scope` 列活动ID，与 `scope` 集合相同。P-1一次合看覆盖全部档内范围，`tone_fit_review` 单列审前记录，见[方向样张](../orchestration/DIRECTION-SAMPLE.md)。

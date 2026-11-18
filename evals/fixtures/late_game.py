@@ -51,7 +51,7 @@ def sample_lines():
 
 def synthetic_approval(root, data):
     """Bind the fixed synthetic prior confirmation equally for both tested kits."""
-    producer = Path(__file__).resolve().parents[2]/'src/base/tools/review_evidence.py'
+    producer = Path(__file__).with_name('frozen_review_evidence.py')
     if hashlib.sha256(producer.read_bytes()).hexdigest() != EVIDENCE_PRODUCER_SHA256:
         raise ValueError('synthetic confirmation producer changed; update and freeze fixture explicitly')
     spec = importlib.util.spec_from_file_location('fixed_fixture_evidence', producer)

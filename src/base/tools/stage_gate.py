@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import importlib.util
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from pathlib import Path
 
@@ -129,7 +130,7 @@ def deciding_person(root,role,reply):
     if not allowed&set(people[pid].get('decides',[])):raise ValueError('person has no decision authority for this flow or its upstream')
     return pid
 
-def _check(root,state,conversation=True,registry_root=None,seal=True,task_context=None,historical=False):
+def _check(root,state,conversation=True,registry_root=None,seal=True,task_context=None,historical=False,checked_at=None):
     root=Path(root).resolve();role=state['role'];stages=STAGES[role]
     current=state['current'];following=state['next']
     if current not in stages[:-1] or stages[stages.index(current)+1]!=following:raise ValueError('invalid or skipped stage transition')
@@ -150,12 +151,15 @@ def _check(root,state,conversation=True,registry_root=None,seal=True,task_contex
         record=''.join(checked_file(root,ref).read_text(encoding='utf-8').split())
         if not any(current+arrow+following in record for arrow in ('→','->')):raise ValueError('conversation check record has no entry for '+current+' → '+following)
     content_hash=artifact_digest(root,state['artifacts'])
+    if role=='design' and current=='D-4':
+        request=json.loads(checked_file(root,state['request']).read_text()) if state.get('request') else {}
+        tone.check_asset_submission(root,state,request.get('display_evidence'),registry_root=registry_root or root,historical=historical)
     # Review/evidence files are projections of existing sources, not a new authority.
     delegated={};person=None
     if current in REVIEW[role] and state.get('delegated_decision'):
         spec=importlib.util.spec_from_file_location('delegation_gate',Path(__file__).with_name('delegation_gate.py'))
         module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
-        delegated=module.check(SimpleNamespace(**globals()),root,state,content_hash)
+        delegated=module.check(SimpleNamespace(**globals()),root,state,content_hash,checked_at=checked_at)
     elif current in REVIEW[role]:
         req=json.loads(checked_file(root,state['request']).read_text())
         reply=json.loads(checked_file(root,state['response']).read_text())
@@ -204,7 +208,8 @@ def _check(root,state,conversation=True,registry_root=None,seal=True,task_contex
         if isinstance(state.get('implementation_handoff'),dict):controls.add(state['implementation_handoff']['path'])
         actual={value['path']:value['sha256'] for value in state['artifacts']}
         handed=task_context.get('handed_files',{})
-        required={name:sha for name,sha in handed.items() if name not in controls}
+        required=(task_context.get('review_subjects') if role=='design' and current=='D-6' and task_context.get('implementation')
+                  else {name:sha for name,sha in handed.items() if name not in controls})
         if not required or any(actual.get(name)!=sha for name,sha in required.items()):raise ValueError('stage artifacts do not cover the actual task and child handover')
     return result
 
@@ -213,6 +218,7 @@ def check(root,state,conversation=True,registry_root=None,seal=True,task_context
     root=Path(root).resolve();authority=Path(registry_root or root).resolve()
     if seal and root!=authority:raise ValueError('cross-root stage sealing is not supported; use seal=False for an isolated evidence view')
     historical=False
+    checked_at=datetime.now(timezone.utc).isoformat() if state.get('delegated_decision') else None
     candidate=root.parent/'manifest.json'
     if root!=authority and candidate.is_file():
         manifest=json.loads(candidate.read_text())
@@ -221,27 +227,35 @@ def check(root,state,conversation=True,registry_root=None,seal=True,task_context
             reference=tone.evidence.ref(authority,candidate.relative_to(authority).as_posix())
             _,manifest=tone.evidence.stage_receipt(authority,reference)
             task_context=manifest['context'].get('task_context')
+            checked_at=manifest['context'].get('checked_at')
+            if not checked_at and state.get('delegated_decision'):
+                raise ValueError('historical delegated stage lacks its trusted close time')
             historical=True
     with tone.evidence.track_reads() as reads:
-        result=_check(root,state,conversation,authority,seal,task_context,historical)
+        result=_check(root,state,conversation,authority,seal,task_context,historical,checked_at)
         if not seal:return result
         token=tone.evidence.digest(state)
         state_path='management/stage-reviews/'+token+'/state.json'
         body=json.dumps(state,ensure_ascii=False,sort_keys=True,indent=2)+'\n'
         published=tone.evidence.publish_immutable(root,state_path,body)
         refs={state_path:published['sha256']}
-        # Include every project evidence file actually read, including delegated grants,
-        # handoff metadata, nested upstream states and the exact bundle members consumed.
+        # Mutable project inputs must be sealed. Content-addressed authority is already
+        # immutable and verified at its original root; recursively copying its views
+        # would embed every earlier snapshot again without adding any evidence.
+        authority_dirs = ('management/evidence/', 'management/stage-receipts/', 'management/review-sources/')
         for path,sha in reads.items():
-            if path.is_relative_to(root):refs[path.relative_to(root).as_posix()]=sha
+            if path.is_relative_to(root):
+                name = path.relative_to(root).as_posix()
+                if not name.startswith(authority_dirs):refs[name]=sha
         context={'role':state['role'],'stage':state['current'],'scope':state['scope'],
-                 'tone_contract':state.get('tone_contract'),'state_path':state_path,'task_context':task_context}
+                 'tone_contract':state.get('tone_contract'),'state_path':state_path,'task_context':task_context,
+                 'checked_at':checked_at}
         bundle=tone.evidence.seal_bundle(root,[dict(path=name,sha256=sha) for name,sha in refs.items()],context,follow_refs=False)
         view,_=tone.evidence.verify_bundle(root,bundle)
         saved=json.loads(tone.evidence.file(view,state_path).read_text())
         # Replay first. No successful receipt is published for a snapshot that cannot
         # independently read the exact evidence the live check consumed.
-        _check(view,saved,conversation,authority,False,task_context,True)
+        _check(view,saved,conversation,authority,False,task_context,True,checked_at)
         tone.evidence.register_stage_receipt(authority,bundle)
         result.update(review_bundle=bundle,upstream_state=state_path,practice_evidence=state.get('practice_evidence',{}))
         return result

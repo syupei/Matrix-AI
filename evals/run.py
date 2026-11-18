@@ -7,7 +7,7 @@ from contextlib import ExitStack
 from pathlib import Path
 from read_records import extract
 from visual_evidence import capture
-from operation_evidence import DIRECTION_CASES, TONE_TOOL, check as check_operation, check_direction, snapshot
+from operation_evidence import DIRECTION_CASES, TONE_TOOL, check as check_operation, check_direction, snapshot, check_asset_observation
 from capture_broker import CaptureBroker, preflight as capture_preflight
 
 def fingerprint(root):
@@ -50,7 +50,7 @@ def main():
     services.enter_context(CaptureBroker(work,args.output/'author-capture-events.jsonl'))
     record['author_capture_capability']=capture_preflight(work,args.output/'author-capture-preflight')
    operation_kind = ('direction' if case['id'] in DIRECTION_CASES else
-                     {'scope': 'draft', 'batch': 'feedback'}.get(case['id']))
+                     {'scope': 'draft', 'batch': 'feedback','late_asset_anchors':'asset_comparison'}.get(case['id']))
    tone_tool = work / TONE_TOOL
    direction_receipt_supported = (operation_kind == 'direction' and tone_tool.is_file()
                                   and b'direction-delivery/1' in tone_tool.read_bytes())
@@ -94,6 +94,8 @@ def main():
      after = snapshot(work, operation_kind)
      if operation_kind == 'direction':
       audit = check_direction(work, reply, recorded_events, before, after, case['visual_preview'], direction_receipt_supported)
+     elif operation_kind == 'asset_comparison':
+      audit = check_asset_observation(work,reply,recorded_events,after)
      else:
       audit = check_operation(work, operation_kind, reply, recorded_events, before, after)
      observation = dict(audit, before=before, after=after)

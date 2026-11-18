@@ -1,18 +1,20 @@
 # 自带专家接入
 
-何时读：适配、准入、启用或重新绑定。先核[审阅点](PRODUCTION-ADMISSION.md)；接口见[guide](PLATFORM-GUIDE.md)。包只放专业方法与薄入口，引用共同登记及[证据格式](../base/REVIEW-EVIDENCE.md)。
+接入时读；核[审阅点](PRODUCTION-ADMISSION.md)，接口见[guide](PLATFORM-GUIDE.md)。包只放方法与薄入口，引用[证据格式](../base/REVIEW-EVIDENCE.md)。
 
 ## 接入与处置
 
+答复交代结论、失败包处置及修订包验证。缺材料标待取得，不声称已保存或停用。
+
 1. 前台保留地址、别名、原话交PM。按management/expert-professions.json人工预置类别、专业登记与实例授权核对；工具不创建类别。专业、包、模型、运行器分别登记。
-2. 固定Git提交与入口子目录，expert.prepare仅经HTTPS拉取且拒重定向；锁外获取后重核授权和预置。拒归一化冲突路径；保留source及摘要，不执行原包脚本、hooks、插件或安装器。
+2. 固定Git提交与入口子目录，expert.prepare仅经HTTPS拉取且拒重定向；锁外获取后重核授权和预置。拒归一化冲突路径；保留source及摘要，不执行原包脚本、hooks、插件或安装器。入口不明时合批询问。
 3. 读实际入口、许可、依赖和目录；expert.adapt保存METHODS、薄入口及REVIEW。原文留source/审计，运行不加载其指令。许可、依赖或义务未决记unresolved；缺有效review_points在adapt即blocked。
-4. 用已授权运行器和独立实例真实准入、独审，再expert.validate。失败包与证据保留、不可启用；已启用的以expert.disable记原因。修订另建版本重验，不覆盖失败版本。
+4. 候选只用于该准入任务。用已授权运行器和独立实例真实准入、独审，再expert.validate。无实际写隔离或验证未成时保持待接入。失败包与证据保留、不可启用；已启用的以expert.disable记原因。修订另建版本重验，不覆盖失败版本。
 5. 验证有效后expert.enable带决定人与真实quote，只使包可选。PM再按有效授权配置绑定、derive稳定实例ID并派活。验证、启用、绑定分别记录；范围扩大由人决定。
 
 ## 目录与实例
 
-预置schema为matrix-expert-professions/1，含configured_by、authorization、professions，由可信平台维护。配置可加expert:{id,version}、runner、aliases；别名数等于count，省expert为内置。别名去首尾空白、英文大小写不敏感，中文及内部空格保留；rename_instance留旧名，重名及历史名拒占。resolve_instance后用稳定ID授权派发。
+预置matrix-expert-professions/1含configured_by、authorization、professions，由可信平台维护。配置含expert:{id,version}、runner、aliases；别名数等于count，省expert为内置。别名去首尾空白、英文大小写不敏感，中文及内部空格保留；rename_instance留旧名，拒重名及历史名。resolve_instance后按稳定ID派发。
 
 experts/<id>/<version>/保留manifest.json、ENTRY.md、METHODS.md、REVIEW.json、source/；验证后更新须新版本，实例保持原绑定。私稿在实例workspace/private/，候选在public/，经负责人检验采用到正式源。private是用途，不承诺读保密；实际隔离保护任务库、配置、其它实例与包。
 
@@ -22,15 +24,15 @@ REVIEW含reviewer、source_entry、license、preserved_methods、directory_chang
 
 控制器以launch_start的admission_expert:{id,version}及admission_runner绑定包，记录实际启动、交回、成功退出。成果、stage_state及依赖分别溯源生产者的可信交回；确认及历史快照核权威DB，不信工作区伪登记。两生产者组合用[scenario_view](EXPERT-SCENARIO-VIEW.md)，不冒作者原件。
 
-独审沿原任务checker及等级、模型、独立性要求：分派→purpose=check→started→review交回checker public证据→exit。启动记录review_baseline（public路径→SHA）；每份提交证据须本次新建或改变，预放passed报告不算独审。报告含run_id/model/runner/methods_sha256/passed/review_run_id；checks三项method_preservation/write_isolation/handoff_contract各含passed与证据。tested_requirements/untested_requirements均为{stage,requirement}列表，按实际gate与当前契约差集核对。
+独审沿原任务checker及等级、模型、独立性要求：分派→purpose=check→started→review交回checker public证据→exit。证据须比启动时review_baseline新建或改变，预放报告不算。报告含run_id/model/runner/methods_sha256/passed/review_run_id；checks三项method_preservation/write_isolation/handoff_contract各含passed与证据。tested_requirements/untested_requirements为{stage,requirement}列表，按实际gate与当前契约差集核对。
 
-framework_scenario含stage_state、contract_sha256、mapping_sha256、reviewer、readback。组合view另有author_stage:{path,sha256}指定作者交回模板、fit:{path,sha256}指定本次checker贴合记录；控制器不能改选其它模板或fit。独审实际回读原文、适配方法、成果、交回与适用图像，说明专业质量及未测范围；模型边界见[适配](MODEL-FIT.md)。
+framework_scenario含stage_state、contract_sha256、mapping_sha256、reviewer、readback。组合view用author_stage:{path,sha256}指定作者交回模板、fit:{path,sha256}指定本次checker贴合记录；控制器不能换选。独审回读原文、适配方法、成果、交回与适用图像，说明质量及未测范围；模型边界见[适配](MODEL-FIT.md)。
 
 expert.validate的evidence含runner/report/source_sha256（METHODS摘要），可附scenario_view。工具核真实DB的运行、review事件及字节，重跑共同关卡。作者自签、自填passed、只有exit或模拟启动均不足；测一个阶段不认证整个专业。
 
-首次通过封存management/expert-validations/<id>/<version>/<author-run-id>/，不放包目录造成摘要循环。manifest.validation保存bundle、author_run_sha256、review_receipt；权威DB的expert_validation（id=<id>/<version>）锚定bundle与receipt_sha256，不能靠重封存替换。enable/bind/派发核快照、DB锚点和当前methods/package/mapping/contract；public演进可继续，改快照或receipt失效。
+首次通过封存management/expert-validations/<id>/<version>/<author-run-id>/。manifest.validation保存bundle、author_run_sha256、review_receipt；DB的expert_validation（id=<id>/<version>）锚定bundle与receipt_sha256，不能重封存替换。enable/bind/派发核快照、DB锚点和当前methods/package/mapping/contract；public演进可继续，改快照或receipt失效。
 
-D-4沿做法档asset_family触发asset_anchors；导入设计专家须映射当前对照记录和并排审看素材。缺映射在adapt阻断，缺实际记录由共同gate拒绝。特征、两侧文件摘要、比较状态及差异字段只在[共同对照](../base/ASSET-COMPARISON.md)定义；表格齐全不等于视觉合格，未达到不能放行成套生产。
+D-4按asset_family触发asset_anchors；映射须含当前记录与pre_review_check（契约definition.submission）。缺映射在adapt阻断，交审前回执、并排页及完成记录由共同gate核对。字段见[共同对照](../base/ASSET-COMPARISON.md)；表齐不等于视觉合格，未达到不放行成套生产。
 
 ## 迁移
 

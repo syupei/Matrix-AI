@@ -28,7 +28,7 @@ COMPLETED = re.compile(r'已(?:经)?(?:完成|生成|保存|提交|交付|做好
 
 def snapshot(root, kind=None):
     files = {}
-    for folder in DIRECTION_DIRS if kind == 'direction' else ('product', 'shared'):
+    for folder in DIRECTION_DIRS if kind in {'direction','asset_comparison'} else ('product', 'shared'):
         project_folder = root / folder
         if project_folder.is_symlink():
             continue
@@ -182,6 +182,8 @@ def shell_invocations(command):
             else:group.append(token)
         for index,row in enumerate(result):
             row['has_later_command']=index+1<len(result)
+            row['prior_commands']=[item['argv'] for item in result[:index]]
+            row['later_commands']=[item['argv'] for item in result[index+1:]]
             yield row
     except ValueError:
         return
@@ -196,7 +198,9 @@ def observed_call(record, invocation):
     # A chain's final status is not the earlier command's status. A matching,
     # bound allowed:true receipt is needed separately; skip conditional branches
     # whose execution cannot be established from the aggregate native event.
-    if invocation['preceding'] in {'&&','||','|','&'}:
+    if invocation['preceding'] in {'&&','||','|','&'} and not (
+            invocation['preceding']=='&&' and record.get('exit_code')==0 and
+            all(args[0]=='cd' for args in invocation.get('prior_commands',[]))):
         return False
     if record.get('type') != 'command_execution' or record.get('exit_code') == 0:
         return True
@@ -301,6 +305,8 @@ def direction_readback(root, preview, after, calls):
                         reads.append({'line': record['line'], 'path': preview})
             if not re.fullmatch(r'python(?:\d+(?:\.\d+)*)?', executable) or '--draft' not in args:
                 continue
+            if any(Path(args[0]).name in {'cat','head','tail','sed','echo','printf'} for args in invocation.get('later_commands',[])):
+                continue  # Cannot attribute a subsequently printed old receipt to this check.
             position = next((i for i, arg in enumerate(args[1:], 1) if not arg.startswith('-')), None)
             if position is None or (root / args[position]).resolve() not in trusted_tools:
                 continue
@@ -327,6 +333,33 @@ def direction_readback(root, preview, after, calls):
                 and project_path(path, root, DIRECTION_DIRS) == preview):
             reads.append({'line': record['line'], 'path': preview})
     return receipts, reads
+
+
+def check_asset_observation(root,reply,events,after):
+    """Mechanical invocation/receipt facts only; never a professional score."""
+    root=Path(root).resolve();trusted=trusted_direction_tools(root);calls=[];receipts=[]
+    for event,output in successful(events,reply):
+        for invocation in shell_invocations(event.get('command') or ''):
+            args=invocation['argv']
+            if '--asset-comparison' not in args or not observed_call(event,invocation):continue
+            if not re.fullmatch(r'python(?:\d+(?:\.\d+)*)?',Path(args[0]).name):continue
+            script=next((arg for arg in args[1:] if not arg.startswith('-')),None)
+            if script is None or (root/script).resolve() not in trusted:continue
+            calls.append({'line':event['line'],'argv':args})
+            if any(Path(row[0]).name in {'cat','head','tail','sed','echo','printf'} for row in invocation.get('later_commands',[])):continue
+            for line in output.splitlines():
+                try:value=json.loads(line)
+                except ValueError:continue
+                ref=value.get('asset_comparison_receipt') if isinstance(value,dict) else None
+                if not isinstance(value,dict) or value.get('allowed') is not True or not path_ref(ref,after):continue
+                try:
+                    payload=json.loads((root/ref['path']).read_text())
+                    materials=[payload['record'],payload['contract'],payload['review_page'],*payload['materials']]
+                    if payload.get('format')!='asset-comparison-receipt/1' or not all(path_ref(r,after) for r in materials):continue
+                    receipts.append({'line':event['line'],'receipt':ref,'review_page':payload['review_page']})
+                except (OSError,ValueError,KeyError,TypeError):continue
+    return dict(kind='asset_comparison',calls=calls,receipts=receipts,errors=[],
+                limitation='Invocation and current receipt bytes only; missing calls do not change behavioral scores.')
 
 
 def check_direction(root, reply, events, before, after, preview, expects_receipt):

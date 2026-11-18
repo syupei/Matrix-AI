@@ -6,7 +6,9 @@
 
 确认绑定使用 `matrix-review-binding/1`：`request_id`、`scope`、`display:{path,sha256}`、`response:{path,sha256,response_id,message_sha256}`、`person`、`quote`、`outcome:"approved"`；方向另加 `direction_sha256`，scope为做法档实际活动ID数组；输入准入scope为该次展示描述。`quote` 必须是完整消息，不能从否定或有条件答复截出确认。`response_id` 可定位来源JSON的 `messages:[{id,text}]` 中一条完整消息；省略时取整个来源文件。`message_sha256` 用证据工具的 `digest` 计算。记录实答，不能补造人的决定。
 
-PM命令的human_attention/human_review使用相同范围描述字符串；方向展示时工具另冻结全部活动ID为receipt.scope。PM通过 `human_attention` 冻结展示及答复，再由 `human_review` 或 `intake_admit` 消费同一次请求；操作见[外部输入准入](../orchestration/PRODUCTION-ADMISSION.md)。单对话保存上述binding JSON后运行 `python3 matrix/base/tools/review_evidence.py --project . --review-binding <项目相对JSON>`，成功返回 `review_receipt:{path,sha256}`。binding另写 `actor:"user"`；人工看稿另附实际展示成果的 `artifacts` refs。回执指向 `matrix-evidence-bundle/1` manifest；context保留绑定，files保留逐字节副本。完整答复identity持久绑定展示、范围和方向；不能换文件名重用。不同真实消息可记录稳定response_id，不能把相同原话自当新授权。内容或范围变更回到受影响确认。
+PM的展示与答复使用同一scope；方向另冻结全部活动ID。`human_review`、`stage_confirmation`或`intake_admit`消费已答复的human_attention，见[阶段检查](STAGE-GATES.md)。单对话保存binding后运行 `python3 matrix/base/tools/review_evidence.py --project . --review-binding <项目相对JSON>`，返回 `review_receipt:{path,sha256}`。binding写`actor:"user"`；方向还须`direction_draft:{path,sha256}`，展示正文含本轮direction_sha256，工具核实际草稿并计算消息摘要；人工看稿附实际`artifacts` refs。回执的context保留绑定，files保留逐字节副本。全部校验成功才登记答复identity；失败可改正重试，不能换文件名复用旧答复。不同真实消息用稳定response_id；内容变更须展示新版并记录新答复。完整写权限者可篡改源与登记，文件工具不认证人或替代宿主隔离。
+
+团队先用`human_attention`展示并登记实答，inputs为成果路径、scope与状态一致。`human_review`带同一attention_id、task_id、展示、来源、原话、范围，取返回的task.human_review.review_receipt。无任务的阶段用`stage_confirmation`，传state文件、attention_id、person，取review_receipt放入response。两者消费原请求，不新增人审；不能用内部函数或自制回执代替。
 
 ## 实际截图与人工回退
 

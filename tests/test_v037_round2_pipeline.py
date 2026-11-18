@@ -5,6 +5,7 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 from kit import KIT
+from public_review_fixture import stage_receipt
 from test_pm_instances import Fixture, pm
 from practice_fixture import put, review_state
 
@@ -34,8 +35,7 @@ class PipelineRound2(Fixture,unittest.TestCase):
         request=json.loads((self.root/state['request']).read_text())
         self.call('human_attention',id=prefix,kind='confirmation',display=request['display_evidence'],scope=state['scope'],inputs=paths)
         self.call('human_attention',id=prefix,response=reply['source'])
-        with pm.connect(self.root) as db:
-            receipt=pm.direction.bind_attention(pm.api(),self.root,db,prefix,person='SIM-owner',quote=quote,scope=state['scope'],expected={})
+        receipt=stage_receipt(self,state,prefix,'SIM-owner')
         reply['review_receipt']=receipt;put(self.root,state['response'],reply)
         return put(self.root,prefix+'.json',state)['path']
 

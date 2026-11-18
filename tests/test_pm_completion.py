@@ -32,7 +32,7 @@ class CompletionPrerequisiteTests(unittest.TestCase):
 
     def create(self, tid, **fields):
         data = dict(id=tid, parent=None, title='SIM ' + tid, owner='SIM-OWNER', checker='SIM-CHECKER',
-                    goal='simulated', inputs=['in'], outputs=['out'], criteria=['ok'], next_action='next',
+                    goal='simulated', inputs=['in'], outputs=['out/'+tid+'.md'], criteria=['ok'], next_action='next',
                     executor='SIMULATED executor; no agent started')
         data.update(fields)
         if data['inputs']==['in']:data.update(self.business)

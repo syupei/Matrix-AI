@@ -61,10 +61,11 @@ KINDS = {'work', 'stage', 'coordination', 'rule_maintenance'}
 ROSTER = 'management/people.json'
 # Coordination facts: who is involved, what is awaited (an expertise gap included), where a task sits in the plan.
 # Changing them does not invalidate professional verification of the work itself.
-COORDINATION = {'awaiting', 'people', 'direction', 'stage', 'derived_from', 'gap', 'order', 'timeout_minutes'}
+COORDINATION = {'awaiting', 'people', 'direction', 'stage', 'derived_from', 'gap', 'order', 'timeout_minutes', 'expanded'}
+MANAGER_COORDINATION = {'executor', 'checker', 'direction', 'timeout_minutes', 'order', 'expanded'}
 SEMANTIC_FIELDS = {'title','next_action','goal','inputs','outputs','criteria','dependencies','completion_requires',
-                   'executor','checker','human_required','resources','slots','source','artifact_digests',
-                   'difficulty','risk','risk_reason','direction','timeout_minutes','order','expanded'} | governance.FIELDS | admission.FIELDS
+                   'human_required','resources','slots','source','artifact_digests',
+                   'difficulty','risk','risk_reason'} | governance.FIELDS | admission.FIELDS
 SAFE_ID = r'[A-Za-z0-9][A-Za-z0-9_.-]{0,63}'
 # Rework causes, written by the checker of a failed review or by the manager who reopens finished work.
 REWORK = {'execution', 'requirement_clarification', 'basis_changed', 'other'}
@@ -266,7 +267,8 @@ def effective_done(t, tasks):
         return False
     if t['human_required'] and not (t.get('human_review') and t['human_review']['outcome'] == 'approved' and t['human_review']['basis'] == b):
         return False
-    return all(effective_done(tasks[d], tasks) for d in t['dependencies'] + t.get('completion_requires', [])) and all(x['state'] in RETIRED or effective_done(x,tasks) for x in children(tasks,t['id']))
+    return all((d in t.get('_scope_dependency_revisions',{}) and d in t['dependencies']) or effective_done(tasks[d], tasks)
+               for d in t['dependencies'] + t.get('completion_requires', [])) and all(x['state'] in RETIRED or effective_done(x,tasks) for x in children(tasks,t['id']))
 
 
 def counts(items, tasks):
@@ -365,7 +367,7 @@ def basis(t, tasks):
     data = {k: t[k] for k in ['work_revision', 'inputs', 'outputs', 'criteria', 'evidence', 'human_required']}
     if t.get('artifact_digests'):
         data['artifact_digests'] = t['artifact_digests']
-    data['dependencies'] = [(d, tasks[d]['work_revision'], tasks[d]['state']) for d in t['dependencies']]
+    data['dependencies'] = [(d, t.get('_scope_dependency_revisions',{}).get(d,tasks[d]['work_revision']), tasks[d]['state']) for d in t['dependencies']]
     data['children'] = desc(t['id'])
     if t.get('completion_requires'):
         # Bound to the prerequisite's work version: accepted unchanged keeps this check valid,
@@ -840,6 +842,10 @@ def execute(project, cmd, _db=None, _applying=None):
                     professional = bool(admission.task_professions(api(),root,db,after))
                     governed = professional or any(after.get(key) for key in admission.FIELDS) or admission.coordination_only(api(),db,after)
                     semantic = set(changes) & SEMANTIC_FIELDS
+                    if set(changes) & MANAGER_COORDINATION:
+                        require(actor == after['manager'] or applying_id, 'coordination changes belong to the responsible manager; send production_feedback')
+                    if before['state'] == 'running' and 'checker' in changes:
+                        require(False, 'stop current work before changing its checker')
                     if governed and semantic:
                         require(actor == after['manager'] or applying_id,
                                 'production changes must return to the PM/authorized manager; record production_feedback')
@@ -853,13 +859,13 @@ def execute(project, cmd, _db=None, _applying=None):
                         require(nonempty(cmd.get('quote')), 'lowering an F0/F1 risk needs the deciding person and exact quote')
                         authorized(cmd.get('person'), [tid], tasks, people)
                     if before['state'] == 'running' and changes.get('executor', before.get('executor')) != before.get('executor'):
-                        require(False, 'stop current executor before reassignment')
+                        require(False, 'stop admitted production: stop current executor before reassignment')
                     if governed and semantic:
                         candidate=dict(after,**changes)
                         pure_coordination = (admission.coordination_only(api(),db,before) and admission.coordination_only(api(),db,candidate)
                                              and not before.get('admitted_inputs') and not candidate.get('admitted_inputs'))
                         if not pure_coordination:admission.semantic_basis(api(),root,db,before,candidate,cmd,applying_id)
-                        if not set(changes)<={'dependencies','completion_requires','resources','slots','practice_completion','stage_transition'}:
+                        if set(changes) & {'inputs','outputs','dependencies'}:
                             after.pop('input_provenance',None)
                     after.update(changes)
                     admission.task_boundary(api(),root,db,after,tasks)
@@ -868,7 +874,7 @@ def execute(project, cmd, _db=None, _applying=None):
                     if set(changes) & {'executor', 'difficulty'}:
                         problem = team.level_issue(api(), db, after)
                         require(not problem, problem)
-                    if semantic or 'evidence' in changes:
+                    if semantic or set(changes) & {'evidence','executor','checker'}:
                         after['work_revision'] += 1
                         after['review'] = after['human_review'] = None
                     after['reason'] = cmd['reason']
@@ -904,6 +910,9 @@ def execute(project, cmd, _db=None, _applying=None):
                         if handed and handed != after['evidence']:
                             after.update(evidence=handed, work_revision=after['work_revision'] + 1, review=None, human_review=None)
                         require(after['evidence'], 'hand over with the result and evidence paths (evidence)')
+                        after['submitted_output_sha256'] = {name:integrity.file_hash(api(),root,name) for name in after['evidence']
+                            if local(root,name).is_file() and admission.within_output(name,after['outputs'])}
+                        after['submitted_by'] = after.get('executor') or after['owner']
                     problem = gap_issue(after, integrity.records(db, 'gap'), state)
                     require(not problem, problem)
                     after.pop('blocked_by', None)
@@ -987,7 +996,10 @@ def execute(project, cmd, _db=None, _applying=None):
                         admission_review = dict(run_id=active_reviews[0]['id'],
                             artifact_sha256={name:integrity.file_hash(api(), root, name) for name in cmd['evidence']})
                     after['review'] = {'basis':basis(after,tasks),'checker':actor,'outcome':cmd['outcome'],'evidence':cmd['evidence'],'at':now(),
-                                       'independence':team.independence(api(), root, db, after, actor)}
+                                       'independence':team.independence(api(), root, db, after, actor),
+                                       'artifact_sha256':{name:integrity.file_hash(api(),root,name) for name in cmd['evidence'] if local(root,name).is_file()},
+                                       'output_sha256':{name:integrity.file_hash(api(),root,name) for name in after['evidence']
+                                            if local(root,name).is_file() and admission.within_output(name,after['outputs'])}}
                     if admission_review:after['review'].update(admission_review)
                     after.pop('sent_back', None)
                     if cmd['outcome'] == 'failed':
@@ -998,7 +1010,9 @@ def execute(project, cmd, _db=None, _applying=None):
                     require(after['state'] not in TERMINAL, 'reopen closed task before new human decision')
                     require(actor in {cfg['pm_actor'], cfg.get('frontdesk_actor')} - {None}, 'unified frontdoor records human decisions')
                     require(cmd.get('outcome') in {'approved','changes_requested','deferred'}, 'invalid human decision')
-                    require(all(nonempty(cmd.get(k)) for k in ['presented_ref','source','quote','scope']), 'actual presentation, reply source, exact quote and scope required')
+                    require(all(nonempty(cmd.get(k)) for k in ['presented_ref','source','quote'])
+                            and (nonempty(cmd.get('scope')) or strings(cmd.get('scope')) and bool(cmd.get('scope'))),
+                            'actual presentation, reply source, exact quote and scope required')
                     person = cmd.get('person')
                     require(not cfg.get('collaboration') or after.get('profession'), 'record task profession before routing human review')
                     if people:
@@ -1079,8 +1093,17 @@ def execute(project, cmd, _db=None, _applying=None):
                 problems = admission.production_issues(api(), root, db, after, tasks, phase='planning')
                 require(not problems, canon(problems))
             if op == 'transition' and after['state'] == 'done':
-                after['handed_output_sha256'] = {name: integrity.file_hash(api(), root, name) for name in after['evidence']
+                current_outputs = {name: integrity.file_hash(api(), root, name) for name in after['evidence']
                     if local(root, name).is_file() and any(name == out or out.endswith('/') and name.startswith(out) for out in after['outputs'])}
+                checked_outputs=dict(after['review'].get('output_sha256') or {})
+                compared_outputs=dict(current_outputs)
+                if tid in integrity.records(db,'direction_sample'):
+                    # The one human review adds only the confirmation projection;
+                    # confirm_milestone below verifies the reviewed content binding.
+                    projection=admission.load_gate().tone.DEFAULT_PATH
+                    checked_outputs.pop(projection,None);compared_outputs.pop(projection,None)
+                require(compared_outputs == checked_outputs, 'delivered output changed after professional verification; submit and check the current bytes')
+                after['handed_output_sha256'] = current_outputs
                 direction.confirm_milestone(api(), root, db, after)
             if op == 'transition' and after['state'] == 'done' and after.get('closure'):
                 current_gates(root, db, tasks)

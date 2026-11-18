@@ -264,6 +264,24 @@ class AuthorHandover(unittest.TestCase):
                 self.handover()
             call.assert_not_called()
 
+    def test_repeated_real_capture_of_unchanged_inputs_keeps_valid_handover(self):
+        self.candidate()
+        path = self.out/'author-capture-events.jsonl'
+        rows = [json.loads(line) for line in path.read_text().splitlines()]
+        # Two distinct broker requests can legitimately yield the same PNG and
+        # capture receipt when all inputs and the representative state match.
+        repeated = [dict(row, request_id='SIM-recapture-'+str(n)) for n,row in enumerate(rows)]
+        path.write_text(''.join(json.dumps(row)+'\n' for row in rows+repeated))
+        with patch.object(probe, 'pm_call') as call:
+            self.handover()
+            self.assertEqual(1, call.call_count)
+        # Repetition does not make a screenshot with no matching broker event valid.
+        (self.public/probe.FIT_SCREENSHOT).write_bytes(b'SIM-unrecorded-replacement')
+        with patch.object(probe, 'pm_call') as call:
+            with self.assertRaisesRegex(ValueError, 'actual broker capture'):
+                self.handover()
+            call.assert_not_called()
+
     def test_reference_mutation_is_rejected_and_author_preview_is_distinct(self):
         self.candidate()
         self.assertNotEqual(probe.SCENE,probe.seed.SCENE)

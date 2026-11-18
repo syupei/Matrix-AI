@@ -87,6 +87,8 @@ def framework_contract(pm, root, profession):
 def mapping_conflicts(pm, contract, mapping, source_files):
     expected = {(row['stage'], row['requirement']): row['definition']['record']
                 for row in contract['requirements']}
+    checks = {(row['stage'], row['requirement']): row['definition'].get('submission')
+              for row in contract['requirements']}
     if not isinstance(mapping, list):
         return ['framework_mapping list required']
     seen, conflicts = set(), []
@@ -107,6 +109,8 @@ def mapping_conflicts(pm, contract, mapping, source_files):
             conflicts.append('source location or adapted supplement required: ' + label)
         if row.get('records') != [expected[key]]:
             conflicts.append('map the required framework record: ' + label)
+        if checks[key] and row.get('pre_review_check') != checks[key]:
+            conflicts.append('map the required pre-review check and receipt: ' + label)
     conflicts.extend('missing framework mapping: ' + '/'.join(key) for key in sorted(expected.keys() - seen))
     return conflicts
 

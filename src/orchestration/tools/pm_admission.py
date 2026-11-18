@@ -208,6 +208,10 @@ def practice_check(pm, root, db, task, tasks, direction, phase):
     if phase != 'complete':
         return
     ref = task.get('practice_completion')
+    parent=tasks.get(task.get('parent'),{})
+    implementation_child=(parent.get('practice_stage') or {}).get('current')=='E-3.2' and not review_child(pm,task,tasks)
+    if implementation_child and not increment and not ref:
+        return  # Later implementation items consume the first increment's receipt.
     if not ref and not requirements.get('complete') and task.get('kind') != 'stage' and not increment:
         return     # Finishing a work item does not advance its entire professional stage.
     pm.require(pm.nonempty(ref) and ref in task['evidence'],
@@ -354,6 +358,18 @@ def upstream_confirmation(pm,root,db,task,up,files,phase):
     source=task_professions(pm,root,db,up);target=task_professions(pm,root,db,task)
     if not source or source & target:return None
     if phase=='planning':return None
+    direction=pm.integrity.records(db,'direction_sample').get(up.get('id'))
+    if direction and direction.get('closed') and 'code-engineering' not in target:
+        tone=load_gate().tone
+        data=tone.validate(root,tone.DEFAULT_PATH)
+        pm.require(direction.get('reviewed_direction')==tone.direction_binding(tone.DEFAULT_PATH,data),
+                   'direction milestone does not confirm this version')
+        receipt=direction.get('confirmation_receipt')
+        tone.evidence.verify_human_receipt(root,receipt,direction_sha256=direction['reviewed_direction']['direction_sha256'],authority_db=db)
+        approved={value['path']:value['sha256'] for value in data['parts'].values()}
+        approved[tone.DEFAULT_PATH]=pm.integrity.file_hash(pm,root,tone.DEFAULT_PATH)
+        pm.require(all(approved.get(name)==sha for name,sha in files.items()), 'direction confirmation must cover the consumed handoff')
+        return receipt
     gate=load_gate();receipt=up.get('practice_receipt') or (up.get('input_receipt') if not task.get('stage_transition') else None)
     state_ref=task.get('stage_transition') or up.get('stage_transition')
     if receipt:
@@ -372,14 +388,43 @@ def upstream_confirmation(pm,root,db,task,up,files,phase):
     return checked.get('review_bundle') or (receipt or {}).get('bundle')
 
 
-def input_snapshot(pm,root,task):
+def input_snapshot(pm,root,task,tasks=None,phase='entry'):
     saved=task.get('input_provenance')
     if not saved:return None
     gate=load_gate();view,bundle=gate.tone.evidence.verify_bundle(root,saved['bundle'])
     context=bundle['context']
     pm.require(context.get('task_id')==task['id'] and context.get('inputs')==task.get('inputs'), 'frozen dispatch inputs no longer match this task')
+    # An authorized reopen may consume a newly completed upstream revision. Never
+    # refresh from live bytes alone, and never change a running task's input contract.
+    if tasks and (phase == 'start' or task.get('state') not in {'running','done'} and phase in {'entry','planning'}):
+        context=json.loads(json.dumps(context))
+        for path, source in context['sources'].items():
+            origins=source.get('origins', [source])
+            refreshed=[]
+            for origin in origins:
+                up=tasks.get(origin.get('task_id'), {})
+                if up and pm.effective_done(up,tasks) and up.get('work_revision',0)>origin.get('work_revision',0):
+                    files={name:sha for name,sha in up.get('handed_output_sha256',{}).items()
+                           if name==path or path.endswith('/') and name.startswith(path)}
+                    pm.require(files and all(pm.integrity.file_hash(pm,root,name)==sha for name,sha in files.items()),
+                               'reworked input differs from its latest trusted handover: '+path)
+                    refreshed.append(dict(task_id=up['id'],work_revision=up['work_revision'],files=files))
+                else:refreshed.append(origin)
+            source['files']={name:sha for origin in refreshed for name,sha in origin['files'].items()}
+            if 'origins' in source:source['origins']=refreshed
+            else:source.update(refreshed[0])
+        context['files']={name:sha for row in context['sources'].values() for name,sha in row['files'].items()}
     for path,digest in context['files'].items():
         if not within_output(path,task.get('outputs',[])):
+            if (phase=='entry' and task.get('state')=='done' and path==gate.tone.DEFAULT_PATH
+                    and task.get('practice_receipt') and pm.integrity.file_hash(pm,root,path)!=digest):
+                receipt=task['practice_receipt'];old_root,_=gate.tone.evidence.stage_receipt(root,receipt['bundle'])
+                state=json.loads(gate.checked_file(old_root,receipt['state_path']).read_text())
+                gate.tone.check_contract_scope(old_root,state['tone_contract'],root,scope=state['scope'],registry_root=root)
+                source=context['sources'].get(path,{})
+                if set(source.get('files',{}))=={path} and source.get('task_id') in task.get('dependencies',[]):
+                    task.setdefault('_scope_dependency_revisions',{})[source['task_id']]=source['work_revision']
+                continue
             pm.require(pm.integrity.file_hash(pm,root,path)==digest,'read-only dispatched input changed: '+path)
     return context
 
@@ -387,9 +432,19 @@ def input_snapshot(pm,root,task):
 def freeze_input_sources(pm,root,task,sources):
     gate=load_gate();files={name:digest for row in sources.values() for name,digest in row['files'].items()}
     if not files:return
+    previous=task.get('input_provenance');source_roots={}
+    if previous:
+        old_view, old = gate.tone.evidence.verify_bundle(root, previous['bundle'])
+        if old['context'].get('sources') == sources:
+            return
+        # Preserve already consumed input bytes when a task legitimately edits its
+        # own output, while refreshing another input from a new upstream handover.
+        for name,digest in files.items():
+            if old['context']['files'].get(name)==digest:
+                source_roots[name]=old_view
     refs=[dict(path=name,sha256=digest) for name,digest in files.items()]
     context=dict(format='matrix-input-start/1',task_id=task['id'],inputs=task.get('inputs',[]),files=files,sources=sources)
-    task['input_provenance']={'bundle':gate.tone.evidence.seal_bundle(root,refs,context,follow_refs=False)}
+    task['input_provenance']={'bundle':gate.tone.evidence.seal_bundle(root,refs,context,follow_refs=False,source_roots=source_roots)}
 
 
 def completion_context(pm,root,db,task,tasks,completion):
@@ -407,7 +462,26 @@ def completion_context(pm,root,db,task,tasks,completion):
         review=row.get('review') or {}
         for name,digest in review.get('artifact_sha256',{}).items():
             files[name]=digest;producers[name]=review['checker'];review_files[name]=digest
-    return dict(task_id=task['id'],dispatched=task.get('practice_stage'),handed_files=files,producers=producers,review_files=review_files)
+    context=dict(task_id=task['id'],dispatched=task.get('practice_stage'),handed_files=files,producers=producers,review_files=review_files)
+    state=json.loads(pm.local(root,completion).read_text())
+    if state.get('role')=='design' and state.get('current')=='D-6':
+        subjects={};subject_producers={}
+        for item in state.get('artifacts',[]):
+            candidates=[]
+            for row in tasks.values():
+                if 'code-engineering' not in task_professions(pm,root,db,row) or row.get('state') not in {'waiting_review','done'}:continue
+                if not set(state['scope']) & set((row.get('practice_stage') or {}).get('scope',[])):continue
+                handed=row.get('handed_output_sha256') if row['state']=='done' else row.get('submitted_output_sha256')
+                if (handed or {}).get(item['path'])==item['sha256']:
+                    candidates.append(row)
+            if candidates:
+                source=max(candidates,key=lambda row:row.get('updated_at',''))
+                subjects[item['path']]=item['sha256']
+                subject_producers[item['path']]=source.get('submitted_by') or source.get('executor') or source['owner']
+        if subjects:
+            pm.require(len(subjects)==len(state['artifacts']), 'D-6 implementation artifacts must all match a current trusted engineering handover')
+            context.update(review_subjects=subjects,subject_producers=subject_producers,implementation=True)
+    return context
 
 def production_issues_impl(pm, root, db, task, tasks=None, phase='entry'):
     tasks = tasks or {}
@@ -438,7 +512,7 @@ def production_issues_impl(pm, root, db, task, tasks=None, phase='entry'):
     professions = task_professions(pm,root,db,task)
     professional = bool(professions & pm.team.registries(pm, root).keys())
     paths = {canonical_input(path):path for path in inputs}
-    snapshot=input_snapshot(pm,root,task) if task.get('input_provenance') else None
+    snapshot=input_snapshot(pm,root,task,tasks,phase) if task.get('input_provenance') else None
     input_sources={}
     requires = {path for path in paths if path in {row['path'] for row in latest.values()}}
     production=not coordination_only(pm,db,task) and task.get('kind')!='rule_maintenance'
@@ -497,7 +571,7 @@ def production_issues_impl(pm, root, db, task, tasks=None, phase='entry'):
     if production and not task.get('intake_review_id') and task['id'] not in direction and task.get('kind') not in {'coordination','rule_maintenance'}:
         pm.require(ids or any(source for source in upstream if source.get('kind') not in {'coordination','rule_maintenance'} and not source.get('intake_review_id') and task_professions(pm,root,db,source) and any(within_output(path,source.get('outputs',[])) for path in paths)),
                    'professional production needs an admitted business source or declared upstream handoff; installed rules alone are not business input')
-    if phase=='start' and input_sources and not snapshot:freeze_input_sources(pm,root,task,input_sources)
+    if phase=='start' and input_sources:freeze_input_sources(pm,root,task,input_sources)
     requires.update(registered[i]['path'] for upstream_task in upstream for i in upstream_task.get('admitted_inputs', [])
                     if i in registered and registered[i]['path'] in paths)
     role = ' '.join(str(value) for value in professions if value)

@@ -1,21 +1,23 @@
 """Actual PM transactions over the common stage gate; synthetic work and human text only."""
 import copy
 import json
+from public_review_fixture import stage_receipt
 import unittest
 from test_pm_instances import Fixture, TEAM, pm
-import test_v037_review_repairs as repairs
+import test_v037_direction_recovery as recovery
 from practice_fixture import put
 
 
 class PMStageRound2(Fixture,unittest.TestCase):
     def setUp(self):
-        controller=repairs.DirectionBindings('test_real_display_reply_and_milestone_close_are_all_required')
-        config=copy.deepcopy(TEAM)
-        config['entries'].append(dict(id='D-T7',profession='experience-design',level='T7',model='SIM-big',count=1,master=True))
-        controller.staff=lambda config_ignored=None:Fixture.staff(controller,config)
+        controller=recovery.DirectionRecovery()
+        controller.extra_entries=[dict(id='code-executors',profession='code-engineering',level='T4',model='SIM-small',count=2)]
         controller.setUp();self.addCleanup(controller.doCleanups)
-        controller.show_and_answer();controller.approve_direction();controller.close('Direction')
-        self.root=controller.root;self.n=controller.n+1000;self._business_fixture=controller._business_fixture
+        brief,assigned=controller.setup_direction()
+        rec=controller.call('direction_sample',id='DIR',brief=brief,admitted_inputs=['BRIEF'],profile='SIM application',
+                            person='SIM-owner',combined_review_authorization='SIM combined review',assigned=assigned)['direction_sample']
+        controller.complete_direction(rec,assigned)
+        self.root=controller.root;self.n=controller.n+1000;self._business_fixture=getattr(controller,'_business_fixture',None)
         self.gate=pm.admission.load_gate();self.tone=self.gate.tone;self.serial=0
         self.contract=dict(self.tone.evidence.ref(self.root,self.tone.DEFAULT_PATH),version=controller.data['version'])
 
@@ -31,8 +33,9 @@ class PMStageRound2(Fixture,unittest.TestCase):
             response=dict(request_id=request['request_id'],scope=state['scope'],artifact_sha256=digest,actor='user',choice='confirm',source=reply['path'],quote=quote,display_sha256=shown['sha256'],message_sha256=self.tone.evidence.digest(quote))
             self.call('human_attention',id=request['request_id'],kind='confirmation',display=shown['path'],scope=state['scope'],inputs=paths)
             self.call('human_attention',id=request['request_id'],response=reply['path'])
-            with pm.connect(self.root) as db:response['review_receipt']=pm.direction.bind_attention(pm.api(),self.root,db,request['request_id'],person='SIM-owner',quote=quote,scope=state['scope'],expected={})
             state.update(request=put(self.root,prefix+'-request.json',request)['path'],response=put(self.root,prefix+'-response.json',response)['path'])
+            response['review_receipt']=stage_receipt(self,state,request['request_id'],'SIM-owner')
+            put(self.root,state['response'],response)
         path=put(self.root,prefix+'-state.json',state)['path'];return path,state
 
     def close_work(self,tid,paths):
@@ -110,10 +113,42 @@ class PMStageRound2(Fixture,unittest.TestCase):
 
     def test_closed_stage_replays_after_real_checker_retirement(self):
         receipt=self.solution();config=json.loads((self.root/'management/instance-config.json').read_text())
-        config['entries']=[entry for entry in config['entries'] if entry['id']!='Q-T7']
+        config['entries']=[entry for entry in config['entries'] if entry['id']!='q']
         self.write('instance-config.json',config);self.confirm()
         self.call('retire_instance',id='quality-engineering-001',expected_revision=self.instance('quality-engineering-001')['revision'],reason='SIM person approved removal after all actual work closed')
         self.assertFalse(self.instance('quality-engineering-001')['active'])
         self.assertFalse(self.t('SOL')['needs_recheck'])
         view,_=self.tone.evidence.verify_bundle(self.root,receipt['bundle']);state=json.loads((view/receipt['state_path']).read_text())
         self.assertTrue(self.gate.check(view,state,registry_root=self.root,seal=False)['allowed'])
+
+    def test_delegated_stage_stays_done_after_expiry_and_build_can_start(self):
+        from datetime import datetime,timezone
+        from unittest.mock import patch
+        artifact=put(self.root,'engineering/delegated.md','SIM actual delegated solution')
+        entry=dict(role='solution',current='E-2.4',scope=['workspace'],tone_contract=self.contract)
+        state=dict(entry,next='complete',blockers=[],artifacts=[artifact],
+                   conversation_check=put(self.root,'management/delegated-flow.md','E-2.4 → complete')['path'])
+        digest=self.gate.artifact_digest(self.root,[artifact])
+        grant=put(self.root,'management/grant.md','SIM actual scoped delegation')
+        put(self.root,'management/delegations.json',dict(delegations=[dict(id='DG',revision=1,revoked=False,
+            expires_at='2099-01-01T00:00:00+00:00',role='solution',stages=['E-2.4'],scope=['workspace'],
+            source=grant['path'],source_sha256=grant['sha256'],person_id='user',instance_id='code-engineering-002')]))
+        review=put(self.root,'management/delegated-check.json',dict(checker='quality-engineering-001',outcome='passed',
+            artifact_sha256=digest,scope=['workspace'],evidence=put(self.root,'management/delegated-proof.md','SIM actual check')['path']))
+        state['delegated_decision']=put(self.root,'management/delegated-decision.json',dict(delegation_id='DG',delegation_revision=1,
+            instance_id='code-engineering-002',decision_kind='routine',role='solution',stage='E-2.4',artifact_sha256=digest,
+            scope=['workspace'],source=put(self.root,'management/decision-reason.md','SIM within delegated scope')['path'],
+            producers=['code-engineering-001'],review=review['path']))['path']
+        path=put(self.root,'engineering/delegated-state.json',state)['path']
+        self.create('DELEGATED',practice_stage=entry,practice_completion=path,outputs=[artifact['path'],path])
+        self.close_work('DELEGATED',[artifact['path'],path])
+        receipt=self.t('DELEGATED')['practice_receipt']
+        class Future(datetime):
+            @classmethod
+            def now(cls,tz=None):return cls(2100,1,1,tzinfo=timezone.utc)
+        with patch.object(self.gate,'datetime',Future):
+            self.assertFalse(self.t('DELEGATED')['needs_recheck'])
+            self.create('AFTER',practice_stage=dict(role='build',current='E-3.1',scope=['workspace'],tone_contract=self.contract,
+                        upstream=receipt['state_path'],upstream_bundle=receipt['bundle']),outputs=['engineering/after.md'])
+            self.mutate('transition','AFTER',state='running',reason='SIM normal downstream',execution_receipt='SIM')
+            self.assertEqual('running',self.t('AFTER')['state'])
