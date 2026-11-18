@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
+from pm_test_inputs import business_source,actual_output
 from kit import KIT as ROOT
 from practice_fixture import installed_rule_input
 def load(name, path):
@@ -26,6 +27,7 @@ class ProjectFixture:
         (self.root/'input.md').write_text('SIMULATED baseline')
         for iid,role in [('L','matrix-product'),('W','matrix-product'),('X','matrix-product'),('M','matrix-project-management'),('S','security-specialist')]:
             self.call('register_instance','PM',id=iid,instance=dict(role=role,endpoint='SIM-'+iid,write_roots=['management/instances/'+iid+'/workspace']))
+        self.business=business_source(self,pm,actors=[('CHECKER','SIM-independent-checker')])
         self.create('A',owner='L',slots=0);self.create('B',owner='X')
         self.app('L','lead',['A'],['W'])
         self.app('W','executor',['A'])
@@ -37,6 +39,7 @@ class ProjectFixture:
     def create(self,tid,parent=None,actor='PM',**kw):
         d=dict(id=tid,parent=parent,title=tid,owner='W',checker='CHECKER',goal='SIM task',inputs=[self.rule_input],outputs=['candidate'],criteria=['consistent'],next_action='produce',executor=kw.get('owner','W'))
         d.update(kw)
+        if d['inputs']==[self.rule_input]:d.update(self.business)
         with pm.connect(self.root,readonly=True) as db:
             if 'product' in pm.admission.task_professions(pm.api(),self.root,db,d):
                 d.setdefault('practice_stage',{'role':'product','current':'P-4','scope':['SIM existing approved product work']})
@@ -45,7 +48,7 @@ class ProjectFixture:
     def mutate(self,op,tid,actor=None,**kw):
         t=self.t(tid);return self.call(op,actor or t['owner'],task_id=tid,expected_revision=t['revision'],**kw)
     def complete(self,tid):
-        self.mutate('update',tid,changes={'evidence':['SIM actual artifact']},reason='SIM completion')
+        self.mutate('update',tid,changes={'evidence':[actual_output(self,self.t(tid))]},reason='SIM completion')
         self.mutate('review',tid,'CHECKER',outcome='passed',criteria_checked=['consistent'],evidence=['SIM independently checked'])
         return self.mutate('transition',tid,self.t(tid)['manager'],state='done',reason='SIM checked')
 
@@ -115,10 +118,9 @@ class Appointments(ProjectFixture, unittest.TestCase):
         self.assertEqual('OB2',obs['OB1']['superseded_by'])
         self.assertEqual(2,len(obs))
     def test_team_owner_cannot_certify_own_delivery(self):
-        self.create('A-1','A','L',checker='W')
-        self.mutate('update','A-1',changes={'evidence':['SIM candidate']},reason='SIM')
-        with self.assertRaisesRegex(pm.TaskError,'independent checker'):
-            self.mutate('review','A-1','W',outcome='passed',criteria_checked=['consistent'],evidence=['SIM self-check'])
+        with self.assertRaisesRegex(pm.TaskError,'independent'):
+            self.create('A-1','A','L',checker='W')
+
     def test_query_and_audit_show_revoked_appointment(self):
         self.create('A-1','A','L')
         self.call('revoke_appointment','PM',id='W',expected_revision=1,reason='SIM')
@@ -128,7 +130,7 @@ class Appointments(ProjectFixture, unittest.TestCase):
         self.assertIn('appointment_required',[x['code'] for x in a['issues']])
     def test_render_cannot_silently_discard_mutation(self):
         self.create('A-1','A','L');task=self.t('A-1')
-        command=dict(op='update',actor='L',event_id='CLI',task_id='A-1',expected_revision=task['revision'],changes={'next_action':'updated'},reason='SIM')
+        command=dict(op='update',actor='L',event_id='CLI',task_id='A-1',expected_revision=task['revision'],changes={'next_action':'updated'},admission_basis=self.business['admitted_inputs'],reason='SIM existing approved mechanism scope')
         cli=[sys.executable,str(ROOT/'matrix/orchestration/tools/pm_tasks.py'),'--project',str(self.root)]
         rejected=subprocess.run(cli+['--render'],input=json.dumps(command),text=True,capture_output=True)
         self.assertNotEqual(0,rejected.returncode);self.assertIn('render does not execute',rejected.stdout)
@@ -140,8 +142,8 @@ class Appointments(ProjectFixture, unittest.TestCase):
         self.assertEqual('updated',self.t('A-1')['next_action'])
     def test_single_listed_person_does_not_get_all_decisions(self):
         (self.root / 'management').mkdir(parents=True, exist_ok=True)
-        (self.root/'management/people.json').write_text(json.dumps({'people':[{'id':'product-human','name':'Product','decides':['product']}]}))
         self.create('H',owner='X',human_required=True)
+        (self.root/'management/people.json').write_text(json.dumps({'people':[{'id':'product-human','name':'Product','decides':['product']}]}))
         with self.assertRaisesRegex(pm.TaskError,'no decision authority'):
             self.mutate('human_review','H','PM',person='product-human',outcome='approved',presented_ref='SIM',source='SIM',quote='SIM',scope='SIM')
 

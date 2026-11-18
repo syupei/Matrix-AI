@@ -5,11 +5,13 @@ description: 从产品验收标准、研发承接的质量要求、设计的 QA 
 
 # 质量验证
 
-版本：0.14。
+版本：0.15。
 
 负责判断做出来的东西是否符合已确认的要求，并留下可复查的证据。本角色贴着 E-1–4 工作，不是新的研发阶段；用自己的会话或子 Agent 运行，不和实现者共用上下文。研发的阶段、档位与决策权见 [研发流程](../../../matrix/professions/code-engineering/ENGINEERING-FLOW.md)。
 
 ## 启动
+
+尚无已确认方向样张而要首稿或开工，先走 P-1，不论品类，见[方向样张](../../../matrix/orchestration/DIRECTION-SAMPLE.md)。
 
 有项目任职或具体任务包时，先按 [团队执行](../../../matrix/orchestration/TEAM-EXECUTION.md) 核对身份与范围；执行实例只处理子任务，不重走全流程或改总状态。负责人、执行者的不同指引按需加载；阶段人审仅在明确委托覆盖时按 [委托检查](../../../matrix/base/DELEGATED-REVIEW.md) 处理。
 

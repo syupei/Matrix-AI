@@ -8,6 +8,7 @@ import re
 import tempfile
 import unittest
 
+from pm_test_inputs import business_source,actual_output,confirmed_direction
 from kit import KIT
 from practice_fixture import installed_rule_input, direction, approve, put, pm_closed_fixture
 SOURCE = KIT
@@ -46,12 +47,9 @@ class Fixture:
         for e in TEAM['entries']:
             for _ in range(e['count']):
                 self.call('derive', entry=e['id'], endpoint='SIM-handle-' + str(self.n))
+        self.business=business_source(self,pm)
         # code-engineering-001 (T7 master), -002/-003 (T4); quality-engineering-001 (T6 master); product-001 (T7 master), product-002 (T5)
-        tone=pm.admission.load_gate().tone
-        self.contract,data=direction(self.root,tone,label='Synthetic static task-list mechanism; no interactive product activity')
-        approve(self.root,tone,data,person='boss')
-        self.contract=put(self.root,tone.DEFAULT_PATH,'```tone-contract\n'+json.dumps(data)+'\n```\n')
-        pm_closed_fixture(self.root,tone,data)
+        self.contract=confirmed_direction(self,pm,self.business)
 
     def call(self, op, actor='PM', **kw):
         self.n += 1
@@ -64,6 +62,7 @@ class Fixture:
         data = dict(id=tid, parent=parent, title='SIM ' + tid, owner='code-engineering-001', checker='quality-engineering-001', goal='SIMULATED',
                     inputs=[self.rule_input], outputs=['SIM output'], criteria=['SIM correct'], next_action='SIM next ' + tid)
         data.update(kw)
+        if data['inputs']==[self.rule_input]:data.update(self.business)
         data.setdefault('executor', data['owner'])
         if data.get('kind', 'work') == 'work':
             if data['owner'].startswith('code-engineering-'):
@@ -83,12 +82,12 @@ class Fixture:
 
     def hand_over(self, tid, **kw):
         return self.mutate('transition', tid, state='waiting_review', reason='SIM handed over', stop_evidence='SIM stopped',
-                           evidence=['SIMULATED result ' + tid], **kw)
+                           evidence=[actual_output(self,self.t(tid))], **kw)
 
     def check(self, tid, outcome='passed', **kw):
         t = self.t(tid)
         if not t['evidence']:
-            self.mutate('update', tid, changes={'evidence': ['SIMULATED work ' + tid]}, reason='SIM work')
+            self.mutate('update', tid, changes={'evidence': [actual_output(self,self.t(tid))]}, reason='SIM work')
         return self.mutate('review', tid, t['checker'], outcome=outcome, criteria_checked=t['criteria'], evidence=['SIMULATED check'], **kw)
 
     def close(self, tid):
@@ -111,7 +110,7 @@ class Fixture:
         self.finish('T-0002')
         self.create('T-0005', owner='code-engineering-001', title='登录异常的处理与对照表', difficulty='T6', risk='F2', risk_reason='SIM 主流程')
         self.start('T-0005')
-        self.create('T-0031', 'T-0005', owner='code-engineering-002', checker='code-engineering-001', title='登录模块的异常对照表', difficulty='T4', risk='F2', risk_reason='SIM')
+        self.create('T-0031', 'T-0005', owner='code-engineering-002', checker='quality-engineering-001', title='登录模块的异常对照表', difficulty='T4', risk='F2', risk_reason='SIM')
         self.start('T-0031')
         self.mutate('transition', 'T-0031', state='blocked', reason='缺测试环境的数据库权限', stop_evidence='SIM stopped')
         self.create('T-0006', owner='quality-engineering-001', checker='code-engineering-001', title='登录失败的验收', dependencies=['T-0005'], difficulty='T5', risk='F2', risk_reason='SIM')
@@ -121,7 +120,7 @@ class Fixture:
         self.create('T-0003', owner='product-001', title='登录提示文案', difficulty='T4', risk='F3', risk_reason='SIM 提示')
         self.start('T-0003')
         for child in ['T-0003.a', 'T-0003.b']:
-            self.create(child, 'T-0003', owner='product-002', checker='product-001')
+            self.create(child, 'T-0003', owner='product-002', checker='quality-engineering-001')
         self.start('T-0003.a')
         self.hand_over('T-0003.a')
 
@@ -130,7 +129,7 @@ class Lists(Fixture, unittest.TestCase):
     def test_pm_list_holds_only_tasks_the_pm_dispatched(self):
         self.build()
         listed = self.listing('PM')
-        self.assertEqual('记账 App：PM（PM）派发的任务 5 项：受阻 1、等人审 1、进行中 1、未开始 1、已完成 1', listed['header'])
+        self.assertEqual('记账 App：PM（PM）派发的任务 8 项：受阻 1、等人审 1、进行中 1、未开始 1、已完成 4', listed['header'])
         self.assertEqual(['编号', '任务', '受领者', '难度 / 风险', '状态', '下一步', '完成后', '更新'], listed['columns'])
         self.assertEqual(['T-0005', 'T-0004', 'T-0003', 'T-0006'], [r[0] for r in listed['rows']])  # blocked, person review, then by id
         rows = self.rows('PM')
@@ -162,15 +161,17 @@ class Lists(Fixture, unittest.TestCase):
         product = self.rows('product-001')
         self.assertEqual('检验并整合 产品-002 的 T-0003.a；派出 T-0003.b 给 产品-002', product['T-0003']['下一步'])  # a lead sees what it should dispatch
         self.assertNotIn('T-0003.a', product)  # dispatched downstream, not received
-        self.assertEqual('等检验：产品-001', self.rows('product-002')['T-0003.a']['状态'])
+        self.assertEqual('等检验：质量工程-001', self.rows('product-002')['T-0003.a']['状态'])
         self.assertEqual('未开始：就绪', self.rows('product-002')['T-0003.b']['状态'])
 
     def test_blocked_status_names_the_nearest_level_and_follows_to_the_root(self):
         self.create('ROOT', owner='code-engineering-001')
         self.start('ROOT')
-        self.create('MID', 'ROOT', owner='code-engineering-002', checker='code-engineering-001')
+        self.create('MID', 'ROOT', owner='code-engineering-002', checker='quality-engineering-001')
+        put(self.root,'SIM-mid-authority.md','SIM PM appoints the current MID owner as scoped lead, with code-engineering-003 allocated')
+        self.call('appoint','PM',id='code-engineering-002',appointment=dict(mode='lead',role='code-engineering',root_tasks=['MID'],delegates=['code-engineering-003'],source='SIM-mid-authority.md'))
         self.start('MID')
-        self.create('LEAF', 'MID', owner='code-engineering-002', checker='code-engineering-002', executor='code-engineering-003')
+        self.create('LEAF', 'MID', owner='code-engineering-002', checker='quality-engineering-001', executor='code-engineering-003')
         self.mutate('transition', 'LEAF', state='blocked', reason='SIM 缺权限')
         self.assertEqual('受阻：等 代码工程-002 的 MID', self.rows('PM')['ROOT']['状态'])
         self.assertEqual('受阻：等 代码工程-002 的 LEAF', self.rows('code-engineering-002')['MID']['状态'])
@@ -189,17 +190,17 @@ class Lists(Fixture, unittest.TestCase):
         self.assertEqual('SIM next DOWN', self.rows('PM')['DOWN']['下一步'])
         self.finish('UP')
         self.assertEqual('派出给 质量工程-001', self.rows('PM')['DOWN']['下一步'])
-        self.create('MINE', owner='code-engineering-001', checker='PM')
+        self.create('MINE', owner='code-engineering-001', checker='quality-engineering-001')
         self.start('MINE')
         self.hand_over('MINE')
-        self.assertEqual(('等检验：PM', '检验并整合 代码工程-001 的 MINE'), (self.rows('PM')['MINE']['状态'], self.rows('PM')['MINE']['下一步']))
+        self.assertEqual(('等检验：质量工程-001', 'SIM next MINE'), (self.rows('PM')['MINE']['状态'], self.rows('PM')['MINE']['下一步']))
 
 
 class Rework(Fixture, unittest.TestCase):
     def setUp(self):
         super().setUp()
         self.create('P', owner='code-engineering-001')
-        self.create('W', 'P', owner='code-engineering-002', checker='code-engineering-001', difficulty='T4', risk='F3', risk_reason='SIM')
+        self.create('W', 'P', owner='code-engineering-002', checker='quality-engineering-001', difficulty='T4', risk='F3', risk_reason='SIM')
         self.start('W')
         self.hand_over('W')
 
@@ -222,7 +223,7 @@ class Rework(Fixture, unittest.TestCase):
         self.assertEqual((1, 'requirement_clarification', 'product-001'), (rework['count'], rework['reason'], rework['attributed_to']))
         self.assertEqual('返工中（第 2 版）：需求澄清', self.rows('code-engineering-002')['W']['状态'])
         self.hand_over('W')
-        self.assertEqual('等检验：代码工程-001', self.rows('code-engineering-002')['W']['状态'])
+        self.assertEqual('等检验：质量工程-001', self.rows('code-engineering-002')['W']['状态'])
         self.check('W', outcome='failed', cause='execution')
         self.start('W', note='SIM missed case')
         self.assertEqual(('execution', 'code-engineering-002', 2), (self.t('W')['rework']['reason'], self.t('W')['rework']['attributed_to'], self.t('W')['rework']['count']))
@@ -238,7 +239,7 @@ class Rework(Fixture, unittest.TestCase):
         self.finish('W')
         with self.assertRaisesRegex(pm.TaskError, 'rework_reason'):
             self.mutate('transition', 'W', 'code-engineering-001', state='planned', reason='SIM reopen')
-        self.create('USER', 'P', owner='code-engineering-003', checker='code-engineering-001', dependencies=['W'])
+        self.create('USER', 'P', owner='code-engineering-003', checker='quality-engineering-001', dependencies=['W'])
         self.start('USER')
         with self.assertRaisesRegex(pm.TaskError, 'successor'):
             self.mutate('transition', 'W', 'code-engineering-001', state='planned', reason='SIM reopen', rework_reason='execution', note='SIM bug')
@@ -258,12 +259,12 @@ class Rework(Fixture, unittest.TestCase):
                       assessment=dict(decision='impacted', reason='SIM', dispositions=[{'action': 'rework', 'task_id': 'W2', 'replaces': 'W'}]))
 
     def test_handover_carries_evidence(self):
-        self.create('X', 'P', owner='code-engineering-003', checker='code-engineering-001')
+        self.create('X', 'P', owner='code-engineering-003', checker='quality-engineering-001')
         self.start('X')
         with self.assertRaisesRegex(pm.TaskError, 'evidence'):
             self.mutate('transition', 'X', state='waiting_review', reason='SIM', stop_evidence='SIM stopped')
         self.hand_over('X')
-        self.assertEqual(['SIMULATED result X'], self.t('X')['evidence'])
+        self.assertEqual([self.t('X')['outputs'][0]], self.t('X')['evidence'])
 
 
 class Notices(Fixture, unittest.TestCase):
@@ -308,12 +309,12 @@ class Ledger(Fixture, unittest.TestCase):
 
     def test_without_costs_the_ledger_shows_times_and_counts_only(self):
         self.create('P', owner='code-engineering-001')
-        self.create('W', 'P', owner='code-engineering-002', checker='code-engineering-001', difficulty='T4')
+        self.create('W', 'P', owner='code-engineering-002', checker='quality-engineering-001', difficulty='T4')
         self.start('W')
         self.hand_over('W')
         self.finish('W')
         text = self.ledger()
-        self.assertIn('| W | 代码工程-002 | SIM-other | T4 | 适用 | 1 | 通过·代码工程-001·独立检验 | 0 | 0 | — | 未接入 |', text)
+        self.assertIn('| W | 代码工程-002 | SIM-other | T4 | 适用 | 1 | 通过·质量工程-001·独立检验 | 0 | 0 | — | 未接入 |', text)
         row = self.row(text, '实例', '代码工程-002')
         self.assertIn('100%（1/1）', row)
         self.assertIn('T4 ', row)
@@ -325,14 +326,14 @@ class Ledger(Fixture, unittest.TestCase):
 
     def test_costs_rework_attribution_reassignment_and_overturning(self):
         self.create('P', owner='code-engineering-001')
-        self.create('W', 'P', owner='code-engineering-002', checker='code-engineering-001', difficulty='T4')
+        self.create('W', 'P', owner='code-engineering-002', checker='quality-engineering-001', difficulty='T4')
         self.start('W')
         self.hand_over('W', usage={'cost': 0.5, 'currency': 'USD', 'tokens': 1000, 'seconds': 60})
         self.check('W', outcome='failed', cause='requirement_clarification')
         self.start('W', note='SIM 需求澄清 v2', attributed_to='product-001')
         self.hand_over('W', usage={'cost': 0.25, 'currency': 'USD'})
         self.finish('W')
-        self.create('V', 'P', owner='code-engineering-002', checker='code-engineering-001', difficulty='T4')
+        self.create('V', 'P', owner='code-engineering-002', checker='quality-engineering-001', difficulty='T4')
         self.start('V')
         self.mutate('report', 'V', summary='SIM 进度', next_action='SIM', impact='SIM', delivery='prepared', usage={'cost': 0.25, 'currency': 'USD'})
         self.mutate('reassign', 'V', 'code-engineering-001', to='code-engineering-003', reason_kind='executor_unable', note='SIM 拿不准边界',
@@ -348,7 +349,7 @@ class Ledger(Fixture, unittest.TestCase):
             self.mutate('report', 'V', summary='SIM', next_action='SIM', impact='SIM', delivery='prepared', usage={'cost': -1})
         text = self.ledger()
         w = self.row(text, '任务', 'W')
-        self.assertIn('未通过（需求澄清）·代码工程-001·独立检验；通过·代码工程-001·独立检验', w)
+        self.assertIn('未通过（需求澄清）·质量工程-001·独立检验；通过·质量工程-001·独立检验', w)
         self.assertIn('| 1（需求澄清→产品-001） |', w)
         self.assertIn('0.75 USD；1000 tokens；60 秒', w)
         v = self.row(text, '任务', 'V')

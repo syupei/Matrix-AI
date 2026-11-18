@@ -8,6 +8,7 @@ import sqlite3
 import tempfile
 import unittest
 
+from pm_test_inputs import business_source,actual_output,confirmed_direction
 from kit import KIT
 from practice_fixture import installed_rule_input
 SOURCE = KIT
@@ -49,6 +50,7 @@ class Fixture:
         for e in TEAM['entries']:
             for _ in range(e['count']):
                 self.call('derive', entry=e['id'], endpoint='SIM-handle-' + str(self.n))
+        self.business=business_source(self,pm)
         # code-engineering-001 (T7 master), code-engineering-002 (T4), quality-engineering-001 (T6 master), product-001 (T7 master)
 
     def call(self, op, actor='PM', **kw):
@@ -70,8 +72,9 @@ class Fixture:
 
     def create(self, tid, parent=None, **kw):
         data = dict(id=tid, parent=parent, title='SIM ' + tid, owner='code-engineering-001', checker='quality-engineering-001', goal='SIMULATED',
-                    inputs=[self.rule_input], outputs=['SIM output'], criteria=['SIM correct'], next_action='SIM next ' + tid)
+                    inputs=[self.rule_input], outputs=['results/'], criteria=['SIM correct'], next_action='SIM next ' + tid)
         data.update(kw)
+        if data['inputs']==[self.rule_input]:data.update(self.business)
         data.setdefault('executor', data['owner'])
         if data['owner'].startswith('code-engineering-'):
             data.setdefault('practice_stage', {'role':'engineering','current':'E-1.2','scope':['SIM domain model and exceptions']})
@@ -88,7 +91,7 @@ class Fixture:
 
     def hand_over(self, tid, evidence=None):
         return self.mutate('transition', tid, state='waiting_review', reason='SIM handed over', stop_evidence='SIM stopped',
-                           evidence=evidence or ['SIMULATED result ' + tid])
+                           evidence=evidence or [actual_output(self,self.t(tid))])
 
     def check(self, tid):
         t = self.t(tid)
@@ -168,7 +171,7 @@ class Enforcement(Fixture, unittest.TestCase):
         self.start('T-1')
         with self.assertRaisesRegex(pm.TaskError, '「' + LAW_LABEL + '」（缺口 G-001）'):
             self.hand_over('T-1')
-        self.hand_over('T-1', evidence=['SIMULATED terms.md', LAW_LABEL])
+        self.hand_over('T-1', evidence=[actual_output(self,self.t('T-1'),'results/T-1/terms.md'),actual_output(self,self.t('T-1'),'results/T-1/'+LAW_LABEL)])
         self.check('T-1')
         self.close('T-1')
         self.assertEqual('done', self.t('T-1')['state'])
@@ -180,7 +183,7 @@ class Enforcement(Fixture, unittest.TestCase):
         self.open(LAW, task_ids=['T-2'])  # the standing self choice applies
         with self.assertRaisesRegex(pm.TaskError, LAW_LABEL):
             self.close('T-2')
-        self.mutate('update', 'T-2', changes={'evidence': ['SIMULATED result T-2', LAW_LABEL]}, reason='SIM label added')
+        self.mutate('update', 'T-2', changes={'evidence': [actual_output(self,self.t('T-2'),'results/T-2/result.md'),actual_output(self,self.t('T-2'),'results/T-2/'+LAW_LABEL)]}, reason='SIM label added')
         self.check('T-2')
         self.close('T-2')
 
@@ -359,7 +362,7 @@ class Views(Fixture, unittest.TestCase):
     def test_task_lists_name_the_gap_in_the_status(self):
         self.create('P', owner='code-engineering-001')
         self.start('P')
-        self.create('C', 'P', owner='code-engineering-002', checker='code-engineering-001')
+        self.create('C', 'P', owner='code-engineering-002', checker='quality-engineering-001')
         self.create('OPEN', owner='product-001')
         self.create('EXPERT', owner='product-001')
         self.create('HUMAN', owner='quality-engineering-001', checker='code-engineering-001')

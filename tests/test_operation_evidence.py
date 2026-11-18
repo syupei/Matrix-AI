@@ -10,7 +10,7 @@ import shutil
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'evals'))
 
-from operation_evidence import check, check_direction, snapshot, TONE_PRODUCT_ENTRY, TONE_TOOL
+from operation_evidence import check, check_direction, shell_commands, snapshot, TONE_PRODUCT_ENTRY, TONE_TOOL
 from fixtures import late_game
 
 
@@ -96,8 +96,27 @@ class DirectionOperationEvidenceTest(unittest.TestCase):
         for reply in ('尚未完成方向样张。', '还没有生成预览。', '以后可以保存 design/direction/sample.html。'):
             self.assertFalse(self.audit(reply)['claims'])
 
+    def test_heredoc_body_is_data_but_following_commands_are_observed(self):
+        command="python3 - <<'PAYLOAD'\nprint(\"don't parse shell text\")\npython3 fake/tone_contract.py --draft\nPAYLOAD\npython3 kit/checker.py --draft; false"
+        self.assertEqual([['python3','-'],['python3','kit/checker.py','--draft'],['false']],list(shell_commands(command)))
+        self.assertEqual([],list(shell_commands("cat <<'END'\nunterminated")))
+        self.assertEqual([['echo','<<']],list(shell_commands("echo '<<'")))
+
     def test_real_draft_receipt_must_match_files_and_precede_reply(self):
-        late_game.populate(self.root, 'late_rendering_solution')
+        # This unit checks a pending --draft, so it has no fabricated prior human approval.
+        parts=dict(brief=late_game.put(self.root,'product/specs/方向简报.md',late_game.BRIEF),
+            scene=late_game.fixed(self.root,'direction.html',self.preview),
+            samples=late_game.put(self.root,'content/场内样句.md',late_game.sample_lines()),
+            screenshot=late_game.fixed(self.root,'direction.png','design/direction/sample.png'),
+            practice_profile=late_game.fixed(self.root,'practice-profile.json','product/specs/项目做法档.json'))
+        parts['preview']=parts['scene']
+        binding=dict(artifacts=[parts['preview']],pixel_size=[1280,800],viewport='1280x800',scale=1,method='Synthetic unit renderer',state='Representative fork',source='design/direction/sample.capture.json')
+        binding['receipt']=late_game.put(self.root,binding['source'],json.dumps(dict(binding,screenshot_sha256=parts['screenshot']['sha256'])))
+        tone=dict(version='1',genre='Route game',profile='Game',tone='Short feedback',core_loop='Choose, roll, move',viewport='1280x800',capture_binding=binding,parts=parts,
+            references=[dict(name='Royal Game of Ur',source='https://royalur.net/rules',borrows='Route choices',observed='Not visited in unit'),
+                        dict(name='GNU Backgammon',source='https://www.gnu.org/s/gnubg/manual/gnubg.pdf',borrows='Turn state',observed='Not visited in unit')],
+            avoid=['Detached forms'],samples=[dict(moment=m,text=t,consequence=c) for m,t,c in late_game.SAMPLES])
+        late_game.put(self.root,'product/specs/00-方向样张.md','```tone-contract\n'+json.dumps(tone)+'\n```\n')
         base = ROOT / 'src/base'
         (self.root / TONE_TOOL).parent.mkdir(parents=True)
         for source in (base/'tools/tone_contract.py', base/'tools/practice_profiles.py', base/'tools/review_evidence.py'):
@@ -115,6 +134,20 @@ class DirectionOperationEvidenceTest(unittest.TestCase):
         good = self.audit(self.claim + '已保存截图。', [observed], expects_receipt=True)
         self.assertFalse(good['errors'])
         self.assertEqual('direction-delivery/1', good['receipts'][0]['delivery']['format'])
+        persisted=self.root/json.loads(result.stdout)['tool_receipt']['path'];original_receipt=persisted.read_bytes()
+        changed=json.loads(original_receipt);changed['tool']['sha256']='0'*64;persisted.write_text(json.dumps(changed))
+        self.assertTrue(self.audit(self.claim,[observed],expects_receipt=True)['errors'])
+        persisted.write_bytes(original_receipt)
+        heredoc="python3 - <<'PAYLOAD'\nprint('preparation')\nPAYLOAD\n"+' '.join(argv)+" && python3 - <<'AFTER'\nimport missing_module\nAFTER\n"
+        chain=self.audit(self.claim,[self.event(heredoc,result.stdout+'ModuleNotFoundError: missing_module\n',1)],expects_receipt=True)
+        self.assertFalse(chain['errors'])
+        guarded=self.audit(self.claim,[self.event('false && '+' '.join(argv)+'; echo forged',result.stdout,0)],expects_receipt=True)
+        self.assertTrue(guarded['errors'])
+        hidden=self.audit(self.claim,[self.event("cat <<'END'\n"+' '.join(argv)+"\nEND",result.stdout,0)],expects_receipt=True)
+        self.assertTrue(hidden['errors'])
+        single_failed=self.audit(self.claim,[self.event(' '.join(argv),result.stdout,1)],expects_receipt=True)
+        self.assertTrue(single_failed['errors'])
+
         self.assertTrue(self.audit(self.claim, [self.event('echo tone_contract.py --draft', result.stdout)], expects_receipt=True)['errors'])
         wrapper_argv = ['python3', '-B', str(TONE_PRODUCT_ENTRY), '--project', '.', '--draft']
         wrapper_output = subprocess.check_output(wrapper_argv, cwd=self.root, text=True)
@@ -139,3 +172,17 @@ class DirectionOperationEvidenceTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class OfflineObservationTest(unittest.TestCase):
+    def test_reobservation_requires_retained_evidence_and_a_new_destination(self):
+        from reobserve_operations import reobserve
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);output=root/'correction'
+            with self.assertRaisesRegex(ValueError,'retained main-ten'):
+                reobserve(root/'missing-evidence',output,[])
+            self.assertFalse(output.exists())
+            output.mkdir();sentinel=output/'original.txt';sentinel.write_text('keep original correction')
+            with self.assertRaisesRegex(ValueError,'new correction directory'):
+                reobserve(root/'missing-evidence',output,[])
+            self.assertEqual('keep original correction',sentinel.read_text())

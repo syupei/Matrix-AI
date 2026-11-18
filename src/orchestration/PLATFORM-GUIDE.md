@@ -6,7 +6,7 @@ Matrix 管专业、任务、批准、就绪与成果采用；平台管模型进�
 
 ## 六步接入
 
-1. **安装并准备项目。** 按 [START](../../START.md) 安装到新项目，初始化任务库；确认人员、专业与实例配置。不要让运行器自动填入人的批准。平台身份映射来自已认证会话，而非请求正文的 actor。
+1. **安装并准备项目。** 按发行包的 START.md 安装到新项目，初始化任务库；确认人员、专业与实例配置。不要让运行器自动填入人的批准。平台身份映射来自已认证会话，而非请求正文的 actor。
 2. **配置可信控制器。** 由平台维护 `management/runtime/platform-access.json`，格式为 `matrix-platform/1`；包含 project_id、principals、runners，可选 scripts。每个 principal 有 active、actor、operations 白名单及 task_ops 白名单。配置不存凭证，执行实例不可修改它。
 3. **验证能力。** 查询 capabilities；每个运行器逐项记录 supported/unsupported/unknown 与证据。启动、模型映射、实际写入隔离缺一项就不能自动执行。运行器配置中 models 把实例模型名映射到真实模型，argv 为可信参数模板（支持 `{workspace}`、`{model}`、`{effort}`；effort 来自已确认实例）。可配 cwd、unset_env 与 prepend_paths；任务不能覆盖模板。kernel 使用内核写边界，command-template 依赖已验证的宿主原生边界。先用无模型工作器验证协议与隔离，再验证实际模型。
 4. **指定唯一执行方。** 在无在途运行时调用 runtime.configure，mode 为 local 或 external，expected_generation 来自 inspect。当前控制器 principal 取得运行权；原 scheduler 不再启动工作。local 使用本机参考控制器，external 由外层平台消费同一协议。没有配置运行权的原有本地流程保持原入口。

@@ -48,6 +48,9 @@ class Admission(base.Fixture, unittest.TestCase):
         import importlib.util,sys
         from kit import KIT,REPO
         self.package()
+        configuration=json.loads((self.root/'management/instance-config.json').read_text())
+        configuration['entries'].append(dict(id='kernel-source-master',profession='code-engineering',level='T7',model='SIM-big',count=1,master=True))
+        self.write('instance-config.json',configuration);self.confirm();self.derive('kernel-source-master')
         def load(name,path):
             spec=importlib.util.spec_from_file_location(name,path);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
         lifecycle=load('admission_test_lifecycle',REPO/'evals/admission_run.py')
@@ -75,6 +78,7 @@ class Admission(base.Fixture, unittest.TestCase):
         self.package()
         spec=importlib.util.spec_from_file_location('admission_preflight_test',REPO/'evals/admission_run.py')
         lifecycle=importlib.util.module_from_spec(spec);spec.loader.exec_module(lifecycle)
+        (self.root/'management/instance-config.json').unlink()
         with pm.connect(self.root) as db:before=pm.integrity.records(db,'instance')
         with self.assertRaisesRegex(ValueError,'explicitly select an isolated synthetic fixture'):
             lifecycle.run(pm,None,self.root,self.ident,'SIM',{},'SIM-model','medium','Actual supplied source')
@@ -88,12 +92,15 @@ class Admission(base.Fixture, unittest.TestCase):
         self.package()
         spec=importlib.util.spec_from_file_location('admission_context_authority_test',REPO/'evals/admission_run.py')
         lifecycle=importlib.util.module_from_spec(spec);spec.loader.exec_module(lifecycle)
-        with pm.connect(self.root) as db:before=pm.integrity.records(db,'instance')
+        with pm.connect(self.root) as db:
+            db.execute("DELETE FROM pm_records WHERE kind='instance' AND id IN ('ADMISSION','SIM-admission-reviewer')")
+            before=pm.integrity.records(db,'instance')
+        config_before=(self.root/'management/instance-config.json').read_bytes()
         with self.assertRaisesRegex(ValueError,'appoint the author and independent reviewer explicitly'):
             lifecycle.run(pm,None,self.root,self.ident,'SIM',{},'SIM-model','medium','Supplied business source',
                 source_context=dict(inputs=['actual-source.md'],admitted_inputs=['already-admitted'],stage_transition='actual-stage.json'))
         with pm.connect(self.root) as db:self.assertEqual(before,pm.integrity.records(db,'instance'))
-        self.assertFalse((self.root/'management/instance-config.json').exists())
+        self.assertEqual(config_before,(self.root/'management/instance-config.json').read_bytes())
 
     def test_explicit_synthetic_mode_preserves_an_existing_configuration(self):
         import importlib.util

@@ -100,8 +100,13 @@
         "E-4.1": [
           "build",
           "E-3.3"
+        ],
+        "E-4.3": [
+          "release",
+          "E-4.2"
         ]
-      }
+      },
+      "inherit_upstream": true
     }
   ],
   "decisions": {

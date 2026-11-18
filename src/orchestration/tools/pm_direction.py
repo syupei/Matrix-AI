@@ -5,7 +5,7 @@ import re
 
 
 READ_OPS = {'human_attention_status'}
-WRITE_OPS = {'direction_sample', 'human_attention'}
+WRITE_OPS = {'direction_sample', 'direction_resolve_gap', 'human_attention'}
 TASKS = (
     ('brief', 'product', '活动范围与参照简报', (), 'product/specs/方向简报.md'),
     ('scene', 'experience-design', '渲染核心场景', ('brief',), 'design/核心场景样张.md'),
@@ -49,7 +49,8 @@ def attention(pm, root, db, cfg, cmd):
         inputs = cmd.get('inputs', [])
         pm.require(pm.strings(inputs), 'attention inputs must be project files')
         refs = [evidence.ref(root, source), *[evidence.ref(root, name) for name in inputs]]
-        context = dict(task_id=task_id, scope=cmd.get('scope'), request_id=cmd['id'])
+        context = dict(task_id=task_id, scope=cmd.get('scope'), request_id=cmd['id'],
+                       artifacts=[evidence.ref(root, name) for name in inputs])
         if cmd.get('intake_id'):
             incoming = pm.integrity.records(db, 'input_admission').get(cmd['intake_id'])
             pm.require(incoming and (incoming.get('review') or {}).get('outcome') == 'approved', 'display a professionally reviewed intake version')
@@ -68,7 +69,7 @@ def attention(pm, root, db, cfg, cmd):
         pm.require(rec['seconds'] is None and pm.nonempty(cmd.get('response')), 'actual response or already answered')
         response = pm.local(root, cmd['response']).read_text(encoding='utf-8')
         pm.require(bool(response.strip()), 'actual response is empty')
-        elapsed = (datetime.fromisoformat(at) - datetime.fromisoformat(rec['opened_at'])).total_seconds()
+        elapsed = (datetime.fromisoformat(at.replace('Z','+00:00')) - datetime.fromisoformat(rec['opened_at'].replace('Z','+00:00'))).total_seconds()
         message = evidence.response_message(root, cmd['response'], cmd.get('response_id'))
         pm.require(message, 'complete response message is empty')
         identity = {'response_id':cmd.get('response_id'), 'message_sha256':evidence.digest(message)}
@@ -88,6 +89,8 @@ def attention(pm, root, db, cfg, cmd):
 
 def execute(pm, root, db, cmd):
     cfg = pm.config(db)
+    if cmd['op'] == 'direction_resolve_gap':
+        return resolve_gap(pm, root, db, cfg, cmd)
     if cmd['op'] != 'direction_sample':
         return attention(pm, root, db, cfg, cmd)
     pm.require(cmd['actor'] == cfg['pm_actor'], 'only PM registers a project direction sample')
@@ -119,14 +122,23 @@ def execute(pm, root, db, cmd):
                    'PM: route the missing ' + role + ' master through expertise-gap handling')
         pm.team.experts.entry(pm, root, entry)
     producers = {assigned[role] for role in PRODUCERS if assigned.get(role)}
-    assigned.setdefault('task_checker',cfg['pm_actor'])
+    pm.require(assigned.get('task_checker') and assigned['task_checker'] != cfg['pm_actor'],
+               'name a registered independent task_checker; PM adopts the result but cannot check tasks it creates')
     if not assigned.get('fit_checker'):missing_roles.append('fit_checker')
     assigned.setdefault('fit_checker',None)
     pm.require(not producers & {assigned['fit_checker'],assigned['task_checker']} and assigned['fit_checker'] != assigned['task_checker'],
                'direction and task checkers must be independent of the producers and each other')
-    pm.require(not assigned['fit_checker'] or instances.get(assigned['fit_checker'], {}).get('active'), 'active direction fit checker required')
-    pm.require(assigned['task_checker'] == cfg['pm_actor'] or instances.get(assigned['task_checker'], {}).get('active'),
-               'active task checker or PM required')
+    pm.require(not assigned['fit_checker'] or (assigned['fit_checker'] in instances
+               and instances[assigned['fit_checker']].get('active', True)), 'active direction fit checker required')
+    pm.require(assigned['task_checker'] in instances and instances[assigned['task_checker']].get('active', True),
+               'active independent task checker required')
+    admitted_inputs=cmd.get('admitted_inputs',[])
+    pm.require(pm.strings(admitted_inputs) and admitted_inputs and len(admitted_inputs)==len(set(admitted_inputs)),
+               'direction_sample requires the admitted versions of the real brief and its source materials')
+    admitted=pm.integrity.records(db,'input_admission')
+    pm.require(all(key in admitted for key in admitted_inputs),'direction brief admission id missing')
+    brief_inputs=list(dict.fromkeys([brief_path,*[admitted[key]['path'] for key in admitted_inputs]]))
+    pm.require(any(admitted[key]['path']==brief_path for key in admitted_inputs),'bind the admitted actual brief version')
     downstream = cmd.get('downstream', [])
     pm.require(pm.strings(downstream), 'downstream task ids must be a list')
     before = pm.task_map(db)
@@ -139,9 +151,10 @@ def execute(pm, root, db, cmd):
         if assigned.get(role) and set(deps) <= available:available.add(suffix)
     rec = dict(id=key, tasks=[key + '-' + suffix for suffix in output_by_id if suffix in available], milestone=key,
                downstream=downstream, profile=cmd['profile'], example=example,
-               brief=brief_path, outputs=output_by_id, practice_profile=PROFILE_OUTPUT, preview=PREVIEW_OUTPUT,
+               brief=brief_path, admitted_inputs=admitted_inputs, outputs=output_by_id, practice_profile=PROFILE_OUTPUT, preview=PREVIEW_OUTPUT,
                reserved_roles=['art-production'], fit_checker=assigned['fit_checker'],
                producer=assigned.get('product'), masters={role: assigned[role] for role in PRODUCERS if assigned.get(role)},
+               assigned=dict(assigned), task_checker=assigned['task_checker'],
                missing_roles=missing_roles, pending_contributions=[suffix for suffix in output_by_id if suffix not in available])
     pm.integrity.save(pm, db, 'direction_sample', rec)
     # Register works first, then create their parent milestone and bind each row to it
@@ -150,8 +163,9 @@ def execute(pm, root, db, cmd):
         if suffix not in available:continue
         task = dict(id=key+'-'+suffix, title=title, owner=assigned[role], executor=assigned[role],
                     checker=assigned['task_checker'], goal=title, next_action=title,
-                    inputs=[output_by_id[d] for d in deps] or [brief_path], outputs=[output],
+                    inputs=[output_by_id[d] for d in deps] or brief_inputs, outputs=[output],
                     criteria=['按方向样张确认范围交回并提供证据'], dependencies=[key+'-'+d for d in deps])
+        if suffix == 'brief':task['admitted_inputs']=admitted_inputs
         if suffix == 'scene':
             task['outputs'].append(PREVIEW_OUTPUT)
         if suffix == 'compose':
@@ -165,7 +179,7 @@ def execute(pm, root, db, cmd):
         result.append(created['task']['id'])
     milestone = dict(id=key, kind='stage', title='方向样张与 P-1 合并审阅', owner=assigned.get('product') or cfg['pm_actor'],
                      checker=assigned['task_checker'], goal='采用方向样张与 P-1 澄清结论',
-                     next_action='向决定人合并展示做法档、样张与 P-1 结论', inputs=[brief_path]+([PROFILE_OUTPUT,output_by_id['fit']] if 'fit' in available else []),
+                     next_action='向决定人合并展示做法档、样张与 P-1 结论', admitted_inputs=admitted_inputs, inputs=brief_inputs+([PROFILE_OUTPUT,output_by_id['fit']] if 'fit' in available else []),
                      outputs=[tone.DEFAULT_PATH], criteria=['保留已确认调性契约与人审依据'],
                      dependencies=[key+'-fit'] if 'fit' in available else [key+'-'+suffix for suffix in output_by_id if suffix in available], human_required=True, slots=0,
                      people={'decide':[cmd['person']]}, source=cmd['combined_review_authorization'])
@@ -180,6 +194,123 @@ def execute(pm, root, db, cmd):
     return {'direction_sample':rec}
 
 
+def resolve_gap(pm, root, db, cfg, cmd):
+    """Adopt a real gap delivery and schedule only the contributions it unblocks."""
+    pm.require(cmd['actor'] == cfg['pm_actor'], 'only PM adopts direction gap deliveries')
+    rec = pm.integrity.records(db, 'direction_sample').get(cmd.get('id'))
+    pm.require(rec and not rec.get('closed'), 'use an open direction milestone')
+    role = cmd.get('role')
+    pm.require(role in rec.get('missing_roles', []) or role in rec.get('gap_resolutions', {}),
+               'role is not a recorded direction gap')
+    gap = pm.integrity.records(db, 'gap').get(cmd.get('gap'))
+    pm.require(gap and gap.get('decision') and gap['status'] in {'self', 'closed'},
+               'record the person’s gap choice and complete its delivery first')
+    pm.require(gap.get('profession') == role or (role == 'fit_checker' and gap.get('domain') == '方向贴合检验'),
+               'gap must name this missing profession or direction fit review')
+    tone = pm.admission.load_gate().tone
+    tasks = pm.task_map(db)
+    suffixes = [suffix for suffix, profession, _, _, _ in TASKS
+                if profession == role and suffix != 'compose']
+    required = [rec['outputs'][suffix] for suffix in suffixes]
+    if role == 'experience-design':
+        required.append(rec.get('preview', PREVIEW_OUTPUT))
+    delivery = tasks.get(cmd.get('task_id'))
+    adopted = cmd.get('admitted_inputs', [])
+    pm.require(pm.strings(adopted), 'admitted_inputs must list adopted contribution versions')
+    if delivery:
+        pm.require(delivery['state'] == 'done' and delivery.get('gap') == gap['id'],
+                   'use a checked and closed task linked to this gap')
+        handed = delivery.get('handed_output_sha256') or {}
+        pm.require(all(handed.get(path) == pm.integrity.file_hash(pm, root, path) for path in required),
+                   'gap delivery must contain the current assigned contribution files')
+        if gap['status'] == 'self':
+            pm.require(any(pm.gap_label(gap) in item for item in delivery.get('evidence', [])),
+                       'retain the non-specialist qualification in the self-delivery evidence')
+    else:
+        pm.require(gap['status'] == 'closed' and adopted,
+                   'external or human gap delivery needs closed gap evidence and admitted contribution versions')
+        admissions = pm.integrity.records(db, 'input_admission')
+        latest = pm.admission.ref_latest(admissions)
+        covered = set()
+        for aid in adopted:
+            item = admissions.get(aid)
+            pm.require(item and item['state'] == 'admitted' and latest[item['source_id']]['id'] == aid
+                       and pm.integrity.file_hash(pm, root, item['path']) == item['sha256'],
+                       'adopt the current reviewed gap result, not an old or unreviewed source')
+            covered.add(item['path'])
+        pm.require(set(required) <= covered and set(required) <= set((gap.get('result') or {}).get('evidence', [])),
+                   'closed gap and admitted versions must cover the assigned contribution files')
+    refs = [tone.evidence.ref(root, path) for path in required]
+    assigned = rec.setdefault('assigned', dict(rec.get('masters', {}), fit_checker=rec.get('fit_checker'),
+                                               task_checker=rec.get('task_checker')))
+    assignee = cmd.get('assignee') or (delivery or {}).get('executor') or (delivery or {}).get('owner')
+    if assignee:
+        instance = pm.integrity.records(db, 'instance').get(assignee, {})
+        pm.require(instance and instance.get('active', True), 'fallback assignee must be a registered active instance')
+        pm.require(assignee not in {assigned.get('fit_checker'), assigned.get('task_checker')},
+                   'gap delivery cannot make a producer its own checker')
+        assigned[role] = assignee
+        if role == 'product':
+            rec['producer'] = assignee
+    if role == 'product':
+        pm.require(assigned.get('product'), 'name the registered assignee who will compose the product fallback')
+    resolution = dict(gap=gap['id'], gap_revision=gap['revision'], decision=gap['decision'],
+                      task_id=(delivery or {}).get('id'), artifacts=refs, admitted_inputs=adopted, adopted_at=pm.now())
+    prior = rec.setdefault('gap_resolutions', {}).get(role)
+    if prior:
+        rec.setdefault('gap_resolution_history', []).append(dict(role=role, resolution=prior))
+    rec['gap_resolutions'][role] = resolution
+    if role in rec['missing_roles']:
+        rec['missing_roles'].remove(role)
+    rec['pending_contributions'] = [s for s in rec['pending_contributions'] if s not in suffixes]
+    rec['admitted_inputs'] = list(dict.fromkeys(rec.get('admitted_inputs', []) + adopted))
+    if delivery and delivery['id'] not in rec['tasks']:
+        rec['tasks'].append(delivery['id'])
+    pm.integrity.save(pm, db, 'direction_sample', rec)
+    available = {suffix for suffix, _, _, _, _ in TASKS
+                 if suffix not in rec['pending_contributions'] or rec['id'] + '-' + suffix in tasks}
+    for suffix, profession, title, deps, output in TASKS:
+        if suffix not in rec['pending_contributions'] or not assigned.get(profession) or not set(deps) <= available:
+            continue
+        dependencies = []
+        for dep in deps:
+            tid = rec['id'] + '-' + dep
+            if tid in tasks:
+                dependencies.append(tid)
+            else:
+                dep_role = next(r for s, r, _, _, _ in TASKS if s == dep)
+                tid = rec.get('gap_resolutions', {}).get(dep_role, {}).get('task_id')
+                if tid:
+                    dependencies.append(tid)
+        task = dict(id=rec['id']+'-'+suffix, title=title, owner=assigned[profession], executor=assigned[profession],
+                    checker=assigned['task_checker'], goal=title, next_action=title,
+                    inputs=[rec['outputs'][dep] for dep in deps], outputs=[output],
+                    admitted_inputs=rec['admitted_inputs'], criteria=['按原方向范围交回并提供证据'], dependencies=dependencies,
+                    stage=rec['id'])
+        if suffix == 'compose':
+            task['inputs'].append(rec.get('preview', PREVIEW_OUTPUT))
+            task['outputs'].append(PROFILE_OUTPUT)
+        if suffix == 'fit':
+            task['inputs'].append(PROFILE_OUTPUT)
+            task['project_level'] = False
+        admissions = pm.integrity.records(db, 'input_admission')
+        task['admitted_inputs'] = [aid for aid in rec['admitted_inputs']
+                                   if admissions.get(aid, {}).get('path') in task['inputs']]
+        rec['tasks'].append(task['id'])
+        pm.integrity.save(pm, db, 'direction_sample', rec)
+        pm.execute(root, dict(op='create', actor=cfg['pm_actor'], event_id=cmd['event_id']+':'+suffix, task=task), _db=db)
+        rec['pending_contributions'].remove(suffix)
+        tasks = pm.task_map(db)
+        available.add(suffix)
+    pm.integrity.save(pm, db, 'direction_sample', rec)
+    milestone = pm.task_map(db)[rec['id']]
+    dependencies = [rec['id']+'-fit'] if rec['id']+'-fit' in tasks else list(rec['tasks'])
+    pm.execute(root, dict(op='update', actor=cfg['pm_actor'], event_id=cmd['event_id']+':dependencies',
+               task_id=rec['id'], expected_revision=milestone['revision'], changes={'dependencies':dependencies},
+               reason='采用已决定且交回的专业缺口成果'), _db=db)
+    return {'direction_sample':rec}
+
+
 def confirm_milestone(pm, root, db, task):
     rec = pm.integrity.records(db, 'direction_sample').get(task['id'])
     if not rec:
@@ -187,6 +318,13 @@ def confirm_milestone(pm, root, db, task):
     pm.require(not rec.get('missing_roles') and not rec.get('pending_contributions'),
                'direction still needs the missing professional conclusions; resolve the recorded expertise gaps')
     tone = pm.admission.load_gate().tone
+    for resolution in rec.get('gap_resolutions', {}).values():
+        gap = pm.integrity.records(db, 'gap').get(resolution['gap'])
+        pm.require(gap and gap['revision'] == resolution['gap_revision']
+                   and gap.get('decision') == resolution['decision'] and gap['status'] in {'self', 'closed'},
+                   'direction gap choice changed; review and adopt the current contribution again')
+        for artifact in resolution['artifacts']:
+            tone.evidence.verify_ref(root, artifact)
     current = tone.validate(root, tone.DEFAULT_PATH, require_closed=False)
     pm.require(current['profile'] == rec['profile'] and current['parts']['practice_profile']['path'] == rec['practice_profile'],
                'the direction contract must include the registered project practice profile')
@@ -239,13 +377,19 @@ def record_confirmation(pm, root, db, task, cmd):
                              scope=cmd['scope'], expected={'direction_sha256':binding['direction_sha256'], 'task_id':task['id']})
     required = [draft['parts'][key] for key in ('scene', 'preview', 'samples', 'practice_profile')]
     fit = tone.check_fit(root, rec['outputs']['fit'], required, binding, pre_confirmation=True,
-                         human_review_receipt=receipt)
+                         human_review_receipt=receipt, authority_db=db)
     checker = cmd.get('person') if fit['mode'] == 'human' else rec['fit_checker']
     pm.require(fit['checker'] == checker and fit['producer'] == rec['producer'],
                'direction fit review must use the assigned checker or the person who viewed the rendered scene')
     old = rec.get('confirmation_receipt')
-    pm.require(not old or old == receipt, 'a response cannot be rebound to a new direction')
-    rec.update(reviewed_direction=binding, confirmation_receipt=receipt, closed=False)
+    if old and old != receipt:
+        pm.require(task['state'] != 'done', 'reopen the milestone before a new direction review')
+        previous_attention = rec.get('confirmation_attention_id')
+        pm.require(attention_id != previous_attention, 'a changed direction needs a newly displayed request and new response')
+        rec.setdefault('confirmation_history', []).append(dict(receipt=old,
+            direction=rec.get('reviewed_direction'), attention_id=previous_attention, replaced_at=pm.now()))
+    rec.update(reviewed_direction=binding, confirmation_receipt=receipt,
+               confirmation_attention_id=attention_id, closed=False)
     pm.integrity.save(pm, db, 'direction_sample', rec)
     return receipt
 
@@ -274,4 +418,8 @@ def bind_attention(pm, root, db, attention_id, *, person, quote, scope, expected
         target.write_bytes(payload)
     receipt = evidence.review_receipt(pm.local(root, staging), binding)
     receipt['path'] = staging + '/' + receipt['path']
+    receipts = attention.setdefault('review_receipts', [])
+    if receipt not in receipts:
+        receipts.append(receipt)
+        pm.integrity.save(pm, db, 'human_attention', attention)
     return receipt

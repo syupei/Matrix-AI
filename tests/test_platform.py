@@ -11,6 +11,7 @@ import unittest
 
 from kit import KIT
 from practice_fixture import review_state, put
+from test_pm_instances import confirmed_stage
 TOOLS = KIT / 'matrix/orchestration/tools'
 spec = importlib.util.spec_from_file_location('pm_platform_under_test', TOOLS / 'pm_tasks.py')
 pm = importlib.util.module_from_spec(spec)
@@ -43,6 +44,11 @@ if purpose == '执行':
     if how == 'handover':
         (root / ('SIM result ' + tid)).write_text('Synthetic worker completed its declared output')
         call({'op': 'hand_over', 'actor': iid, 'event_id': rid + '-handover', 'run': rid, 'evidence': ['SIM result ' + tid], 'summary': 'SIM done'})
+if purpose == '检验':
+    tid = re.search(r'^- (\S+?)（revision ', text,re.M).group(1)
+    t=task(tid);name='management/reviews/'+rid+'.md'
+    (root/name).parent.mkdir(parents=True,exist_ok=True);(root/name).write_text('SIM actual independent review')
+    call({'op':'review','actor':iid,'event_id':rid+'-review','task_id':tid,'expected_revision':t['revision'],'run':rid,'outcome':'passed','criteria_checked':t['criteria'],'evidence':[name]})
 print(json.dumps({'type': 'turn.completed', 'usage': {'input_tokens': 120, 'cached_input_tokens': 100, 'output_tokens': 7}}))
 print(json.dumps({'type': 'item.completed', 'item': {'type': 'agent_message', 'text': 'SIM final message'}}))
 '''
@@ -59,7 +65,7 @@ def call(cmd):
     r = subprocess.run([sys.executable, '-B', TOOLS + '/pm_tasks.py', '--project', '.'], input=json.dumps(cmd), capture_output=True, text=True, cwd=root)
     return json.loads(r.stdout)
 for _ in range(20):  # only the PM's own decisions: the scheduler starts runs itself
-    act = next((a for a in call({'op': 'continue'})['actions'] if a['kind'] == 'pm' and a['code'] in {'review', 'adopt'}), None)
+    act = next((a for a in call({'op': 'continue'})['actions'] if a['kind'] == 'pm' and a['code'] in {'adopt'}), None)
     if not act:
         break
     cmd = json.loads(act['command'])
@@ -80,14 +86,14 @@ class Project:
         (self.root / 'management/instance-config.json').write_text(json.dumps(CONFIG))
         self.call('confirm_config', person='SIM-owner', quote='SIMULATED: 按这个配置', presented_ref='SIM shown',
                   choices={e['id']: 'acknowledge_unregistered' for e in CONFIG['entries']})
-        for entry in ['P-M', 'P-E', 'P-E']:  # product-001 (master), product-002, product-003; P-E has room for one more
+        for entry in ['P-M', 'P-E', 'P-E', 'Q-M']:  # product-001 (master), product-002, product-003; P-E has room for one more
             self.call('derive', entry=entry, endpoint='platform')
         (self.root / 'input.md').write_text('SIMULATED input v1')
         self.call('intake_register',id='SIM-input',source_id='SIM-input-family',path='input.md',version='1',source='Synthetic source',profession='product')
         self.call('intake_submit',id='SIM-input',master='product-001')
         self.call('intake_review','product-001',id='SIM-input',outcome='approved',conclusion='Synthetic scope ready',resolved_risks=[],resolved_conflicts=[],open_items=[],human_required=False)
         self.call('intake_admit',id='SIM-input')
-        put(self.root,'input-stage.json',review_state(self.root,pm.admission.load_gate(),['input.md']))
+        confirmed_stage(self,['input.md'],prefix='input-stage')
         self.task('A')
         self.task('B', dependencies=['A'])
 
@@ -96,7 +102,7 @@ class Project:
         return pm.execute(self.root, dict(op=op, actor=actor, event_id='SIM-' + str(self.n), **kw))
 
     def task(self, tid, parent=None, actor='PM', **kw):
-        data = dict(id=tid, parent=parent, title='SIM ' + tid, owner='product-001', executor='product-001', checker='PM', goal='SIMULATED',
+        data = dict(id=tid, parent=parent, title='SIM ' + tid, owner='product-001', executor='product-001', checker='quality-engineering-001', goal='SIMULATED',
                     inputs=['input.md'], outputs=['SIM output','SIM work '+tid,'SIM result','SIM result '+tid,'result.md'], criteria=['SIM correct'], next_action='SIM next')
         data.update(kw)
         if data.get('inputs') == ['input.md']:
@@ -122,6 +128,12 @@ class Project:
         self.call('transition', t['owner'], task_id=tid, expected_revision=t['revision'], state='waiting_review', reason='SIM handed over',
                   stop_evidence='SIM stopped', evidence=['SIM work ' + tid])
 
+    def review(self, **kw):
+        t=self.t(kw['task_id']);rid=self.launch(t['id'],purpose='check',instance=t['checker'])
+        name='management/reviews/'+rid+'.md';put(self.root,name,'SIM actual independent check record')
+        kw.update(evidence=[name]);result=self.call('review',t['checker'],run=rid,**kw);self.exit(rid)
+        return result
+
     def exit(self, rid, code=0):
         return self.call('launch_exit', 'launcher', id=rid, exit_code=code)
 
@@ -135,24 +147,12 @@ class Records(Project, unittest.TestCase):
         inst = pm.execute(self.root, {'op':'status'})['integrity']['instance']['product-001']
         self.call('appoint', id='product-001', appointment=dict(mode='lead', role=inst['role'],
                   root_tasks=['A'], delegates=[], source='authority.md'))
-        self.call('update', 'PM', task_id='A', expected_revision=self.t('A')['revision'],
-                  changes={'checker':'product-001'}, reason='SIM invalid self-check assignment',
-                  scope_authorization='SIM PM assignment')
-        rid = self.launch('A')
-        self.hand_over('A')
-        self.exit(rid)
-        s = self.summary()
-        self.assertEqual('checker', s['stops']['A']['code'])
-        self.assertFalse(any(a.get('kind') == 'check' for a in s['actions']))
-        with self.assertRaisesRegex(pm.TaskError, 'independent checker before launch'):
-            self.launch('A', purpose='check')
-        command = json.loads(next(a['command'] for a in s['actions'] if a.get('task') == 'A'))
-        self.assertEqual('update', command['op'])
-        command.update(changes={'checker':'product-002'}, reason='SIM independent checker assigned')
-        pm.execute(self.root, command)
-        self.assertEqual('product-002', self.t('A')['checker'])
+        with self.assertRaisesRegex(pm.TaskError,'independent'):
+            self.call('update','PM',task_id='A',expected_revision=self.t('A')['revision'],changes={'checker':'product-001'},reason='SIM attempted self check')
+        self.call('update','PM',task_id='A',expected_revision=self.t('A')['revision'],changes={'checker':'product-002'},reason='SIM independent checker assigned')
+        rid=self.launch('A');self.hand_over('A');self.exit(rid)
         self.assertIsNone(self.t('A')['review'])
-        self.launch('A', purpose='check', instance='product-002')
+        self.launch('A',purpose='check',instance='product-002')
 
     def test_stage_coordination_does_not_launch_a_worker(self):
         self.task('STAGE', kind='stage', owner='PM', checker='PM', executor=None, slots=0)
@@ -165,7 +165,7 @@ class Records(Project, unittest.TestCase):
         self.assertEqual('running', self.t('STAGE')['state'])
         self.assertFalse(any(a.get('task') == 'STAGE' and a.get('by') == 'scheduler' for a in self.summary()['actions']))
         self.task('STAGE2', kind='stage')
-        with self.assertRaisesRegex(pm.TaskError, 'stage milestones'):
+        with self.assertRaisesRegex(pm.TaskError, 'stage/coordination'):
             self.launch('STAGE2')
 
     def test_a_start_run_moves_the_task_and_an_exit_without_handover_stops_it(self):
@@ -210,7 +210,7 @@ class Records(Project, unittest.TestCase):
     def test_the_dispatcher_records_whom_a_stopped_task_waits_for(self):
         self.exit(self.launch('A'), 0)  # ended without handover; retrying will not help, a person must decide
         before=self.t('A')['work_revision']
-        self.call('update', task_id='A', expected_revision=self.t('A')['revision'], changes={'goal': 'SIM other'}, reason='SIM')
+        self.call('update', task_id='A', expected_revision=self.t('A')['revision'], changes={'goal': 'SIM other'}, admission_basis=['SIM-input'], reason='SIM task-declared bounded scope')
         self.assertGreater(self.t('A')['work_revision'],before)
         self.call('update', task_id='A', expected_revision=self.t('A')['revision'], reason='SIM 模型不可用',
                   changes={'awaiting': [{'person': 'SIM-owner', 'action': 'decide', 'item': 'SIM 选可用的模型并重新确认实例配置'}]})
@@ -260,7 +260,7 @@ class Records(Project, unittest.TestCase):
         rid = self.launch('H')
         self.hand_over('H')
         self.exit(rid)
-        self.call('review', task_id='H', expected_revision=self.t('H')['revision'], outcome='passed', criteria_checked=self.t('H')['criteria'], evidence=['SIM'])
+        self.review( task_id='H', expected_revision=self.t('H')['revision'], outcome='passed', criteria_checked=self.t('H')['criteria'], evidence=['SIM'])
         self.call('human_review', task_id='H', expected_revision=self.t('H')['revision'], outcome='approved', presented_ref='SIM shown H',
                   source='SIM chat', quote='SIMULATED: H 可以', scope='SIM H', person='SIM-owner')
         adopt = next(a for a in self.summary()['actions'] if a['kind'] == 'pm' and a.get('task') == 'H')
@@ -331,7 +331,7 @@ class Records(Project, unittest.TestCase):
         self.assertEqual([('start', 'A'), ('derive', 'C')], [(a['kind'], a['task']) for a in s['actions']])
 
     def test_a_configured_profession_is_not_a_missing_expert(self):
-        with self.assertRaisesRegex(pm.TaskError, 'in the confirmed instance configuration'):
+        with self.assertRaisesRegex(pm.TaskError, 'is set up'):
             self.call('gap_open', task_ids=['A'], domain='quality-engineering', kind='not_set_up', why='SIM 需要验收', qualification='SIM 测试', risk='F2')
 
     def test_views_link_project_files_relatively(self):
@@ -352,7 +352,7 @@ class Records(Project, unittest.TestCase):
         for round_ in range(4):  # the first run, then three reworks: the third is past the cap of 2
             if round_:
                 t = self.t('A')
-                self.call('review', task_id='A', expected_revision=t['revision'], outcome='failed', criteria_checked=t['criteria'], evidence=['SIM'], cause='execution')
+                self.review( task_id='A', expected_revision=t['revision'], outcome='failed', criteria_checked=t['criteria'], evidence=['SIM'], cause='execution')
                 self.call('transition', task_id='A', expected_revision=self.t('A')['revision'], state='planned', reason='SIM 返工')
             if round_ == 3:
                 with self.assertRaisesRegex(pm.TaskError, 'exceeds the cap of 2'):
@@ -384,7 +384,7 @@ class Commands(Project, unittest.TestCase):
     def test_scheduler_restarts_failed_work_with_recorded_decision(self):
         first = self.tool('launch.py','--task','A','--event-id','SIM-first')
         self.wait(lambda:self.records()[first['record']['id']]['state']=='exited')
-        self.call('review',task_id='A',expected_revision=self.t('A')['revision'],outcome='failed',
+        self.review(task_id='A',expected_revision=self.t('A')['revision'],outcome='failed',
                   criteria_checked=self.t('A')['criteria'],evidence=['SIM missing handoff context'],cause='requirement_clarification')
         self.call('transition',task_id='A',expected_revision=self.t('A')['revision'],state='planned',reason='SIM legacy restart without parameters')
         self.assertEqual(self.summary()['stops']['A']['code'],'sent_back')
@@ -398,7 +398,7 @@ class Commands(Project, unittest.TestCase):
         action=next(a for a in self.summary()['actions'] if a.get('kind')=='start' and a.get('task')=='A')
         self.assertEqual(action['options']['attributed_to'],'PM')
         self.tool('scheduler.py','--once')
-        self.wait(lambda:len(self.records())==2 and all(r['state']=='exited' for r in self.records().values()))
+        self.wait(lambda:len([r for r in self.records().values() if r['purpose']=='start'])==2 and all(r['state']=='exited' for r in self.records().values()))
         self.assertEqual(self.t('A')['rework']['count'],1)
         self.assertEqual(self.t('A')['rework']['note'],'SIM actual clarification received')
 
@@ -532,7 +532,7 @@ class Commands(Project, unittest.TestCase):
                   scope_authorization='SIM')
         def tick():
             self.tool('scheduler.py', '--once')
-        self.wait(lambda: (self.root / 'notified.txt').is_file(), seconds=90, tick=tick)
+        self.wait(lambda: (self.root / 'notified.txt').is_file() and '需要你处理' in (self.root/'notified.txt').read_text(), seconds=90, tick=tick)
         self.assertIn('需要你处理', (self.root / 'notified.txt').read_text())
 
 

@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 INPUTS = Path(__file__).with_name('late_game_inputs')
-EVIDENCE_PRODUCER_SHA256 = '28fa2f9113c00cd11348f71845cefb1e766bbb2ce7bd6e432ffde444817a7dc2'
+EVIDENCE_PRODUCER_SHA256 = 'b966489687082e508ae736eecd4ee018fc99c358aeaf8116531372dc6b060ac6'
 FILE_HASHES = {
     'direction.html': 'b550917ffb232a03ca0e89560ac2f3983f567049c034ba75d3cfcb7aa8a952b3',
     'direction.png': '203d18a87127dd6cdf9b0c04e7b048579684c1b5689dfa5a1ebd3c6e0a71768e',
@@ -36,10 +36,10 @@ SAMPLES = [
     ('结算', '抵达营地！再走一局？', '本局结束，可选择再次开局。'),
 ]
 REFERENCES = [
-    {'name': 'Royal Game of Ur', 'source': 'British Museum collection W_1928-1009-378',
+    {'name': 'Royal Game of Ur', 'source': 'system:British Museum collection W_1928-1009-378',
      'borrows': '棋盘路径本身提示可走位置和特别格',
      'observed': '合成项目列出的待观察参照，夹具不宣称访问'},
-    {'name': 'Backgammon', 'source': 'GNU Backgammon manual / Backgammon rules',
+    {'name': 'Backgammon', 'source': 'system:GNU Backgammon manual / Backgammon rules',
      'borrows': '在同一棋盘区分棋子、落点与骰面',
      'observed': '合成项目列出的待观察参照，夹具不宣称访问'},
 ]
@@ -64,9 +64,9 @@ def synthetic_approval(root, data):
     display = put(root, 'management/合成方向展示.json', json.dumps({
         'synthetic_prior_confirmation': True, 'direction_sha256': direction_hash,
         'artifacts': list(data['parts'].values())}, ensure_ascii=False, indent=2)+'\n')
-    binding = {'format': 'matrix-review-binding/1', 'request_id': 'fixture-prior-direction-v1', 'scope': 'solo-ridge',
+    binding = {'format': 'matrix-review-binding/1', 'request_id': 'fixture-prior-direction-v1', 'scope': ['solo-ridge'],
                'actor': 'user', 'person': approval['person'], 'quote': approval['quote'], 'outcome': 'approved',
-               'direction_sha256': direction_hash, 'display': display,
+               'direction_sha256': direction_hash, 'display': display, 'artifacts': list(data['parts'].values()),
                'response': dict(response, message_sha256=evidence.digest(approval['quote']))}
     approval.update(direction_sha256=direction_hash, review_receipt=evidence.review_receipt(root, binding))
 

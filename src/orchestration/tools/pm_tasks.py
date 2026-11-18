@@ -57,14 +57,14 @@ RELATIONS = ('decide', 'clarify', 'designate', 'execute', 'inform')
 STATE_NAMES = {'planned': '未开始', 'running': '进行中', 'waiting_review': '待审', 'blocked': '受阻', 'done': '完成', 'cancelled': '已取消', 'deprecated': '已弃用'}
 RELATION_NAMES = {'decide': '决定', 'clarify': '澄清', 'designate': '指定', 'execute': '执行或试用', 'inform': '知悉'}
 ACTIONS = {'decide', 'clarify', 'designate', 'execute'}
-KINDS = {'work', 'stage'}
+KINDS = {'work', 'stage', 'coordination', 'rule_maintenance'}
 ROSTER = 'management/people.json'
 # Coordination facts: who is involved, what is awaited (an expertise gap included), where a task sits in the plan.
 # Changing them does not invalidate professional verification of the work itself.
 COORDINATION = {'awaiting', 'people', 'direction', 'stage', 'derived_from', 'gap', 'order', 'timeout_minutes'}
 SEMANTIC_FIELDS = {'title','next_action','goal','inputs','outputs','criteria','dependencies','completion_requires',
                    'executor','checker','human_required','resources','slots','source','artifact_digests',
-                   'difficulty','risk','risk_reason'} | governance.FIELDS | admission.FIELDS
+                   'difficulty','risk','risk_reason','direction','timeout_minutes','order','expanded'} | governance.FIELDS | admission.FIELDS
 SAFE_ID = r'[A-Za-z0-9][A-Za-z0-9_.-]{0,63}'
 # Rework causes, written by the checker of a failed review or by the manager who reopens finished work.
 REWORK = {'execution', 'requirement_clarification', 'basis_changed', 'other'}
@@ -291,6 +291,7 @@ def validation(t, tasks):
     require(type(t['slots']) is int and 0 <= t['slots'] <= 64, 'invalid slots')
     require(type(t['human_required']) is bool, 'human_required must be boolean')
     require(type(t['expanded']) is bool, 'expanded must be boolean')
+    require(type(t.get('first_increment',False)) is bool, 'first_increment must be boolean')
     require('project_level' not in t or type(t['project_level']) is bool, 'project_level must be boolean')
     require(t.get('difficulty') is None or team.level(t['difficulty']) is not None, 'difficulty must be T1–T9')
     require(t.get('risk') is None or team.risk(t['risk']) is not None, 'risk must be F0–F5')
@@ -378,7 +379,7 @@ def reasons(t, tasks, cfg):
     for dep in t['dependencies']:
         if not effective_done(tasks[dep], tasks):
             result.append('dependency not complete: ' + dep)
-    if not t.get('executor') and t.get('kind') != 'stage':
+    if not t.get('executor') and t.get('kind') not in {'stage','coordination'}:
         result.append('actual executor not recorded')
     running = [x for x in tasks.values() if x['state'] == 'running' and x['id'] != t['id']]
     if sum(x['slots'] for x in running) + t['slots'] > cfg['max_slots']:
@@ -774,21 +775,35 @@ def execute(project, cmd, _db=None, _applying=None):
                 else:
                     require(parent in tasks, 'parent missing')
                     require(tasks[parent]['state'] not in TERMINAL, 'closed parent; reopen explicitly first')
-                    manager = tasks[parent]['owner']
+                    manager = team.child_manager(api(),root,db,actor,tasks[parent],tasks)
                 if data.get('project_level'):
                     manager = actor if team.workflow_manager(api(), root, db, actor, parent, tasks) else cfg['pm_actor']
                 require(actor == manager, 'only responsible manager may create this level')
                 allowed = {'id','parent','title','owner','checker','goal','inputs','outputs','criteria','dependencies','completion_requires','resources','slots','executor','human_required','expanded','next_action','source',
                            'kind','stage','direction','people','derived_from','awaiting','project_level','role','artifact_digests',
-                           'difficulty','risk','risk_reason','origin','gap','order','timeout_minutes','closure'} | governance.FIELDS | admission.FIELDS
+                           'difficulty','risk','risk_reason','origin','gap','order','timeout_minutes','closure','review_for','first_increment'} | governance.FIELDS | admission.FIELDS
                 require(set(data) <= allowed, 'unknown create fields')
                 after = dict(data, parent=parent, manager=manager, state='planned', revision=1,
                              work_revision=1, evidence=[], review=None, human_review=None,
-                             created_at=now(), updated_at=now(), last_report=None,
+                             created_at=now(), updated_at=now(), created_by=actor, last_report=None,
                              reason='registered before execution')
                 for key, default in [('dependencies',[]),('completion_requires',[]),('resources',[]),('slots',1),('executor',None),('human_required',False),('expanded',False),('source',''),
                                      ('kind','work'),('stage',None),('direction',''),('people',{}),('derived_from',[]),('awaiting',[])]:
                     after.setdefault(key, default)
+                if parent and admission.governed(api(),root,db,tasks[parent]):
+                    inherited=tasks[parent]
+                    if inherited.get('admitted_inputs'):
+                        after['admitted_inputs']=list(dict.fromkeys([*inherited['admitted_inputs'],*after.get('admitted_inputs',[])]))
+                    if inherited.get('stage_transition'):after.setdefault('stage_transition',inherited['stage_transition'])
+                    if inherited.get('intake_review_id'):
+                        require(not after.get('intake_review_id') or after['intake_review_id']==inherited['intake_review_id'], 'managed intake review children preserve the exact routed input')
+                        after['intake_review_id']=inherited['intake_review_id']
+                    if inherited.get('practice_stage') and not after.get('review_for'):
+                        require(not after.get('practice_stage') or after['practice_stage']==inherited['practice_stage'],
+                                'managed children must preserve parent practice stage and approved scope')
+                        after['practice_stage']=inherited['practice_stage']
+                    after['inputs']=list(dict.fromkeys([*inherited.get('inputs',[]),*after.get('inputs',[])]))
+                admission.task_boundary(api(),root,db,after,tasks,creator=actor)
                 instance = integrity.records(db, 'instance').get(after['owner'])
                 if instance:
                     require(not after.get('role') or after['role'] == instance['role'], 'instance role mismatch')
@@ -823,7 +838,7 @@ def execute(project, cmd, _db=None, _applying=None):
                     require(set(changes) <= allowed, 'immutable/unknown field')
                     require(nonempty(cmd.get('reason')), 'change reason required')
                     professional = bool(admission.task_professions(api(),root,db,after))
-                    governed = professional or any(after.get(key) for key in admission.FIELDS)
+                    governed = professional or any(after.get(key) for key in admission.FIELDS) or admission.coordination_only(api(),db,after)
                     semantic = set(changes) & SEMANTIC_FIELDS
                     if governed and semantic:
                         require(actor == after['manager'] or applying_id,
@@ -839,7 +854,15 @@ def execute(project, cmd, _db=None, _applying=None):
                         authorized(cmd.get('person'), [tid], tasks, people)
                     if before['state'] == 'running' and changes.get('executor', before.get('executor')) != before.get('executor'):
                         require(False, 'stop current executor before reassignment')
+                    if governed and semantic:
+                        candidate=dict(after,**changes)
+                        pure_coordination = (admission.coordination_only(api(),db,before) and admission.coordination_only(api(),db,candidate)
+                                             and not before.get('admitted_inputs') and not candidate.get('admitted_inputs'))
+                        if not pure_coordination:admission.semantic_basis(api(),root,db,before,candidate,cmd,applying_id)
+                        if not set(changes)<={'dependencies','completion_requires','resources','slots','practice_completion','stage_transition'}:
+                            after.pop('input_provenance',None)
                     after.update(changes)
+                    admission.task_boundary(api(),root,db,after,tasks)
                     integrity.observe(api(), root, after)
                     require(not before['human_required'] or after['human_required'] or nonempty(cmd.get('scope_authorization')), 'cannot silently remove human review')
                     if set(changes) & {'executor', 'difficulty'}:
@@ -957,6 +980,10 @@ def execute(project, cmd, _db=None, _applying=None):
                         review_workspace = local(root, 'management/instances/' + actor + '/workspace/public')
                         require(all(local(root, name).is_relative_to(review_workspace) and local(root, name).is_file()
                                     for name in cmd['evidence']), 'admission review evidence must be actual checker public files')
+                        baseline=active_reviews[0].get('review_baseline',{})
+                        require('review_baseline' in active_reviews[0], 'admission check run needs a trusted public baseline')
+                        require(all(baseline.get(name)!=integrity.file_hash(api(),root,name) for name in cmd['evidence']),
+                                'admission review must submit new or changed evidence from this check run')
                         admission_review = dict(run_id=active_reviews[0]['id'],
                             artifact_sha256={name:integrity.file_hash(api(), root, name) for name in cmd['evidence']})
                     after['review'] = {'basis':basis(after,tasks),'checker':actor,'outcome':cmd['outcome'],'evidence':cmd['evidence'],'at':now(),
@@ -1036,13 +1063,14 @@ def execute(project, cmd, _db=None, _applying=None):
                 after['updated_at'] = now()
                 tasks[tid] = after
                 gap_link(db, before, after, cmd, tasks, people)
+                admission.task_boundary(api(),root,db,after,tasks)
                 validation(after, tasks)
                 check_people(after, people)
                 if after['state'] == 'running':
                     require(not reasons(after,tasks,cfg), '; '.join(reasons(after,tasks,cfg)))
             if op == 'update' and 'evidence' in cmd['changes']:
                 admission.submission(api(), root, after, after['evidence'])
-            if op == 'update' and set(cmd['changes']) & (admission.FIELDS | {'inputs'}) and (
+            if op == 'update' and set(cmd['changes']) & (admission.FIELDS | {'inputs','dependencies','completion_requires'}) and (
                     after.get('admitted_inputs') or before.get('admitted_inputs') or after.get('intake_review_id') or
                     before.get('intake_review_id') or after.get('practice_stage') or before.get('practice_stage')):
                 require(not before.get('admitted_inputs') or after.get('admitted_inputs'), 'cannot drop admitted production inputs')
@@ -1062,7 +1090,7 @@ def execute(project, cmd, _db=None, _applying=None):
                 problems = integrity.blockers(api(), root, db, tasks, tid, closing=after['state']=='done', applying=applying_id)
                 problems += team.blockers(api(), root, db, tasks, tid, closing=after['state']=='done')
                 problems += admission.production_issues(api(), root, db, after, tasks,
-                                                        phase='complete' if after['state']=='done' else 'entry')
+                                                        phase='complete' if after['state']=='done' else 'start')
                 require(not problems, 'integrity gate: ' + canon(problems))
             for key in list(after):
                 if key.startswith('_'):

@@ -5,6 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
+from pm_test_inputs import business_source,actual_output
 from kit import KIT
 SCRIPT = KIT / 'matrix/orchestration/tools/pm_tasks.py'
 spec = importlib.util.spec_from_file_location('pm_completion_under_test', SCRIPT)
@@ -20,6 +21,7 @@ class CompletionPrerequisiteTests(unittest.TestCase):
         self.n = 0
         self.call('init', 'SIM-PM', config={'project': 'SIMULATED', 'pm_actor': 'SIM-PM',
                   'authorization': 'SIMULATED only', 'frontdoor_id': 'SIMULATED', 'max_slots': 4})
+        self.business=business_source(self,pm,pm_actor='SIM-PM',actors=[('SIM-OWNER', 'SIM-task-engine-owner'), ('SIM-CHECKER', 'SIM-task-engine-checker'), ('SIMULATED executor; no agent started', 'SIM-task-engine-executor')])
 
     def call(self, op, actor='SIM-OWNER', **fields):
         self.n += 1
@@ -33,13 +35,15 @@ class CompletionPrerequisiteTests(unittest.TestCase):
                     goal='simulated', inputs=['in'], outputs=['out'], criteria=['ok'], next_action='next',
                     executor='SIMULATED executor; no agent started')
         data.update(fields)
+        if data['inputs']==['in']:data.update(self.business)
+        data.setdefault('executor',data['owner'])
         return self.call('create', 'SIM-PM', task=data)
 
     def mutate(self, op, tid, actor='SIM-OWNER', **fields):
         return self.call(op, actor, task_id=tid, expected_revision=self.task(tid)['revision'], **fields)
 
     def finish_work(self, tid):
-        self.mutate('update', tid, changes={'evidence': ['SIMULATED evidence ' + tid]}, reason='SIMULATED work')
+        self.mutate('update', tid, changes={'evidence': [actual_output(self,self.task(tid))]}, reason='SIMULATED work')
         self.mutate('review', tid, 'SIM-CHECKER', outcome='passed', criteria_checked=['ok'],
                     evidence=['SIMULATED check; no real verification'])
 
@@ -64,7 +68,7 @@ class CompletionPrerequisiteTests(unittest.TestCase):
         self.assertTrue(self.task('E-1')['ready'])
         self.mutate('transition', 'E-1', state='running', reason='SIMULATED start', execution_receipt='SIMULATED receipt')
         self.mutate('transition', 'E-1', state='waiting_review', reason='SIMULATED returned', stop_evidence='SIMULATED stop',
-                    evidence=['SIMULATED returned result'])
+                    evidence=[actual_output(self,self.task('E-1'))])
         self.finish_work('E-1')
         self.assertEqual(['D-1'], self.task('E-1')['completion_pending'])
         with self.assertRaisesRegex(pm.TaskError, 'completion prerequisites not complete'):
@@ -82,7 +86,7 @@ class CompletionPrerequisiteTests(unittest.TestCase):
         self.finish_work('E-1')
         self.assertTrue(self.task('E-1')['review_current'])
         self.human('D-1', 'changes_requested')
-        self.mutate('update', 'D-1', changes={'evidence': ['SIMULATED revised anchors']}, reason='SIMULATED rework')
+        self.mutate('update', 'D-1', changes={'evidence': [actual_output(self,self.task('D-1'))]}, reason='SIMULATED rework')
         self.assertFalse(self.task('E-1')['review_current'])
 
     def test_prerequisite_used_by_completed_work_is_replaced_not_reopened(self):
@@ -109,7 +113,7 @@ class CompletionPrerequisiteTests(unittest.TestCase):
             with self.assertRaisesRegex(pm.TaskError, 'cycle'):
                 self.mutate('update', 'A', actor='SIM-PM', changes={field: ['B']}, reason='SIMULATED mutual wait',
                             scope_authorization='SIMULATED decision')
-        with self.assertRaisesRegex(pm.TaskError, 'responsible manager'):
+        with self.assertRaisesRegex(pm.TaskError, 'authorized manager'):
             self.mutate('update', 'B', changes={'completion_requires': []}, reason='SIMULATED silent change')
 
     def test_tasks_without_prerequisites_keep_their_verification_basis(self):

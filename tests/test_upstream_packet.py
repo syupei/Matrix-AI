@@ -18,7 +18,7 @@ class UpstreamPacketTests(Project, unittest.TestCase):
         self.call('update', 'PM', task_id='A', expected_revision=self.t('A')['revision'],
                   changes={'human_required': True}, reason='SIM manager sets the human gate')
         rid=self.launch('A');self.hand_over('A');self.exit(rid)
-        self.call('review',task_id='A',expected_revision=self.t('A')['revision'],outcome='passed',criteria_checked=self.t('A')['criteria'],evidence=['SIM checked'])
+        self.review(task_id='A',expected_revision=self.t('A')['revision'],outcome='passed',criteria_checked=self.t('A')['criteria'],evidence=['SIM checked'])
         (self.root / 'SIM-reply.md').write_text('SIM approve candidate only; retry safety remains unresolved')
         self.call('human_review',task_id='A',expected_revision=self.t('A')['revision'],outcome='approved',person='SIM-owner',
                   quote='SIM approve candidate only; retry safety remains unresolved',source='SIM-reply.md',presented_ref='input.md',scope='SIM candidate wording only')

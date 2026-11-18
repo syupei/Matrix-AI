@@ -254,7 +254,7 @@ def start(pm, root, db, cfg, tasks, cmd, records):
     pm.require(pm.nonempty(cmd.get('model')) and pm.nonempty(cmd.get('session')) and pm.strings(cmd.get('command')) and cmd['command'], 'model, session and command of the run required')
     task = tasks[ids[0]]
     if purpose == 'start':
-        pm.require(task.get('kind') != 'stage', 'stage milestones are coordinated by the PM, not launched as workers')
+        pm.require(task.get('kind') not in {'stage','coordination'}, 'stage/coordination records are coordinated by the PM, not launched as workers')
         pm.require(inst['id'] == task.get('executor'), 'a start run launches the task\'s recorded executor')
         pm.require(not any(l['task_id'] == task['id'] for l in active(pm, db)), task['id'] + ' already has an active run')
         mine = sorted((l for l in records.values() if l['task_id'] == task['id']), key=lambda l: (l['started_at'], l['id']))
@@ -276,6 +276,10 @@ def start(pm, root, db, cfg, tasks, cmd, records):
                  binding=binding(pm, root, db, task, tasks), work_revision=task['work_revision'], model=cmd['model'],
                  session=cmd['session'], command=cmd['command'], log=cmd.get('log'), state='starting', started_at=pm.now(), revision=1,
                  after_seq=db.execute('SELECT COALESCE(MAX(seq),0) FROM events').fetchone()[0])
+    if purpose=='check' and any(run.get('admission_expert') and run.get('task_id') in ids for run in records.values()):
+        workspace=pm.local(root,'management/instances/'+inst['id']+'/workspace/public')
+        value['review_baseline']={path.relative_to(root).as_posix():pm.integrity.file_hash(pm,root,path.relative_to(root).as_posix())
+                                  for path in workspace.rglob('*') if path.is_file() and not path.is_symlink()}
     if cmd.get('admission_expert') is not None:
         pm.require(pm.nonempty(cmd.get('admission_runner')), 'admission runner identifier required')
         expert = pm.team.experts
@@ -407,7 +411,7 @@ def stop_of(pm, root, db, cfg, task, ctx):
         return 'sent_back', t['manager']
     if any(i.startswith('dependency not complete') for i in issues):
         return 'deps', None
-    if t.get('kind') == 'stage' and not [i for i in issues if i != 'actual executor not recorded']:
+    if t.get('kind') in {'stage','coordination'} and not [i for i in issues if i != 'actual executor not recorded']:
         return 'milestone', t['manager']
     if t['ready']:
         if ctx['budget']['left'] <= 0:
@@ -593,6 +597,11 @@ def summary(pm, root, db, cfg, tasks, detail=False):
                     **({'ref_task': {k: tasks[i['ref']].get(k) for k in ['id','revision','state','awaiting','sent_back','next_action']}} if i.get('ref') in tasks else {}),
                     command=command('inbox_done', actor=pm_actor, event_id='pm-inbox-' + i['id'], id=i['id'], note='<怎样处理的>'))
                for i in sorted(pm.integrity.records(db, 'inbox').values(), key=lambda i: i['at']) if i['state'] == 'open']
+    actions.extend(dict(kind='production_feedback',id=r['id'],task_id=r['task'],instruction=r['instruction'],
+                        command=command('resolve_production_feedback',actor=pm_actor,event_id='pm-feedback-'+r['id'],id=r['id'],disposition='<intake/change/rejected>',reason='<处置依据>',target_id='<实际登记id>'))
+                   for r in pm.integrity.records(db,'production_feedback').values() if r['status']=='pending')
+    actions.extend(dict(kind='input_family',id=r['id'],reason=r.get('new_family_reason'),state=r['state'])
+                   for r in pm.integrity.records(db,'input_admission').values() if r.get('family_review_required') and r['state'] in {'registered','reviewing'})
     running_slots = sum(t['slots'] for t in tasks.values() if t['state'] == 'running')
     free, left = cfg['max_slots'] - running_slots, ctx['budget']['left']
     ready = sorted((t for t in tasks.values() if reasons.get(t['id'], {}).get('code') == 'ready'),

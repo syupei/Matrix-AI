@@ -7,12 +7,13 @@ from pathlib import Path
 import shutil
 
 
-SCENE = 'design/preview.html'
-SCREENSHOT = 'design/preview.png'
-CAPTURE = 'design/preview.capture.json'
+SCENE = 'references/direction.html'
+SCREENSHOT = 'references/direction.png'
+CAPTURE = 'references/direction.capture.json'
 REVIEW_SOURCE = 'review-input.md'
 REVIEW_OUTPUT = 'product/reviews/合成P-1审阅输入.md'
-COPIES = ((SCENE, SCENE), (SCREENSHOT, SCREENSHOT), (CAPTURE, CAPTURE), (REVIEW_SOURCE, REVIEW_OUTPUT))
+COPIES = ((REVIEW_SOURCE, REVIEW_OUTPUT),)
+FROZEN = 'reference-inputs.json'
 
 
 def quote(source):
@@ -28,15 +29,25 @@ def copy_inputs(source, public):
     return check_inputs(source, public)
 
 
+def seal_inputs(source):
+    frozen={name:hashlib.sha256((source/name).read_bytes()).hexdigest() for name in (SCENE,SCREENSHOT,CAPTURE,REVIEW_SOURCE)}
+    (source/FROZEN).write_text(json.dumps(frozen,ensure_ascii=False,indent=2)+'\n')
+    return frozen
+
+
 def check_inputs(source, public):
-    """Check the copies in-place without repairing an author's changed input."""
+    """Check immutable reference inputs and the one explicitly copied source record."""
+    frozen=json.loads((source/FROZEN).read_text())
+    for name,expected in frozen.items():
+        if hashlib.sha256((source/name).read_bytes()).hexdigest()!=expected:
+            raise ValueError('immutable reference input changed: '+name)
     files = {}
     for name, relative in COPIES:
         target = public / relative
         if not target.is_file() or target.is_symlink() or target.read_bytes() != (source / name).read_bytes():
             raise ValueError('copied synthetic input changed: ' + relative)
         files[relative] = hashlib.sha256(target.read_bytes()).hexdigest()
-    return {'source': REVIEW_OUTPUT, 'quote': quote(source), 'copied_inputs': files, 'unchanged': True}
+    return {'source': REVIEW_OUTPUT, 'quote': quote(source), 'copied_inputs': files, 'readonly_references':frozen, 'unchanged': True}
 
 
 if __name__ == '__main__':

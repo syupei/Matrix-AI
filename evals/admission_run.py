@@ -44,15 +44,18 @@ def admitted_sources(pm, project, manifest, identity, model, prompt, token, call
             ids.append(reusable['id']);continue
         key='admission-input-'+token+'-'+str(number)
         call('intake_register',id=key,path=path,version=token,source='SYNTHETIC admission controller supplied file',
-             source_id='synthetic-admission-'+token+'-'+str(number),profession=manifest['profession'])
+             source_id='synthetic-admission-'+token+'-'+str(number),profession=manifest['profession'],
+             new_family_reason='SYNTHETIC distinct brief/method source; coexistence reviewed for the bounded exercise')
         call('intake_submit',id=key,master=master)
         # Exact fixed fixture facts are read by the trusted controller; no model or
         # professional-quality review is claimed by this deterministic admission.
         actual=(project/path).read_text(encoding='utf-8')
         if not actual.strip():raise ValueError('synthetic admission source must contain the actual bounded instructions')
+        with pm.connect(project,readonly=True) as db:
+            peers=[row['id'] for row in pm.integrity.records(db,'input_admission').values() if row.get('state')=='admitted' and row.get('profession')==manifest['profession']]
         call('intake_review',by=master,id=key,outcome='approved',
              conclusion='SYNTHETIC source readback: '+path+' sha256='+sha+'; preserve the supplied facts and limits; no production approval',
-             resolved_risks=[],resolved_conflicts=[],open_items=[],human_required=False)
+             resolved_risks=[],resolved_conflicts=[],open_items=[],human_required=False,coexists_with=peers,conflicts_with=[])
         call('intake_admit',id=key)
         ids.append(key)
     gate=pm.admission.load_gate()
@@ -80,6 +83,13 @@ def admitted_sources(pm, project, manifest, identity, model, prompt, token, call
     response=put(prefix+'response.json',dict(request_id=request_id,actor='user',choice='confirm',scope=scope,artifact_sha256=content,
         source=source,quote=quote,display_sha256=display_sha,message_sha256=gate.tone.evidence.digest(quote) if hasattr(gate,'tone') and hasattr(gate.tone,'evidence') else hashlib.sha256(json.dumps(quote,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()))
     conversation=put(prefix+'conversation.md',current+' -> '+following)
+    if hasattr(pm.direction,'bind_attention') and 'human_attention' in getattr(pm.direction,'WRITE_OPS',set()):
+        attention='source-confirmation-'+token
+        call('human_attention',id=attention,kind='confirmation',display=shown,scope=scope,inputs=input_paths)
+        call('human_attention',id=attention,response=source)
+        with pm.connect(project) as db:
+            receipt=pm.direction.bind_attention(pm.api(),project,db,attention,person='SIM-fixture-person',quote=quote,scope=scope,expected={})
+        reply=json.loads((project/response).read_text());reply['review_receipt']=receipt;put(response,reply)
     state=put(prefix+'stage.json',dict(role=role,current=current,next=following,scope=scope,blockers=[],artifacts=artifacts,
         request=request,response=response,conversation_check=conversation))
     gate.check(project,json.loads((project/state).read_text(encoding='utf-8')))

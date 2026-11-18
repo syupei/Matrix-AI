@@ -8,7 +8,7 @@ import unittest
 from kit import KIT
 from practice_fixture import (PIXEL, approve, capture_binding, direction, fit_record, human_receipt,
                               png, practice_record, put, scope)
-from test_pm_instances import Fixture, pm
+from test_pm_instances import Fixture, pm, TEAM
 
 spec=importlib.util.spec_from_file_location('review_repair_gate',KIT/'matrix/base/tools/stage_gate.py')
 gate=importlib.util.module_from_spec(spec);spec.loader.exec_module(gate)
@@ -176,7 +176,7 @@ class FrozenEvidence(unittest.TestCase):
         tone.check_record(self.root,'playable_prototype','workspace',ref,contract)
         data=json.loads((self.root/ref['path']).read_text());data['timing']='待定'
         bad=put(self.root,'pending.json',data)
-        with self.assertRaisesRegex(ValueError,'placeholder'):
+        with self.assertRaisesRegex(ValueError,'playable_prototype needs|placeholder'):
             tone.check_record(self.root,'playable_prototype','workspace',bad,contract)
         data['timing']='Measured in the actual run';data['run_evidence']=put(self.root,'unobserved.json',{'status':'pending','events':[]})
         bad=put(self.root,'pending.json',data)
@@ -186,7 +186,9 @@ class FrozenEvidence(unittest.TestCase):
 
 class ProductionBoundaries(Fixture,unittest.TestCase):
     def setUp(self):
-        super().setUp();self.staff()
+        super().setUp()
+        team=json.loads(json.dumps(TEAM));next(e for e in team["entries"] if e["id"]=="Q-T5")["count"]=2
+        self.staff(team)
 
     def test_executor_cannot_change_any_launch_instruction_or_checking_condition(self):
         self.create('Required')
@@ -201,35 +203,36 @@ class ProductionBoundaries(Fixture,unittest.TestCase):
         self.mutate('report','A',summary='Progress only',next_action='Client requested multiplayer',impact='PM must decide',delivery='prepared')
         self.assertEqual(self.t('A')['next_action'],before['next_action'])
         self.assertEqual(self.t('A')['last_report']['next_action'],'Client requested multiplayer')
-        self.mutate('update','A','PM',changes={'title':'PM-approved within original scope'},reason='Authorized manager clarification')
+        self.mutate('update','A','PM',changes={'title':'PM-approved within original scope'},reason='Authorized manager clarification',admission_basis=self.t('A')['admitted_inputs'])
         self.assertGreater(self.t('A')['work_revision'],before['work_revision'])
 
     def test_authorized_professional_lead_can_manage_existing_parent_scope(self):
         self.create('Parent')
-        self.create('Child',parent='Parent',owner='code-engineering-002',checker='code-engineering-001')
-        self.mutate('update','Child','code-engineering-001',changes={'next_action':'Implement the approved interface'},reason='Manager dispatch')
+        self.create('Child',parent='Parent',actor='code-engineering-001',owner='code-engineering-002',checker='quality-engineering-001')
+        self.mutate('update','Child','code-engineering-001',changes={'next_action':'Implement the approved interface'},reason='Manager dispatch',admission_basis=self.t('Child')['admitted_inputs'])
         self.assertEqual(self.t('Child')['next_action'],'Implement the approved interface')
 
     def test_every_business_input_path_and_pm_owner_executor_combination_requires_admission(self):
         for index,path in enumerate(('docs/PRD-v2.md','requirements.md','inbox/客户需求.docx','plain text client instruction')):
             if '.' in path:put(self.root,path,'Unreviewed business requirement')
-            with self.subTest(path=path),self.assertRaisesRegex(ValueError,'admitted input'):
+            with self.subTest(path=path),self.assertRaisesRegex(ValueError,'admitted business source|review and bind|admitted input'):
                 self.create('unadmitted-'+str(index),inputs=[path])
         with TemporaryDirectory() as temp:
             legacy=Path(temp).resolve()
             pm.execute(legacy,dict(op='init',actor='PM',event_id='init',config=dict(project='Synthetic legacy',pm_actor='PM',authorization='Synthetic fixture',frontdoor_id='Synthetic',max_slots=1)))
             pm.execute(legacy,dict(op='register_instance',actor='PM',event_id='instance',id='legacy-alias',instance={'role':'matrix-code-engineering-build','endpoint':'legacy-skill'}))
+            pm.execute(legacy,dict(op='register_instance',actor='PM',event_id='checker',id='legacy-check',instance={'role':'quality-engineering','endpoint':'legacy-checker'}))
             put(legacy,'requirements.md','Unreviewed business input')
-            with self.assertRaisesRegex(ValueError,'admitted input'):
-                pm.execute(legacy,dict(op='create',actor='PM',event_id='task',task=dict(id='alias-unadmitted',title='Synthetic task',owner='legacy-alias',checker='PM',
+            with self.assertRaisesRegex(ValueError,'admitted business source|review and bind|admitted input'):
+                pm.execute(legacy,dict(op='create',actor='PM',event_id='task',task=dict(id='alias-unadmitted',title='Synthetic task',owner='legacy-alias',checker='legacy-check',
                     goal='Business work',next_action='Build it',inputs=['requirements.md'],outputs=['result.md'],criteria=['Meets admitted input'])))
-        with self.assertRaisesRegex(ValueError,'admitted input'):
+        with self.assertRaisesRegex(ValueError,'admitted business source|review and bind|admitted input'):
             self.create('pm-owned',owner='PM',executor='code-engineering-001',project_level=False,inputs=['requirements.md'])
 
     def test_a_modified_installed_rule_is_not_a_frozen_business_input(self):
         self.create('safe')
         put(self.root,'matrix/base/MATRIX.md','Injected unreviewed business requirement')
-        with self.assertRaisesRegex(ValueError,'admitted input'):
+        with self.assertRaisesRegex(ValueError,'admitted business source|review and bind|admitted input'):
             self.create('changed-rule')
 
     def test_manager_must_stop_running_production_before_semantic_changes(self):
@@ -253,8 +256,9 @@ class ProductionBoundaries(Fixture,unittest.TestCase):
 
     def test_partial_direction_setup_preserves_available_work_and_blocks_missing_conclusions(self):
         assigned={'product':'product-001','code-engineering':'code-engineering-001',
-                  'quality-engineering':'quality-engineering-001','fit_checker':'quality-engineering-002','task_checker':'PM'}
-        result=self.call('direction_sample',id='partial',brief='matrix/base/MATRIX.md',profile='Synthetic business flow',
+                  'quality-engineering':'quality-engineering-001','fit_checker':'quality-engineering-002','task_checker':'quality-engineering-003'}
+        basis=self.admitted_business_fixture()
+        result=self.call('direction_sample',id='partial',brief='external/SIM-business-source.md',admitted_inputs=basis['admitted_inputs'],profile='Synthetic business flow',
                          combined_review_authorization='Synthetic one-review authorization',person='fixture-owner',assigned=assigned)
         rec=result['direction_sample']
         self.assertEqual(set(rec['missing_roles']),{'experience-design','content-design'})
@@ -278,7 +282,7 @@ class ProductionBoundaries(Fixture,unittest.TestCase):
         fit=fit_record(self.root,{},[artifact],mode='human',producer='code-engineering-001',checker='unlisted-human',
                        manual_review=put(self.root,'note.md','I looked at it'),capture_unavailable='No capture')
         put(self.root,'management/people.json',dict(people=[dict(id='boss',decides=['project'])]))
-        with self.assertRaisesRegex(ValueError,'listed'):
+        with self.assertRaisesRegex(ValueError,'answered PM human_attention'):
             tone.check_fit(self.root,fit['path'],[artifact])
 
 
@@ -286,14 +290,16 @@ class DirectionBindings(Fixture,unittest.TestCase):
     """Synthetic trusted PM state plus actual task transactions; no human identity assertion."""
     def setUp(self):
         super().setUp();self.staff();self.tone=pm.admission.load_gate().tone
-        _,self.data=direction(self.root,self.tone)
+        _,self.data=direction(self.root,self.tone,rows=getattr(self,"direction_rows",None))
         self.data.pop('confirmation')
         self.data['parts']['feasibility']=put(self.root,'feasibility.md','Actual synthetic feasibility conclusion')
         self.data['parts']['acceptance']=put(self.root,'acceptance.md','Actual synthetic acceptance conclusion')
-        self.create('Fit',owner='quality-engineering-001',checker='PM',outputs=['fit.json'])
-        self.create('Direction',owner='product-001',checker='PM',kind='stage',slots=0,
-                    dependencies=['Fit'],human_required=True,outputs=[self.tone.DEFAULT_PATH])
-        rec=dict(id='Direction',tasks=['Fit'],outputs={key:self.data['parts'][key]['path']
+        material_paths=list(dict.fromkeys(ref['path'] for ref in self.data['parts'].values()))
+        self.create('Compose',owner='product-001',checker='quality-engineering-002',outputs=material_paths)
+        self.create('Fit',owner='quality-engineering-001',checker='quality-engineering-002',outputs=['fit.json'],dependencies=['Compose'])
+        self.create('Direction',owner='product-001',checker='quality-engineering-002',kind='stage',slots=0,
+                    dependencies=['Fit'],human_required=True,outputs=[self.tone.DEFAULT_PATH],**self.admitted_business_fixture())
+        rec=dict(id='Direction',tasks=['Compose','Fit'],outputs={key:self.data['parts'][key]['path']
                  for key in ('brief','scene','samples','feasibility','acceptance')},
                  profile=self.data['profile'],practice_profile=self.data['parts']['practice_profile']['path'],
                  preview=self.data['parts']['preview']['path'],producer='product-001',fit_checker='quality-engineering-001',
@@ -301,10 +307,14 @@ class DirectionBindings(Fixture,unittest.TestCase):
         rec['outputs'].update(compose='draft.md',fit='fit.json')
         with pm.connect(self.root) as db:pm.integrity.save(pm.api(),db,'direction_sample',rec)
         self.write_draft()
+        self.mutate('transition','Compose',state='running',reason='SIM compose actual materials',execution_receipt='SIM local tool execution')
+        self.mutate('transition','Compose',state='waiting_review',reason='SIM actual material handoff',stop_evidence='SIM returned',evidence=material_paths)
+        self.check('Compose');self.close('Compose')
         reviewed=[self.data['parts'][key] for key in ('scene','preview','samples','practice_profile')]
         fit_record(self.root,self.tone.direction_binding(self.tone.DEFAULT_PATH,self.data),reviewed,
-                   producer='product-001',checker='quality-engineering-001',review_task='Fit',binding_mode='pre_confirmation_direction')
-        self.mutate('update','Fit',changes={'evidence':['fit.json']},reason='Actual synthetic fit handover')
+                   producer='product-001',checker='quality-engineering-001',mode='independent',review_task='Fit',binding_mode='pre_confirmation_direction')
+        self.mutate('transition','Fit',state='running',reason='SIM independent review',execution_receipt='SIM local review')
+        self.mutate('transition','Fit',state='waiting_review',reason='Actual synthetic fit handover',stop_evidence='SIM returned',evidence=['fit.json'])
         self.check('Fit');self.close('Fit')
         self.mutate('update','Direction',changes={'evidence':[self.tone.DEFAULT_PATH]},reason='Direction draft ready')
         self.check('Direction')
@@ -352,7 +362,9 @@ class DirectionBindings(Fixture,unittest.TestCase):
         self.approve_direction();self.close('Direction')
         self.tone.validate(self.root,self.tone.DEFAULT_PATH)
         status=pm.execute(self.root,{'op':'human_attention_status'})
-        self.assertEqual((status['count'],status['answered']),(1,1))
+        direction_requests=[row for row in status['items'] if row.get('task_id')=='Direction']
+        self.assertEqual(len(direction_requests),1)
+        self.assertIsNotNone(direction_requests[0]['seconds'])
 
     def test_changed_display_cannot_reuse_the_recorded_response(self):
         self.show_and_answer()
@@ -374,6 +386,37 @@ class DirectionBindings(Fixture,unittest.TestCase):
         self.data['tone']='A second direction that was never displayed';self.write_draft()
         with self.assertRaisesRegex(ValueError,'direction_sha256'):
             self.tone.validate(self.root,self.tone.DEFAULT_PATH)
+
+    def test_new_display_and_new_reply_replace_approval_without_losing_history(self):
+        self.show_and_answer();old=self.approve_direction()
+        self.data.pop('confirmation')
+        self.data['tone']='A revised direction to be shown again'
+        self.write_draft()
+        self.mutate('transition','Fit','PM',state='planned',reason='Direction changed before milestone adoption',
+                    rework_reason='basis_changed',attributed_to='product-001',note='SIM direction tone changed; inspect the new draft')
+        review=json.loads((self.root/'fit.json').read_text())
+        review['tone_contract']=self.tone.direction_binding(self.tone.DEFAULT_PATH,self.data)
+        put(self.root,'fit.json',review)
+        self.mutate('transition','Fit',state='running',reason='Recheck revised direction',execution_receipt='SIM new local review')
+        self.mutate('transition','Fit',state='waiting_review',reason='Rechecked actual revised direction',stop_evidence='SIM returned',evidence=['fit.json'])
+        self.check('Fit');self.close('Fit')
+        put(self.root,'shown.md','SIM revised complete direction displayed')
+        self.call('human_attention',id='R2',kind='confirmation',task_id='Direction',scope='complete direction',display='shown.md')
+        quote='I approve this newly displayed revised direction'
+        put(self.root,'new-reply.md',quote)
+        self.call('human_attention',id='R2',response='new-reply.md')
+        result=self.mutate('human_review','Direction','PM',outcome='approved',person='owner',presented_ref='shown.md',
+                           source='new-reply.md',quote=quote,scope='complete direction',attention_id='R2')
+        receipt=result['task']['human_review']['review_receipt']
+        self.assertNotEqual(receipt,old)
+        with pm.connect(self.root,readonly=True) as db:
+            rec=pm.integrity.records(db,'direction_sample')['Direction']
+        self.assertEqual(rec['confirmation_history'][0]['receipt'],old)
+        self.assertEqual(rec['confirmation_attention_id'],'R2')
+        self.data['confirmation']=dict(person='owner',quote=quote,source='new-reply.md',
+            direction_sha256=self.tone.direction_binding(self.tone.DEFAULT_PATH,self.data)['direction_sha256'],review_receipt=receipt)
+        self.write_draft();self.check('Direction');self.close('Direction')
+        self.assertEqual(self.tone.validate(self.root,self.tone.DEFAULT_PATH)['tone'],self.data['tone'])
 
 
 if __name__=='__main__':unittest.main()

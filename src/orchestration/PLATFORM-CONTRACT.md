@@ -6,7 +6,7 @@
 
 所有请求含 protocol、request_id、project_id、op，params 为对象。写请求另含 event_id；修改任务或运行带当前 expected_revision，运行权带 expected_generation。未知字段拒绝。principal由可信传输提供，映射active/actor/operations/task_ops。tasks.command 禁止正文传 actor/event_id；既有 PM 权限及人工批准检查照常执行。
 
-同request_id同正文返回原结果。相同 event_id 的等价事件可换 request_id 重试；内容变化报 IDEMPOTENCY_CONFLICT。收到原领取结果须核对run_id，不能重启。CLI 本身不是网络认证服务，隔离执行者不能任意运行此入口。
+同request_id同正文返回原结果。相同 event_id 的等价事件可换 request_id 重试；内容变化报 IDEMPOTENCY_CONFLICT。收到原领取结果须核对run_id，不能重启。宿主认证访问；隔离执行者不能任意调用。
 
 ## 操作
 
@@ -24,15 +24,15 @@
 | actions.plan | 无；只读动作列表 action_id、revision、owner 及待 PM 判断事项 |
 | actions.claim | action_id/expected_revision；原子复核动作与运行权，登记 starting，返回运行与任务包 |
 | runs.query | 可选 run_id；读取真实运行记录 |
-| runs.event | run_id/expected_revision/kind；started 加 pid/model/receipt；accepted/heartbeat/unknown 加 receipt；handover 加 summary/evidence；blocked 加 reason；commands 加 commands 列表（本运行任务树内的非配置命令，禁止自行指定 actor/event_id）；failed 加 receipt；finished/stopped 加 receipt/exit_code，可选 usage |
+| runs.event | run_id/expected_revision/kind；started 加 pid/model/receipt；accepted/heartbeat/unknown 加 receipt；handover 加 summary/evidence；blocked 加 reason；commands（start仅report/production_feedback；check加review；attend限授权树协调；禁止actor/event_id），交出用handover；failed 加 receipt；finished/stopped 加 receipt/exit_code，可选 usage |
 | runs.cancel | run_id/expected_revision/reason；只记 cancel_requested，不宣称 stopped |
 | runtime.configure | mode=local/external、expected_generation；无在途运行才切换；调用 principal 为唯一控制器 |
 | scripts.inspect | 无；脚本精确 argv、权限及副作用配置 |
 | scripts.request | id，可选空 args；只请求已登记脚本，拒绝增加任意实参 |
 
-验证报告、独审及可选scenario_view见[专家接入](EXPERT-IMPORT.md)，passed不能替代真实检验。
+独审/scenario_view见[专家接入](EXPERT-IMPORT.md)，passed不替代检验。
 
-能力至少查询 launch、cancel、scripts、timers、write_isolation、session_resume、usage、model_selection。supported 必须有证据；未填为 unknown。自动领取要求 launch/write_isolation/model_selection 均 supported。能力声明仍须实跑验证。
+能力至少查询 launch、cancel、scripts、timers、write_isolation、session_resume、usage、model_selection。supported须实跑证据，未填unknown；自动领取要求launch/write_isolation/model_selection均supported。
 
 ## 状态、错误与恢复
 

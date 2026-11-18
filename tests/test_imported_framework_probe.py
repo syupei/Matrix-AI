@@ -82,7 +82,7 @@ class ImportedFrameworkProbe(unittest.TestCase):
 
             with patch.object(probe, 'capture', side_effect=capture_candidate) as capture:
                 probe.populate(project)
-            capture.assert_called_once_with(project / 'synthetic-input', probe.SCENE)
+            capture.assert_called_once_with(project / 'synthetic-input', probe.seed.SCENE)
             source = project / 'synthetic-input'
             self.assertNotIn('方向批准覆盖', (source/'genre-dice.md').read_text())
             receipt = probe.read_json(source/'visual-evidence/capture.json')
@@ -106,96 +106,37 @@ class AuthorHandover(unittest.TestCase):
         self.pm = SimpleNamespace(admission=SimpleNamespace(load_gate=lambda: self.gate))
 
     def candidate(self, scene=probe.SCENE):
-        public, gate = self.public, self.gate
-        for name in probe.PUBLIC_FILES:
-            put(public, name, 'SIMULATED fixture')
-        for source, path, content in (
-            (probe.SCENE, probe.SCENE, '<body>SIMULATED board</body>'),
-            ('design/preview.png', 'design/preview.png', (probe.late_game.INPUTS / 'direction.png').read_bytes()),
-            ('review-input.md', 'product/reviews/合成P-1审阅输入.md', probe.QUOTE),
-        ):
-            put(public, path, content)
-            put(self.project / 'synthetic-input', source, content)
-
-        parts = {
-            'brief': put(public, 'product/specs/方向简报.md', 'SIMULATED brief'),
-            'scene': put(public, scene, '<body>SIMULATED board</body>'),
-            'preview': put(public, probe.SCENE, '<body>SIMULATED board</body>'),
-            'samples': put(public, 'content/场内样句.md', 'SIMULATED samples'),
-            'screenshot': {'path': 'design/preview.png', 'version': '1',
-                           'sha256': probe.sha(public / 'design/preview.png')},
-            'practice_profile': put(public, probe.PROFILE, {'schema': 'matrix-practice-profile/1',
-                                                            'version': '1', 'scopes': [scope(gate.tone, 'race', direct_manipulation='yes')]}),
-        }
-        original_binding = capture_binding([parts['preview']])
-        original_capture = put(public, probe.seed.CAPTURE,
-                               dict(original_binding, screenshot_sha256=parts['screenshot']['sha256']))
-        put(self.project/'synthetic-input', probe.seed.CAPTURE, (public/probe.seed.CAPTURE).read_bytes())
-        original_binding['receipt'] = original_capture
-        source = 'product/reviews/合成P-1审阅输入.md'
-        tone = dict(viewport='1280x800',capture_binding=original_binding,
-                    version='1', genre='SIM', profile='SIM', tone='SIM', core_loop='SIM',
-                    references=[dict(name=row['name'], source=row['source'], borrows='SIM', observed='SIM unvisited')
-                                for row in probe.REFERENCES], avoid=['Skip the board'], parts=parts,
-                    samples=[dict(moment=moment, text=text, consequence=consequence)
-                             for moment, text, consequence in probe.late_game.SAMPLES],
-                    confirmation=dict(person='SIM', source=source, quote=probe.QUOTE))
-        direction_hash = gate.tone.direction_binding(probe.CONTRACT, tone)['direction_sha256']
-        display = put(public, 'product/reviews/展示.md', 'SIMULATED displayed P-1 candidate ' + direction_hash)
-        response = put(public, source, probe.QUOTE)
-        review_binding = dict(format='matrix-review-binding/1', request_id='SIM', scope=['race'],
-                             actor='user', direction_sha256=direction_hash, display=display,
-                             response=dict(response, message_sha256=gate.tone.evidence.digest(probe.QUOTE)),
-                             person='SIM', quote=probe.QUOTE, outcome='approved', artifacts=list(parts.values()))
-        tone['confirmation'].update(direction_sha256=direction_hash,
-                                    review_receipt=gate.tone.evidence.review_receipt(public, review_binding))
-        approval = tone['confirmation']['review_receipt']
-        public_bundle = public/approval['path']
-        trusted_bundle = self.project/approval['path']
-        trusted_bundle.parent.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(public_bundle.parent), str(trusted_bundle.parent))
-        contract = put(public, probe.CONTRACT, '```tone-contract\n' + json.dumps(tone, ensure_ascii=False) + '\n```\n')
-        reviewed = [parts[key] for key in ('scene', 'preview', 'samples', 'practice_profile')]
-        fit_screenshot = put(public, probe.FIT_SCREENSHOT, (probe.late_game.INPUTS/'direction.png').read_bytes())
-        fit_binding = capture_binding(reviewed)
-        fit_binding['receipt'] = put(public, probe.FIT_CAPTURE,
-                                    dict(fit_binding, screenshot_sha256=fit_screenshot['sha256']))
-        fit = dict(outcome='passed', mode='same_instance', checker=probe.AUTHOR, producer=probe.AUTHOR,
-                   tone_contract=gate.tone.direction_binding(probe.CONTRACT, tone),
-                   binding_mode='pre_confirmation_direction', artifacts=reviewed,
-                   screenshot=fit_screenshot, viewport='1280x800', capture='SIM', genre_fit='SIM',
-                   capture_binding=fit_binding,
-                   application_drift='SIM', copy_fit='SIM')
-        put(public, probe.FIT, fit)
-        artifacts = [contract, parts['scene']]
-        digest = gate.artifact_digest(public, artifacts)
-        review = 'product/reviews/'
-        put(public, review+'request.json', dict(request_id='SIM', role='product', stage='P-1', scope=['race'],
-                                                artifact_sha256=digest, display_evidence=review+'展示.md',
-                                                display_sha256=probe.sha(public/(review+'展示.md'))))
-        put(public, review+'response.json', dict(request_id='SIM', actor='user', choice='confirm', scope=['race'],
-                                                 artifact_sha256=digest, source=source, quote=probe.QUOTE,
-                                                 display_sha256=probe.sha(public/(review+'展示.md')),
-                                                 message_sha256=gate.tone.evidence.digest(probe.QUOTE)))
-        put(public, review+'conversation.md', 'SIM P-1 → P-2')
-        self.delivery = [gate.tone.direction_delivery(tone)]
-        put(public, probe.STAGE_STATE, dict(role='product', current='P-1', next='P-2', blockers=[], scope=['race'],
-                                          artifacts=artifacts, tone_contract=contract, tone_fit_review=probe.FIT,
-                                          request=review+'request.json', response=review+'response.json',
-                                          conversation_check=review+'conversation.md'))
-
-        tone.pop('confirmation')
-        contract = put(public, probe.CONTRACT, '```tone-contract\n' + json.dumps(tone, ensure_ascii=False) + '\n```\n')
-        state = probe.read_json(public/probe.STAGE_STATE)
-        state['artifacts'] = [contract, parts['scene']]
-        state['tone_contract'] = contract
-        put(public,probe.STAGE_STATE,state)
-        self.delivery = [gate.tone.direction_delivery(tone)]
-
-        (self.out/'author-capture-events.jsonl').write_text(json.dumps(dict(
-            status='captured',format='author-requested-capture/1',screenshot=probe.FIT_SCREENSHOT,
-            preview=probe.SCENE,sha256=probe.sha(public/probe.FIT_SCREENSHOT),
-            capture_binding={'receipt':{'path':probe.FIT_CAPTURE,'sha256':probe.sha(public/probe.FIT_CAPTURE)}}))+'\n')
+        public,gate=self.public,self.gate
+        for name in probe.PUBLIC_FILES:put(public,name,'SIMULATED fixture')
+        source=self.project/'synthetic-input'
+        for name,body in ((probe.seed.SCENE,'<body>Read-only reference</body>'),(probe.seed.SCREENSHOT,(probe.late_game.INPUTS/'direction.png').read_bytes()),
+                          (probe.seed.CAPTURE,{'source':'SIM reference capture'}),(probe.seed.REVIEW_SOURCE,probe.QUOTE)):
+            put(source,name,body)
+        probe.seed.seal_inputs(source);probe.seed.copy_inputs(source,public)
+        parts=dict(brief=put(public,'product/specs/方向简报.md','SIMULATED brief'),
+            scene=put(public,scene,'<body><button>SIM author prototype</button></body>'),
+            preview=put(public,probe.SCENE,'<body><button>SIM author prototype</button></body>'),
+            samples=put(public,'content/场内样句.md','SIM samples'),screenshot=put(public,probe.PREVIEW_SCREENSHOT,(probe.late_game.INPUTS/'direction.png').read_bytes()),
+            practice_profile=put(public,probe.PROFILE,dict(schema='matrix-practice-profile/1',version='1',scopes=[scope(gate.tone,'race',direct_manipulation='yes')])))
+        original_binding=capture_binding([parts['preview']]);original_binding['source']=probe.PREVIEW_CAPTURE
+        original_binding['receipt']=put(public,probe.PREVIEW_CAPTURE,dict(original_binding,screenshot_sha256=parts['screenshot']['sha256']))
+        tone=dict(viewport='1280x800',capture_binding=original_binding,version='1',genre='SIM',profile='SIM',tone='SIM',core_loop='SIM',
+            references=[dict(name=row['name'],source=row['source'],borrows='SIM',observed='SIM unvisited') for row in probe.REFERENCES],
+            avoid=['Skip board'],parts=parts,samples=[dict(moment=m,text=t,consequence=c) for m,t,c in probe.late_game.SAMPLES])
+        contract=put(public,probe.CONTRACT,'```tone-contract\n'+json.dumps(tone,ensure_ascii=False)+'\n```\n')
+        reviewed=[parts[key] for key in ('scene','preview','samples','practice_profile')]
+        screenshot=put(public,probe.FIT_SCREENSHOT,(probe.late_game.INPUTS/'direction.png').read_bytes())
+        fit_binding=capture_binding(reviewed);fit_binding['source']=probe.FIT_CAPTURE
+        fit_binding['receipt']=put(public,probe.FIT_CAPTURE,dict(fit_binding,screenshot_sha256=screenshot['sha256']))
+        put(public,probe.AUTHOR_SELF,dict(status='author_self_check_only',pending=['independent review and control projection']))
+        put(public,'product/reviews/conversation.md','SIM P-1 -> P-2')
+        put(public,probe.STAGE_STATE,dict(role='product',current='P-1',next='P-2',scope=['race'],blockers=[],artifacts=[contract,parts['scene']],
+            tone_contract=contract,conversation_check='product/reviews/conversation.md',request='pending-request.json',response='pending-response.json',tone_fit_review='pending-fit.json'))
+        self.delivery=[gate.tone.direction_delivery(tone)]
+        events=[]
+        for name,binding in ((probe.PREVIEW_SCREENSHOT,original_binding),(probe.FIT_SCREENSHOT,fit_binding)):
+            events.append(dict(status='captured',format='author-requested-capture/1',screenshot=name,preview=probe.SCENE,sha256=probe.sha(public/name),capture_binding=binding))
+        (self.out/'author-capture-events.jsonl').write_text(''.join(json.dumps(row)+'\n' for row in events))
 
     def handover(self):
         return probe.author_handover(self.pm, self.project, self.out, self.public, 'SIM-RUN', self.delivery)
@@ -286,8 +227,9 @@ class AuthorHandover(unittest.TestCase):
         capture=probe.read_json(self.public/probe.FIT_CAPTURE)
         capture['artifacts'][0]['sha256']='0'*64
         put(self.public,probe.FIT_CAPTURE,capture)
-        row=probe.read_json(self.out/'author-capture-events.jsonl');row['capture_binding']['receipt']['sha256']=probe.sha(self.public/probe.FIT_CAPTURE)
-        (self.out/'author-capture-events.jsonl').write_text(json.dumps(row)+'\n')
+        rows=[json.loads(line) for line in (self.out/'author-capture-events.jsonl').read_text().splitlines()]
+        rows[-1]['capture_binding']['receipt']['sha256']=probe.sha(self.public/probe.FIT_CAPTURE)
+        (self.out/'author-capture-events.jsonl').write_text(''.join(json.dumps(row)+'\n' for row in rows))
         with patch.object(probe,'pm_call') as call:
             with self.assertRaisesRegex(ValueError,'actual four author materials'):
                 self.handover()
@@ -299,6 +241,21 @@ class AuthorHandover(unittest.TestCase):
         with patch.object(probe,'pm_call') as call:
             with self.assertRaisesRegex(ValueError,'no actual author capture'):
                 self.handover()
+            call.assert_not_called()
+
+    def test_reference_mutation_is_rejected_and_author_preview_is_distinct(self):
+        self.candidate()
+        self.assertNotEqual(probe.SCENE,probe.seed.SCENE)
+        put(self.project/'synthetic-input',probe.seed.SCENE,'Changed reference')
+        with patch.object(probe,'pm_call') as call:
+            with self.assertRaisesRegex(ValueError,'immutable reference input changed'):self.handover()
+            call.assert_not_called()
+
+    def test_workflow_pending_in_blockers_stops_before_checker(self):
+        self.candidate();state=probe.read_json(self.public/probe.STAGE_STATE)
+        state['blockers']=['待独审'];put(self.public,probe.STAGE_STATE,state)
+        with patch.object(probe,'pm_call') as call:
+            with self.assertRaisesRegex(ValueError,'business blockers'):self.handover()
             call.assert_not_called()
 
     def test_direction_must_have_a_current_author_delivery_receipt(self):
@@ -325,12 +282,13 @@ class AuthorHandover(unittest.TestCase):
         quote = '合成审阅输入：逐字保留！'
         expected = ('# SIMULATED\r\n\r\n' + quote + '\r\n').encode('utf-8')
         (original / probe.seed.REVIEW_SOURCE).write_bytes(expected)
+        probe.seed.seal_inputs(original)
         result = probe.seed.copy_inputs(original, self.public)
         self.assertEqual(expected, (self.public / probe.seed.REVIEW_OUTPUT).read_bytes())
         self.assertEqual(quote, result['quote'])
         self.assertEqual(probe.seed.REVIEW_OUTPUT, result['source'])
         self.assertTrue(probe.seed.check_inputs(original, self.public)['unchanged'])
-        changed = self.public / probe.SCENE
+        changed = self.public / probe.seed.REVIEW_OUTPUT
         changed.write_text('<title>已确认</title>')
         with self.assertRaisesRegex(ValueError, 'copied synthetic input changed'):
             probe.seed.check_inputs(original, self.public)
@@ -379,9 +337,10 @@ class ComposedController(unittest.TestCase):
         business='SYNTHETIC bounded business: preserve race scope; no production approval.'
         put(f.root,'synthetic-input/genre-dice.md',business)
         boundary=probe.load('probe_source_test_boundary',KIT/'matrix/orchestration/tools/isolated_runner.py')
-        probe.prepare_author_instances(pm,f.root,out,boundary)
+        with patch.multiple(probe,AUTHOR='VIEW-author',REVIEWER='VIEW-checker'):
+            probe.prepare_author_instances(pm,f.root,out,boundary)
         _,manifest=f.e.read(pm.api(),f.root,f.ident)
-        with patch.object(probe,'IDENTITY',f.ident):
+        with patch.multiple(probe,IDENTITY=f.ident,AUTHOR='VIEW-author',REVIEWER='VIEW-checker'):
             context=probe.prepare_source_context(pm,f.root,out,manifest)
             prepared=probe.prepare_author_task(pm,f.root,out,boundary,context)
         with pm.connect(f.root,readonly=True) as db:
@@ -406,7 +365,12 @@ class ComposedController(unittest.TestCase):
                 probe.author_task(Path('/SIM/project'),invalid)
 
     def test_source_preparation_preserves_existing_unconfirmed_config(self):
-        f,pm,author,reviewer,out=self.fixture()
+        from test_expert_packages import Experts, pm
+        f=Experts(methodName='runTest');f.setUp();self.addCleanup(f.doCleanups)
+        f.write('expert-professions.json',dict(schema='matrix-expert-professions/1',professions=['product'],configured_by='SIM',authorization='SIM'))
+        params=f.prepare_params('product');params['review']['review_points']=[dict(who='master',what='Synthetic independent scope')]
+        f.e.adapt(pm.api(),f.root,params)
+        out=f.root/'probe-evidence';out.mkdir()
         put(f.root,'synthetic-input/genre-dice.md','SYNTHETIC source')
         config=put(f.root,'management/instance-config.json',dict(entries=[],user_note='keep existing human draft'))
         _,manifest=f.e.read(pm.api(),f.root,f.ident)

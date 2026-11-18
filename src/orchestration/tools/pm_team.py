@@ -455,6 +455,17 @@ def workflow_manager(pm, root, db, actor, parent, tasks):
                 within(parent, a['root_tasks'], tasks))
 
 
+def child_manager(pm,root,db,actor,parent,tasks):
+    if not pm.admission.governed(pm,root,db,parent):return parent['owner']
+    if actor==pm.config(db)['pm_actor']:return actor
+    a=pm.integrity.records(db,'appointment').get(actor)
+    if current(pm,root,a) and a['mode'] in {'lead','workflow_pm'} and within(parent['id'],a['root_tasks'],tasks):return actor
+    inst=pm.integrity.records(db,'instance').get(actor,{})
+    pm.require(inst.get('active') and inst.get('master') and inst.get('profession') in pm.admission.task_professions(pm,root,db,parent),
+               'managed task delegation requires PM, scoped lead/workflow_pm or the active professional master; use production_feedback')
+    return actor
+
+
 def authorize(pm, root, db, cmd, tasks):
     """Narrow delegated task writes without granting global PM privileges."""
     actor = cmd['actor']

@@ -138,6 +138,7 @@ class ProfessionCheckTests(unittest.TestCase):
             ('code-engineering', 'E-3.1', 'code-engineering:E-2.4', 'confirmed', 'start'),      # core review: build
             ('code-engineering', 'E-3.2', 'experience-design:D-6', 'confirmed', 'complete'),    # review C: UI that needs the full design
             ('code-engineering', 'E-4.1', 'code-engineering:E-3.3', 'confirmed', 'start'),      # scope complete: release preparation
+            ('code-engineering', 'E-4.3', 'code-engineering:E-4.2', 'confirmed', 'start'),      # actual release requires the release decision
         })
 
 

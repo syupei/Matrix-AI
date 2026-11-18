@@ -115,32 +115,92 @@ def successful(events, reply):
     for record, output, _ in audit_records(before_final(events, reply)):
         has_exit = record.get('type') == 'command_execution'
         if (record.get('error') or record.get('status') in {'error', 'unobserved', 'failed'}
-                or (has_exit and record.get('exit_code') != 0)):
+                or (has_exit and record.get('exit_code') is None)):
             continue
         yield record, output_text(output)
 
 
-def shell_commands(command):
+def shell_body(command):
+    """Remove heredoc payloads, retaining commands before and after them; never run shell."""
+    outer = shlex.split(command) if re.match(r'^\s*(?:/[^\s]+/)?(?:sh|bash|zsh)\s',command) else []
+    if outer and Path(outer[0]).name in {'sh','bash','zsh'} and len(outer)>2 and outer[1].startswith('-') and 'c' in outer[1]:
+        command = outer[2]
+    lines, kept, pending = command.splitlines(keepends=True), [], []
+    for line in lines:
+        if pending:
+            delimiter, tabs = pending[0]
+            if (line.rstrip('\r\n').lstrip('\t') if tabs else line.rstrip('\r\n')) == delimiter:
+                pending.pop(0)
+            continue
+        quote, escaped, cuts, index = None, False, [], 0
+        while index < len(line):
+            char = line[index]
+            if escaped:
+                escaped=False;index+=1;continue
+            if char == '\\' and quote != "'":
+                escaped=True;index+=1;continue
+            if quote:
+                if char==quote:quote=None
+                index+=1;continue
+            if char in "'\"`":
+                quote=char;index+=1;continue
+            if line[index:index+2] != '<<' or line[index:index+3]=='<<<':
+                index+=1;continue
+            begin=index;index+=2;tabs=index<len(line) and line[index]=='-'
+            if tabs:index+=1
+            while index<len(line) and line[index] in ' \t':index+=1
+            word=index;q=None;esc=False
+            while index<len(line):
+                c=line[index]
+                if esc:esc=False
+                elif c=='\\' and q!="'":esc=True
+                elif q:
+                    if c==q:q=None
+                elif c in "'\"":q=c
+                elif c.isspace() or c in ';&|<>':break
+                index+=1
+            names=shlex.split(line[word:index])
+            if len(names)!=1:raise ValueError('invalid heredoc delimiter')
+            pending.append((names[0],tabs));cuts.append((begin,index))
+        for begin,end in reversed(cuts):line=line[:begin]+' '+line[end:]
+        kept.append(line)
+    if pending:raise ValueError('unterminated heredoc')
+    return ''.join(kept)
+
+
+def shell_invocations(command):
     try:
-        outer = shlex.split(command)
-        if not outer:
-            return
-        if Path(outer[0]).name in {'sh', 'bash', 'zsh'} and len(outer) > 2 and outer[1].startswith('-') and 'c' in outer[1]:
-            command = outer[2]
-        if re.search(r'(^|\s)<<-?\s*', command):
-            return
-        lexer = shlex.shlex(command.replace('\n', ';'), posix=True, punctuation_chars=';&|')
-        lexer.whitespace_split = True
-        group = []
-        for token in [*lexer, ';']:
+        command=shell_body(command)
+        lexer=shlex.shlex(command.replace('\n',';'),posix=True,punctuation_chars=';&|')
+        lexer.whitespace_split=True
+        result,group,preceding=[],[],None
+        for token in [*lexer,';']:
             if token and all(char in ';&|' for char in token):
                 if group:
-                    yield group
-                    group = []
-            else:
-                group.append(token)
+                    result.append(dict(argv=group,preceding=preceding,following=token));group=[]
+                preceding=token
+            else:group.append(token)
+        for index,row in enumerate(result):
+            row['has_later_command']=index+1<len(result)
+            yield row
     except ValueError:
         return
+
+
+def shell_commands(command):
+    for row in shell_invocations(command):
+        yield row['argv']
+
+
+def observed_call(record, invocation):
+    # A chain's final status is not the earlier command's status. A matching,
+    # bound allowed:true receipt is needed separately; skip conditional branches
+    # whose execution cannot be established from the aggregate native event.
+    if invocation['preceding'] in {'&&','||','|','&'}:
+        return False
+    if record.get('type') != 'command_execution' or record.get('exit_code') == 0:
+        return True
+    return invocation['has_later_command'] and invocation['following'] in {';','&&'}
 
 
 def path_ref(ref, after):
@@ -208,12 +268,30 @@ def trusted_direction_tools(root):
     return trusted if root / TONE_TOOL in trusted else set()
 
 
+def persisted_delivery(root,value,contract,preview,after,trusted_tools):
+    """New runs pin the checker-written receipt; legacy runs keep their native stdout."""
+    ref=value.get('tool_receipt') if isinstance(value,dict) else None
+    if ref is None:return check_delivery(root,value,contract,preview,after)
+    if not path_ref(ref,after) or project_path(ref['path'],root,DIRECTION_DIRS)!=ref['path']:return None
+    try:
+        payload=json.loads((root/ref['path']).read_text(encoding='utf-8'))
+        if payload.get('format')!='direction-tool-receipt/1' or not path_ref(payload.get('contract'),after) or payload['contract']['path']!=contract:return None
+        tool=payload.get('tool',{});actual=(root/'kit'/tool.get('path','')).resolve()
+        if actual not in trusted_tools or hashlib.sha256(actual.read_bytes()).hexdigest()!=tool.get('sha256'):return None
+        if any(payload.get(key)!=value.get(key) for key in ('allowed','version','direction_reference','delivery')):return None
+        return check_delivery(root,payload,contract,preview,after)
+    except (OSError,ValueError,AttributeError,TypeError):return None
+
+
 def direction_readback(root, preview, after, calls):
     root = Path(root).resolve()
     receipts, reads = [], []
     trusted_tools = trusted_direction_tools(root)
     for record, output in calls:
-        for args in shell_commands(record.get('command') or ''):
+        for invocation in shell_invocations(record.get('command') or ''):
+            if not observed_call(record, invocation):
+                continue
+            args=invocation['argv']
             executable = Path(args[0]).name
             if executable in {'cat', 'sed', 'head', 'tail', 'shasum', 'sha256sum'} and after.get(preview):
                 paths = {project_path(value, root, DIRECTION_DIRS) for value in args[1:]}
@@ -241,7 +319,7 @@ def direction_readback(root, preview, after, calls):
                     value, _ = decoder.raw_decode(output[match.start():])
                 except ValueError:
                     continue
-                delivery = check_delivery(root, value, contract, preview, after)
+                delivery = persisted_delivery(root, value, contract, preview, after, trusted_tools)
                 if delivery is not None:
                     receipts.append({'line': record['line'], 'contract': contract, 'delivery': delivery})
         path = record.get('file_path') or record.get('path')

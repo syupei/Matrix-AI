@@ -5,13 +5,13 @@ description: 承接已有产品与设计基线，核对研发输入、处理必�
 
 # 研发需求承接与工程建模
 
-版本：0.21。
+版本：0.22。
 
 负责研发第一阶段 E-1：把有效的产品与设计依据转成足以支撑技术路线和架构决策的工程需求与逻辑模型，识别缺口、保留原意、留下可检查的证据。研发的四个阶段、档位与决策权见 [研发流程](../../../matrix/professions/code-engineering/ENGINEERING-FLOW.md)：E-2 方案与验证由 matrix-code-engineering-solution 承担，E-3 增量构建由 matrix-code-engineering-build 承担；E-4 发布与交接是独立工作。本 skill 不启动、也不代做后续阶段。
 
 ## 启动
 
-外部与上游基线按[准入](../../../matrix/orchestration/PRODUCTION-ADMISSION.md)核对后承接。
+尚无已确认方向样张而要首稿或开工，先走 P-1，不论品类，见[方向样张](../../../matrix/orchestration/DIRECTION-SAMPLE.md)。外部基线按[准入](../../../matrix/orchestration/PRODUCTION-ADMISSION.md)承接。
 
 有项目任职或具体任务包时，先按 [团队执行](../../../matrix/orchestration/TEAM-EXECUTION.md) 核对身份与范围；执行实例只处理子任务，不重走全流程或改总状态。负责人、执行者的不同指引按需加载；阶段人审仅在明确委托覆盖时按 [委托检查](../../../matrix/base/DELEGATED-REVIEW.md) 处理。
 

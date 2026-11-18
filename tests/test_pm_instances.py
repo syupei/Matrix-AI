@@ -30,6 +30,21 @@ TEAM = {'entries': [
     {'id': 'P-T7', 'profession': 'product', 'level': 'T7', 'model': 'SIM-big', 'count': 1, 'master': True}]}
 
 
+def confirmed_stage(fixture, paths, prefix='SIM-stage'):
+    """Synthetic human text, bound through the actual answered PM attention API."""
+    from practice_fixture import put, review_state
+    gate=pm.admission.load_gate();state=review_state(fixture.root,gate,paths,prefix=prefix)
+    request=json.loads((fixture.root/state['request']).read_text());reply=json.loads((fixture.root/state['response']).read_text())
+    quote='SIM complete approval '+prefix
+    put(fixture.root,reply['source'],quote);reply.update(quote=quote,message_sha256=gate.tone.evidence.digest(quote))
+    fixture.call('human_attention',id=prefix,kind='confirmation',display=request['display_evidence'],scope=state['scope'],inputs=paths)
+    fixture.call('human_attention',id=prefix,response=reply['source'])
+    with pm.connect(fixture.root) as db:
+        reply['review_receipt']=pm.direction.bind_attention(pm.api(),fixture.root,db,prefix,person='SIM-owner',quote=quote,scope=state['scope'],expected={})
+    put(fixture.root,state['response'],reply)
+    return put(fixture.root,prefix+'.json',state)['path']
+
+
 class Fixture:
     def setUp(self):
         tmp = tempfile.TemporaryDirectory(prefix='pm-instances-simulation-')
@@ -75,11 +90,50 @@ class Fixture:
     def instance(self, iid):
         return pm.execute(self.root, {'op': 'status'})['integrity']['instance'][iid]
 
+    def admitted_business_fixture(self):
+        """SIM source, actual intake/master review and actual PM human-attention receipt."""
+        cached=getattr(self,'_business_fixture',None)
+        if cached:return cached
+        with pm.connect(self.root,readonly=True) as db:
+            instances=pm.integrity.records(db,'instance')
+            records=pm.integrity.records(db,'input_admission')
+        masters=[row for row in instances.values() if row.get('active') and row.get('master')]
+        if not masters:return None
+        master=next((row for row in masters if row.get('profession')=='product'),masters[0])
+        from practice_fixture import put,review_state
+        gate=pm.admission.load_gate();path='external/SIM-business-source.md';key='SIM-business-source'
+        put(self.root,path,'# SIMULATED business scope\nOffline single-user rules and implementation records. Only test-declared task operations are approved; no production rollout or actual user decision.\n')
+        peers=[row['id'] for row in pm.admission.ref_latest(records).values() if row['state']=='admitted' and row['profession']==master['profession']]
+        self.call('intake_register',id=key,source_id='SIM-business-family',path=path,version='1',source='SIM explicit original test business brief',profession=master['profession'],new_family_reason='Independent bounded mechanism-test scope')
+        self.call('intake_submit',id=key,master=master['id'])
+        self.call('intake_review',master['id'],id=key,outcome='approved',conclusion='SIM actual bounded source readback; no production quality claim',resolved_risks=[],resolved_conflicts=[],open_items=[],human_required=False,coexists_with=peers,conflicts_with=[])
+        self.call('intake_admit',id=key)
+        state=review_state(self.root,gate,[path],prefix='SIM-business-confirm')
+        reply=__import__('json').loads((self.root/state['response']).read_text());request=__import__('json').loads((self.root/state['request']).read_text())
+        self.call('human_attention',id='SIM-business-confirm',kind='confirmation',display=request['display_evidence'],scope=state['scope'],inputs=[path])
+        self.call('human_attention',id='SIM-business-confirm',response=reply['source'])
+        with pm.connect(self.root) as db:
+            reply['review_receipt']=pm.direction.bind_attention(pm.api(),self.root,db,'SIM-business-confirm',person='SIM-fixture-owner',quote=reply['quote'],scope=state['scope'],expected={})
+        put(self.root,state['response'],reply);stage=put(self.root,'SIM-business-stage.json',state)['path']
+        self._business_fixture=dict(inputs=['matrix/base/MATRIX.md',path],admitted_inputs=[key],stage_transition=stage)
+        return self._business_fixture
+
     def create(self, tid, parent=None, actor=None, **kw):
+        use_business=kw.pop('business_source',True)
         data = dict(id=tid, parent=parent, title='SIM ' + tid, owner='code-engineering-001', checker='quality-engineering-001',
-                    goal='SIMULATED delivery', inputs=['matrix/base/MATRIX.md'], outputs=['SIM output'], criteria=['SIM correct'], next_action='SIM next')
+                    goal='SIMULATED delivery', inputs=['matrix/base/MATRIX.md'], outputs=['SIM output '+tid], criteria=['SIM correct'], next_action='SIM next')
         data.update(kw)
+        if use_business and data.get('inputs')==['matrix/base/MATRIX.md'] and data.get('kind','work')=='work' and (parent is None or not self.t(parent).get('admitted_inputs')):
+            basis=self.admitted_business_fixture()
+            if basis:data.update(basis)
         data.setdefault('executor', data['owner'])
+        if 'checker' not in kw:
+            with pm.connect(self.root,readonly=True) as db:registered=pm.integrity.records(db,'instance')
+            if data['checker'] not in registered:
+                alternatives=[iid for iid,row in registered.items() if row.get('active',True) and iid not in {data['owner'],data.get('executor')}]
+                data['checker']=alternatives[0] if alternatives else data['owner']
+        if 'practice_stage' not in data and parent and not data.get('review_for') and self.t(parent).get('practice_stage'):
+            data['practice_stage']=self.t(parent)['practice_stage']
         if 'practice_stage' not in data and data.get('kind', 'work') == 'work':
             with pm.connect(self.root, readonly=True) as db:
                 people = pm.integrity.records(db, 'instance')
@@ -99,7 +153,9 @@ class Fixture:
     def check(self, tid, checker=None, outcome='passed', **kw):
         t = self.t(tid)
         if not t['evidence']:
-            self.mutate('update', tid, changes={'evidence': ['SIMULATED work ' + tid]}, reason='SIM work')
+            name=t['outputs'][0]+('SIM-'+tid+'.txt' if t['outputs'][0].endswith('/') else '')
+            path=self.root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text('SIM actual declared work '+tid)
+            self.mutate('update', tid, changes={'evidence': [name]}, reason='SIM work')
         return self.mutate('review', tid, checker or self.t(tid)['checker'], outcome=outcome, criteria_checked=t['criteria'],
                            evidence=['SIMULATED check; no real verification'], **kw)
 
@@ -265,10 +321,11 @@ class Derivation(Fixture, unittest.TestCase):
         self.assertEqual('code-engineering-003', self.derive('E-T4'))
 
     def test_running_work_blocks_retirement(self):
+        self.derive('Q-T7')
         self.derive('E-T9')
         worker = self.derive('E-T4')
         self.create('P', owner='code-engineering-001')
-        self.create('W', 'P', owner=worker, checker='code-engineering-001')
+        self.create('W', 'P', owner=worker, checker='quality-engineering-001')
         self.mutate('transition', 'W', state='running', reason='SIM', execution_receipt='SIM started')
         self.write('instance-config.json', {'entries': [e for e in TEAM['entries'] if e['id'] != 'E-T4']})
         self.confirm()
@@ -281,7 +338,7 @@ class Derivation(Fixture, unittest.TestCase):
         self.confirm()
         iid = self.derive('PM-T5')
         (self.root / 'authority.md').write_text('SIMULATED designation of a workflow PM')
-        self.create('FLOW', owner='SIM-OWNER')
+        self.create('FLOW',owner='PM',checker='PM',kind='coordination',executor=None,outputs=['management/SIM-flow.md'])
         self.call('appoint', id=iid, appointment=dict(mode='workflow_pm', role='project-management', root_tasks=['FLOW'], delegates=[], source='authority.md'))
         self.assertEqual('workflow_pm', next(a for a in self.team()['appointments'] if a['id'] == iid)['mode'])
 
@@ -294,8 +351,8 @@ class Levels(Fixture, unittest.TestCase):
     def test_level_must_cover_the_difficulty_at_create_update_and_start(self):
         self.create('P', owner='code-engineering-001', difficulty='T6', risk='F2', risk_reason='SIM main module')
         with self.assertRaisesRegex(pm.TaskError, 'split the task or assign a higher level; do not relabel'):
-            self.create('HARD', 'P', owner='code-engineering-002', difficulty='T5', checker='code-engineering-001')
-        self.create('W', 'P', owner='code-engineering-002', difficulty='T4', checker='code-engineering-001')
+            self.create('HARD', 'P', owner='code-engineering-002', difficulty='T5', checker='quality-engineering-001')
+        self.create('W', 'P', owner='code-engineering-002', difficulty='T4', checker='quality-engineering-001')
         with self.assertRaisesRegex(pm.TaskError, 'below difficulty'):
             self.mutate('update', 'W', 'code-engineering-001', changes={'difficulty': 'T6'}, reason='SIM harder', scope_authorization='SIM master decision')
         with self.assertRaisesRegex(pm.TaskError, 'production_feedback'):
@@ -304,13 +361,13 @@ class Levels(Fixture, unittest.TestCase):
         lowering = [e for e in pm.execute(self.root, {'op': 'events', 'limit': 1000, 'full': True})['events'] if e['command'].get('changes', {}).get('difficulty') == 'T3']
         self.assertEqual('SIM split: interface part moved out', lowering[0]['command']['reason'])
         with self.assertRaisesRegex(pm.TaskError, 'difficulty must be'):
-            self.create('BAD', 'P', owner='code-engineering-002', difficulty='T10', checker='code-engineering-001')
+            self.create('BAD', 'P', owner='code-engineering-002', difficulty='T10', checker='quality-engineering-001')
         with self.assertRaisesRegex(pm.TaskError, 'risk must be'):
-            self.create('BAD', 'P', owner='code-engineering-002', risk='F9', checker='code-engineering-001')
+            self.create('BAD', 'P', owner='code-engineering-002', risk='F9', checker='quality-engineering-001')
 
     def test_a_relevelled_instance_cannot_start_work_above_its_new_level(self):
         self.create('P', owner='code-engineering-001')
-        self.create('W', 'P', owner='code-engineering-002', difficulty='T4', checker='code-engineering-001')
+        self.create('W', 'P', owner='code-engineering-002', difficulty='T4', checker='quality-engineering-001')
         lowered = [dict(e, level='T3') if e['id'] == 'E-T4' else e for e in TEAM['entries']]
         self.write('instance-config.json', {'entries': lowered})
         self.confirm()
@@ -324,18 +381,22 @@ class Levels(Fixture, unittest.TestCase):
             root = Path(d).resolve()
             pm.execute(root, dict(op='init', actor='PM', event_id='L1', config=dict(project='SIM', pm_actor='PM', authorization='SIM', frontdoor_id='SIM', max_slots=2)))
             pm.execute(root, dict(op='register_instance', actor='PM', event_id='L2', id='OLD', instance=dict(role='matrix-code-engineering-build', endpoint='SIM-old')))
+            pm.execute(root,dict(op='register_instance',actor='PM',event_id='L-checker',id='C',instance=dict(role='quality-engineering',endpoint='SIM-checker')))
             task = dict(id='X', parent=None, title='SIM', owner='OLD', checker='C', goal='g', inputs=['i'], outputs=['o'], criteria=['c'], next_action='n')
             with self.assertRaisesRegex(pm.TaskError, 'has no level'):
                 pm.execute(root, dict(op='create', actor='PM', event_id='L3', task=dict(task, difficulty='T3')))
             rule=root/'matrix/base/MATRIX.md';rule.parent.mkdir(parents=True,exist_ok=True);rule.write_bytes((KIT/'matrix/base/MATRIX.md').read_bytes())
-            pm.execute(root, dict(op='create', actor='PM', event_id='L4', task=dict(task,inputs=['matrix/base/MATRIX.md'])))
+            with self.assertRaisesRegex(pm.TaskError,'business source'):
+                pm.execute(root, dict(op='create', actor='PM', event_id='L4', task=dict(task,inputs=['matrix/base/MATRIX.md'])))
 
     def test_project_tasks_from_the_pm_go_to_the_master(self):
         with self.assertRaisesRegex(pm.TaskError, 'project-level tasks go to the master'):
             self.create('T-1', owner='code-engineering-002')
         self.create('T-1', owner='code-engineering-001')
-        self.create('T-2', owner='SIM-unregistered-owner')  # owners that are not instances keep the old rule
-        self.create('T-1.a', 'T-1', owner='code-engineering-002', checker='code-engineering-001')  # inside the profession anyone may take it
+        with self.assertRaisesRegex(pm.TaskError,'register the actual'):
+            self.create('UNKNOWN',owner='SIM-unregistered-owner')
+        self.create('T-2',owner='code-engineering-001')
+        self.create('T-1.a', 'T-1', owner='code-engineering-002', checker='quality-engineering-001')  # inside the profession anyone may take it
         with self.assertRaisesRegex(pm.TaskError, 'master'):
             self.mutate('handoff', 'T-2', 'PM', new_owner='code-engineering-003', acceptance_receipt='SIM', reason='SIM')
 
@@ -354,7 +415,7 @@ class Levels(Fixture, unittest.TestCase):
 
     def test_dispatcher_is_the_manager_and_cannot_be_changed(self):
         self.create('T-1', owner='code-engineering-001')
-        self.create('T-1.a', 'T-1', owner='code-engineering-002', checker='code-engineering-001')
+        self.create('T-1.a', 'T-1', owner='code-engineering-002', checker='quality-engineering-001')
         self.assertEqual(('PM', 'code-engineering-001'), (self.t('T-1')['dispatcher'], self.t('T-1.a')['dispatcher']))
         self.assertEqual('code-engineering-001', next(t for t in pm.execute(self.root, {'op': 'query', 'level': 'all'})['tasks'] if t['id'] == 'T-1.a')['dispatcher'])
         with self.assertRaisesRegex(pm.TaskError, 'immutable'):
@@ -363,8 +424,8 @@ class Levels(Fixture, unittest.TestCase):
     def test_origin_records_the_request_it_came_from(self):
         self.create('T-1', owner='code-engineering-001')
         with self.assertRaisesRegex(pm.TaskError, 'origin'):
-            self.create('T-1.a', 'T-1', owner='code-engineering-002', checker='code-engineering-001', origin={'kind': 'chat', 'id': 'R', 'from': 'x'})
-        self.create('T-1.a', 'T-1', owner='code-engineering-002', checker='code-engineering-001', origin={'kind': 'request', 'id': 'REQ-7', 'from': 'product-001'})
+            self.create('T-1.a', 'T-1', owner='code-engineering-002', checker='quality-engineering-001', origin={'kind': 'chat', 'id': 'R', 'from': 'x'})
+        self.create('T-1.a', 'T-1', owner='code-engineering-002', checker='quality-engineering-001', origin={'kind': 'request', 'id': 'REQ-7', 'from': 'product-001'})
         listed = pm.execute(self.root, {'op': 'tasks_for', 'as': 'code-engineering-002'})
         self.assertIn('SIM T-1.a（来自 产品-001 的请求）', listed['rows'][0][1])
         self.assertIn('通知 产品-001', listed['rows'][0][6])
@@ -375,7 +436,7 @@ class Reassignment(Fixture, unittest.TestCase):
         super().setUp()
         self.staff()
         self.create('P', owner='code-engineering-001')
-        self.create('W', 'P', owner='code-engineering-002', difficulty='T4', checker='code-engineering-001')
+        self.create('W', 'P', owner='code-engineering-002', difficulty='T4', checker='quality-engineering-001')
 
     def reassign(self, to, actor='code-engineering-001', **kw):
         fields = dict(to=to, reason_kind='executor_unable', note='SIM: 边界拿不准')
@@ -401,7 +462,7 @@ class Reassignment(Fixture, unittest.TestCase):
         self.assertEqual(('code-engineering-002', 'executor_unable'), (event['before_data']['executor'], event['command']['reason_kind']))
 
     def test_target_needs_the_level_and_must_not_be_busy(self):
-        self.create('OTHER', 'P', owner='code-engineering-003', checker='code-engineering-001')
+        self.create('OTHER', 'P', owner='code-engineering-003', checker='quality-engineering-001')
         self.mutate('transition', 'OTHER', state='running', reason='SIM', execution_receipt='SIM started')
         with self.assertRaisesRegex(pm.TaskError, 'busy'):
             self.reassign('code-engineering-003')
@@ -415,8 +476,8 @@ class Conflicts(Fixture, unittest.TestCase):
         super().setUp()
         self.staff()
         self.create('P', owner='code-engineering-001')
-        self.create('A', 'P', owner='code-engineering-002', checker='code-engineering-001')
-        self.create('B', 'P', owner='code-engineering-003', checker='code-engineering-001')
+        self.create('A', 'P', owner='code-engineering-002', checker='quality-engineering-001')
+        self.create('B', 'P', owner='code-engineering-003', checker='quality-engineering-001')
 
     def ruling(self, actor, level, rid='K1', **kw):
         fields = dict(id=rid, task_ids=['A', 'B'], parties=['code-engineering-002', 'code-engineering-003'], issue='SIM 接口理解不同',
@@ -469,7 +530,8 @@ class Independence(Fixture, unittest.TestCase):
         rid = 'RUN-' + tid + '-' + str(self.n)
         self.call('launch_start', id=rid, purpose='start', task_id=tid, instance=self.t(tid)['executor'], model=model, session='SIM-' + rid, command=['SIM-cli'])
         self.call('launch_started', id=rid, pid=4242)
-        self.mutate('transition', tid, state='waiting_review', reason='SIM handed over', stop_evidence='SIM stopped', evidence=['SIMULATED work ' + tid])
+        name=self.t(tid)['outputs'][0];path=self.root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text('SIM actual platform output')
+        self.mutate('transition', tid, state='waiting_review', reason='SIM handed over', stop_evidence='SIM stopped', evidence=[name])
         self.call('launch_exit', 'launcher', id=rid, exit_code=0)
 
     def checking(self, tid, model):
@@ -518,30 +580,19 @@ class Independence(Fixture, unittest.TestCase):
         self.check('MASTERY')
         self.assertEqual('not_independent', self.independence('MASTERY'))  # master-level task, same model
 
-    def test_same_instance_check_closes_only_when_no_other_instance_has_the_level(self):
-        self.work('SELF', checker='code-engineering-002', risk='F2', risk_reason='SIM')
-        self.check('SELF')
-        self.assertEqual('same_instance', self.independence('SELF'))
-        with self.assertRaisesRegex(pm.TaskError, 'recorded: same_instance.*assign another checker'):
-            self.close('SELF')  # code-engineering-003 could check it
-        self.work('TOP', owner='code-engineering-001', checker='code-engineering-001', difficulty='T7', risk='F1', risk_reason='SIM 核心逻辑')
-        self.check('TOP')
-        with self.assertRaisesRegex(pm.TaskError, 'derive a different-model instance per the instance configuration, or ask a person to change the configuration'):
-            self.close('TOP')  # T7 instances exist, but all run the producer's model
-        self.mutate('update', 'TOP', 'code-engineering-001', changes={'checker': 'quality-engineering-001'}, reason='SIM', scope_authorization='SIM')
-        self.check('TOP')
-        self.assertEqual('not_independent', self.independence('TOP'))  # another instance, the same model
-        with self.assertRaisesRegex(pm.TaskError, 'derive a different-model instance'):
-            self.close('TOP')
-        self.work('SOLO', owner='code-engineering-001', checker='code-engineering-001', difficulty='T8', risk='F1', risk_reason='SIM 关键选型方案')
-        self.check('SOLO')
-        self.close('SOLO')  # no other instance reaches T8: 同一实例检验
-        self.assertEqual('same_instance', self.independence('SOLO'))
+    def test_team_self_check_is_refused_without_using_missing_risk_as_bypass(self):
+        for tid,extra in [('SELF',dict(risk='F2',risk_reason='SIM')),('PLAIN',dict(difficulty=None))]:
+            with self.assertRaisesRegex(pm.TaskError,'independent'):
+                self.work(tid,checker='code-engineering-002',**extra)
+        with self.assertRaisesRegex(pm.TaskError,'independent'):
+            self.work('SOLE-LEVEL',owner='code-engineering-001',checker='code-engineering-001',difficulty='T8',risk='F1',risk_reason='SIM')
 
-    def test_tasks_without_labels_keep_the_previous_rule(self):
-        self.work('PLAIN', checker='code-engineering-002', difficulty=None)
-        self.check('PLAIN')
-        self.close('PLAIN')
+    def test_actual_confirmed_single_instance_retains_same_instance_record(self):
+        fixture=Fixture();fixture.addCleanup=self.addCleanup;fixture.setUp()
+        fixture.staff({'entries':[dict(id='SOLE',profession='code-engineering',level='T9',model='SIM-big',count=1,master=True)]})
+        fixture.create('SOLO',owner='code-engineering-001',checker='code-engineering-001',difficulty='T8',risk='F1',risk_reason='SIM')
+        fixture.check('SOLO');fixture.close('SOLO')
+        self.assertEqual('same_instance',fixture.t('SOLO')['review']['independence'])
 
     def test_unfit_insisted_producer_counts_as_f1(self):
         entries = TEAM['entries'] + [{'id': 'E-T7', 'profession': 'code-engineering', 'level': 'T7', 'model': 'SIM-small', 'count': 1}]

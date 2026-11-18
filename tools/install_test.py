@@ -4,6 +4,7 @@
 import argparse
 import importlib.util
 import json
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -51,6 +52,20 @@ def installed_stages(target):
     return module.STAGES
 
 
+def installed_links(target, skills_dir):
+    """Check actual installed Markdown, not just the default package layout."""
+    missing = []
+    for area in (target / 'matrix', target / skills_dir):
+        for document in area.rglob('*.md'):
+            for href in re.findall(r'\]\(([^)]+)\)', document.read_text(encoding='utf-8')):
+                path = href.split('#', 1)[0]
+                if not path or '://' in path or path.startswith('mailto:'):
+                    continue
+                if not (document.parent / path).exists():
+                    missing.append(str(document.relative_to(target)) + ' -> ' + href)
+    return missing
+
+
 def fresh_install(kit, manifest, stages, skills_dir, entry):
     skills = sorted({path.split('/')[2] for path in manifest['files'] if path.startswith('.agents/skills/')})
     body = '业务成果，不应被改动\n'
@@ -93,6 +108,7 @@ def fresh_install(kit, manifest, stages, skills_dir, entry):
             'business file untouched': business.is_file() and business.read_text(encoding='utf-8') == body,
             'profession check passes in the project': checked.returncode == 0,
             'stage gate reads registries': gate_path.is_file() and installed_stages(root) == stages,
+            'installed runtime links resolve': not installed_links(root, skills_dir),
             'repeat is no-op': repeat_code == 0 and repeated.get('written') == [] and repeat_unchanged,
             'receipt names the package': receipt.get('package') == manifest['package'],
         }

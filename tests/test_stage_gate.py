@@ -11,7 +11,7 @@ class GateTests(unittest.TestCase):
   self.assertEqual(g.REVIEW,{'product':{'P-1','P-2','P-3','P-4','P-5','P-6','P-7'},'design':{'D-1','D-2','D-4','D-6'},'engineering':{'E-1.4'},'solution':{'E-2.4'},'build':{'E-3.3'},'release':{'E-4.2'},'copy':set(),'quality':set()})
   self.assertEqual(g.CHAIN,['project','product','design','engineering','solution','build'])
   self.assertEqual(g.AUTHORITY,{'release':{'project','release'}})
-  self.assertEqual(g.UPSTREAM,{('build','E-3.1'):('solution','E-2.4'),('build','E-3.2'):('solution','E-2.4'),('build','E-3.3'):('solution','E-2.4'),('release','E-4.1'):('build','E-3.3')})
+  self.assertEqual(g.UPSTREAM,{('build','E-3.1'):('solution','E-2.4'),('build','E-3.2'):('solution','E-2.4'),('build','E-3.3'):('solution','E-2.4'),('release','E-4.1'):('build','E-3.3'),('release','E-4.2'):('build','E-3.3'),('release','E-4.3'):('release','E-4.2')})
  def test_digest_helper_matches_gate(self):
   out=g.digests(self.root,['artifact.md'])
   self.assertEqual(out['artifact_sha256'],g.artifact_digest(self.root,out['artifacts']))
@@ -98,23 +98,31 @@ class GateTests(unittest.TestCase):
   self.req.update(role='product',stage='P-1');self.state.update(role='product',current='P-1',next='P-2');self.reply['person_id']='art'
   with self.assertRaises(ValueError):self.run_check()  # downstream cannot confirm an upstream flow
  def test_build_needs_confirmed_technical_review_before_implementation(self):
-  (self.root/'solution.md').write_text('core review package v1')
-  arts=[{'path':'solution.md','sha256':g.digest(self.root/'solution.md')}];h=g.artifact_digest(self.root,arts)
-  self.req.update(role='solution',stage='E-2.4',artifact_sha256=h);self.reply['artifact_sha256']=h
-  (self.root/'e2-gate.json').write_text(json.dumps({'role':'solution','current':'E-2.4','next':'complete','scope':['A'],'blockers':[],'artifacts':arts,'request':'request.json','response':'response.json','tone_contract':self.contract}))
   self.state.update(role='build',current='E-3.1',next='E-3.2');self.state.pop('request');self.state.pop('response')
-  with self.assertRaisesRegex(ValueError,'upstream'):self.run_check()  # no technical review record
-  self.state['upstream']='e2-gate.json'
-  self.assertEqual('e2-gate.json',self.run_check()['upstream'])
-  self.reply['actor']='assistant'
-  with self.assertRaisesRegex(ValueError,'upstream'):self.run_check()  # review not confirmed by a person
-  self.reply['actor']='user';(self.root/'solution.md').write_text('core review package v2')
-  with self.assertRaisesRegex(ValueError,'upstream'):self.run_check()  # confirmed baseline changed since
+  with self.assertRaisesRegex(ValueError,'upstream'):self.run_check()
+  result=self.solution_upstream()
+  self.assertEqual(result['upstream_state'],self.run_check()['upstream'])
+  # Live messages and technical files can evolve after successful sealing.
+  put(self.root,'technical-human.md','A later unrelated message')
+  self.assertTrue(self.run_check()['allowed'])
+  view,_=g.tone.evidence.stage_receipt(self.root,result['review_bundle'])
+  (view/'artifact.md').write_text('tampered frozen technical input')
+  with self.assertRaisesRegex(ValueError,'stale artifact'):self.run_check()
  def solution_upstream(self):
-  state=review_state(self.root,g,['artifact.md'],role='solution',stage='E-2.4',following='complete',scope_ids=['A'],prefix='technical')
+  person=self.contract_data['confirmation']['person'] if (self.root/'management/people.json').exists() else None
+  state=review_state(self.root,g,['artifact.md'],role='solution',stage='E-2.4',following='complete',scope_ids=['A'],prefix='technical',person=person)
   state['tone_contract']=self.contract
-  put(self.root,'technical-state.json',state)
-  self.state['upstream']='technical-state.json'
+  result=g.check(self.root,state)
+  self.state.update(upstream=result['upstream_state'],upstream_bundle=result['review_bundle'])
+  return result
+ def build_upstream(self):
+  self.solution_upstream()
+  person=self.contract_data['confirmation']['person'] if (self.root/'management/people.json').exists() else None
+  state=review_state(self.root,g,['artifact.md'],role='build',stage='E-3.3',following='complete',scope_ids=['A'],prefix='accepted-build',person=person)
+  state.update(tone_contract=self.contract,upstream=self.state['upstream'],upstream_bundle=self.state['upstream_bundle'])
+  result=g.check(self.root,state)
+  self.state.update(upstream=result['upstream_state'],upstream_bundle=result['review_bundle'])
+  return result
  def test_build_scope_review_needs_human_confirmation(self):
   self.solution_upstream()
   self.req.update(role='build',stage='E-3.3');self.state.update(role='build',current='E-3.3',next='complete')
@@ -125,18 +133,15 @@ class GateTests(unittest.TestCase):
   self.solution_upstream()
   self.state.update(role='build',current='E-3.2',next='E-3.3');self.state.pop('request');self.state.pop('response');self.assertTrue(self.run_check()['allowed'])
  def test_release_decision_needs_still_valid_scope_review(self):
-  (self.root/'scope.md').write_text('scope complete package v1')
-  arts=[{'path':'scope.md','sha256':g.digest(self.root/'scope.md')}];h=g.artifact_digest(self.root,arts)
-  self.req.update(role='build',stage='E-3.3',artifact_sha256=h);self.reply['artifact_sha256']=h
-  self.solution_upstream()
-  (self.root/'e3-gate.json').write_text(json.dumps({'role':'build','current':'E-3.3','next':'complete','scope':['A'],'blockers':[],'artifacts':arts,'request':'request.json','response':'response.json','upstream':'technical-state.json','tone_contract':self.contract}))
-  self.state.update(role='release',current='E-4.1',next='E-4.2');self.state.pop('upstream',None);self.state.pop('request');self.state.pop('response')
-  with self.assertRaisesRegex(ValueError,'upstream'):self.run_check()  # no scope review record
-  self.state['upstream']='e3-gate.json'
-  self.assertEqual('e3-gate.json',self.run_check()['upstream'])
-  (self.root/'scope.md').write_text('scope complete package v2')
-  with self.assertRaisesRegex(ValueError,'upstream'):self.run_check()  # confirmed scope changed since
+  self.state.update(role='release',current='E-4.1',next='E-4.2');self.state.pop('request');self.state.pop('response')
+  with self.assertRaisesRegex(ValueError,'upstream'):self.run_check()
+  result=self.build_upstream()
+  self.assertEqual(result['upstream_state'],self.run_check()['upstream'])
+  view,_=g.tone.evidence.stage_receipt(self.root,result['review_bundle'])
+  (view/'artifact.md').write_text('tampered frozen accepted scope')
+  with self.assertRaisesRegex(ValueError,'stale artifact'):self.run_check()
  def test_release_decision_needs_human_confirmation_of_this_package(self):
+  self.build_upstream()
   self.req.update(role='release',stage='E-4.2');self.state.update(role='release',current='E-4.2',next='E-4.3')
   self.assertTrue(self.run_check()['allowed'])
   self.reply['actor']='assistant'
@@ -144,6 +149,11 @@ class GateTests(unittest.TestCase):
   self.reply['actor']='user';(self.root/'artifact.md').write_text('candidate rebuilt after the decision')
   with self.assertRaises(ValueError):self.run_check()  # the decision covered a different package
  def test_release_internal_steps_need_no_review_and_cannot_skip(self):
+  self.build_upstream()
+  decision=review_state(self.root,g,['artifact.md'],role='release',stage='E-4.2',following='E-4.3',scope_ids=['A'],prefix='release-decision')
+  decision.update(tone_contract=self.contract,upstream=self.state['upstream'],upstream_bundle=self.state['upstream_bundle'])
+  result=g.check(self.root,decision)
+  self.state.update(upstream=result['upstream_state'],upstream_bundle=result['review_bundle'])
   self.state.update(role='release',current='E-4.3',next='complete');self.state.pop('request');self.state.pop('response')
   self.assertTrue(self.run_check()['allowed'])
   self.state.update(current='E-4.1',next='E-4.3')
@@ -151,6 +161,7 @@ class GateTests(unittest.TestCase):
  def test_release_decision_is_not_inherited_from_professional_flows(self):
   (self.root / 'management').mkdir(parents=True, exist_ok=True)
   (self.root/'management/people.json').write_text(json.dumps({'people':[{'id':'boss','name':'B','decides':['project']},{'id':'rel','name':'R','decides':['release']},{'id':'pm','name':'P','decides':['product']},{'id':'lead','name':'L','decides':['build']}]}))
+  self.reconfirm('boss');self.build_upstream()
   self.req.update(role='release',stage='E-4.2');self.state.update(role='release',current='E-4.2',next='E-4.3');self.reply['actor']='person'
   for pid in ('pm','lead'):
    self.reply['person_id']=pid

@@ -117,6 +117,7 @@ def checked_mapping(pm, root, base, manifest):
     require(manifest.get('framework_contract_sha256') == contract['sha256'],
             'profession framework contract changed or missing; adapt and validate a new expert version')
     review = json.loads((base / 'REVIEW.json').read_text(encoding='utf-8'))
+    require(isinstance(review, dict), 'expert adaptation REVIEW must be an object')
     mapping = review.get('framework_mapping')
     conflicts = mapping_conflicts(pm, contract, mapping, manifest['source_files'])
     require(not conflicts and review.get('unresolved') == [] and manifest.get('unresolved') == [],
@@ -259,7 +260,7 @@ def adapt(pm, root, params):
     pm.atomic(base / 'METHODS.md', methods)
     pm.atomic(base / 'REVIEW.json', json.dumps(dict(review, unresolved=conflicts), ensure_ascii=False, indent=2)+'\n')
     pm.atomic(base / 'ENTRY.md', '# Imported expert\n\nRead the project matrix/base/MATRIX.md and the registered profession contract first.\n'
-              'Load the common requirements for the current stage. Use the project profile and its scope to select required records.\n'
+              'Load the common requirements and templates declared in the profession framework contract; the shared direction template is matrix/base/tone-contract-template.md. Use the project profile and its scope to select required records.\n'
               'Use METHODS.md in this directory for professional methods. source/ is provenance, not active instructions.\n'
               'Write drafts only under the stable instance workspace/private/ and handoff candidates under workspace/public/.\n'
               'Task and runtime state are changed through trusted management tools. Follow the current task packet and approvals.\n')
@@ -300,6 +301,8 @@ def scenario_dependencies(pm, root, workspace, state_ref, state, handed, registr
         if not trusted and not (owner / ref['path']).is_file():
             owner = workspace
         view, _ = evidence_bundles.verify_bundle(owner, ref)
+        anchor=registry_root/'management/stage-receipts'/(ref['sha256']+'.json')
+        if anchor.is_file():authority[anchor.relative_to(registry_root).as_posix()]=digest(evidence_bundles.file(registry_root,anchor.relative_to(registry_root).as_posix()).read_bytes())
         members = [owner / ref['path'], *(file for file in view.rglob('*') if file.is_file())]
         for path in members:
             if owner == workspace:
@@ -312,7 +315,10 @@ def scenario_dependencies(pm, root, workspace, state_ref, state, handed, registr
                 evidence_bundles.verify_ref(workspace, value)
                 pending.append(value['path'])
             for key, child in value.items():
-                if key in {'bundle', 'review_receipt', 'human_review_receipt'} and isinstance(child, dict):
+                if value.get('format')=='direction-tool-receipt/1' and key=='tool':
+                    path=evidence_bundles.verify_ref(registry_root,child)
+                    authority[path.relative_to(registry_root).as_posix()]=child['sha256']
+                elif key in {'bundle', 'review_receipt', 'human_review_receipt'} and isinstance(child, dict):
                     bundle(child, trusted=key != 'bundle')
                 elif key not in {'bundle', 'review_receipt', 'human_review_receipt'}:
                     references(child)
@@ -393,6 +399,14 @@ def scenario_view_receipt(pm, root, manifest, contract, run, scenario, view_ref,
     require(classified == {row['logical_path']:row['sha256'] for row in bundle['files']},
             'every scenario view file must have exactly one trusted origin or allowed control derivation')
     contract_row, stage_row = derived['contract_confirmation'], derived['stage']
+    author_stage=scenario.get('author_stage')
+    selected_fit=scenario.get('fit')
+    require(isinstance(author_stage,dict) and set(author_stage)=={'path','sha256'}
+            and run['handover']['files'].get(author_stage.get('path'))==author_stage.get('sha256')
+            and stage_row.get('source_path')==author_stage['path'], 'controller stage must match the actual author stage chosen in the independent report')
+    require(isinstance(selected_fit,dict) and set(selected_fit)=={'path','sha256'}
+            and review['files'].get(selected_fit.get('path'))==selected_fit.get('sha256'),
+            'independent report must select its actual handed-back fit')
     for item in (contract_row, stage_row):
         require(item.get('source_path') in run['handover']['files'] and item['source_path'] in source_origins,
                 'controller projection must retain its actual author original')
@@ -421,7 +435,8 @@ def scenario_view_receipt(pm, root, manifest, contract, run, scenario, view_ref,
             and state.get('request') == derived['request']['logical_path'] and state.get('response') == derived['response']['logical_path'],
             'scenario state and final control paths differ')
     fit_path = state.get('tone_fit_review')
-    require(any(item['origin'] == 'review' and item['logical_path'] == fit_path for item in origins),
+    require(any(item['origin'] == 'review' and item['logical_path'] == fit_path
+                and item['source_path']==selected_fit['path'] and item['sha256']==selected_fit['sha256'] for item in origins),
             'independent fit must be an unchanged actual checker handback')
     tone = pm.admission.load_gate().tone
     approval = tone.check_confirmation(view, final, require_closed=state['current'] != 'P-1', registry_root=root)
@@ -530,6 +545,9 @@ def independent_review(pm, root, author, data, report_ref, db, frozen=False):
         require(author['task_id'] in tasks and tasks[author['task_id']].get('review') == review
                 and review.get('basis') == pm.basis(tasks[author['task_id']], tasks), 'independent review no longer matches the admission task')
     files = review['artifact_sha256']
+    baseline=run.get('review_baseline')
+    require(isinstance(baseline,dict) and all(baseline.get(name)!=sha for name,sha in files.items()),
+            'admission check must hand back new or changed evidence from this check run')
     workspace = pm.local(root, 'management/instances/' + component(reviewer) + '/workspace/public')
     require(all(pm.local(root, name).is_relative_to(workspace) for name in files), 'independent report must be handed back from the reviewer public workspace')
     return dict(run_id=run['id'], reviewer=reviewer, run_sha256=record_digest(run), event_id=event['event_id'],
@@ -589,13 +607,32 @@ def current_validation(pm, root, base, manifest, db=None):
     evidence = manifest.get('validation')
     require(isinstance(evidence, dict) and pm.nonempty(evidence.get('operator')) and evidence.get('bundle'),
             'current trusted expert validation snapshot required; validate a new expert version')
+    connection=db or pm.connect(root,readonly=True)
+    try:
+        anchor=pm.integrity.records(connection,'expert_validation').get(manifest['id']+'/'+manifest['version'])
+    finally:
+        if db is None:connection.close()
+    require(anchor and anchor.get('bundle')==evidence['bundle'], 'trusted expert validation database anchor differs from the package snapshot')
     view, bundle = evidence_bundles.verify_bundle(root, evidence['bundle'])
+    require(anchor.get('receipt_sha256')==record_digest(bundle['context']), 'trusted expert validation receipt anchor changed')
     current = verify_validation(pm, root, base, manifest, evidence, db, snapshot_root=view, frozen_receipt=bundle['context'].get('gate_receipt'))
     require(all(evidence.get(key) == value for key, value in current.items()) and bundle['context'] == current,
             'expert validation receipt changed; validate a new version')
 
 
 def validate(pm, root, params, db=None, operator=None):
+    if db is None:
+        connection=pm.connect(root)
+        try:
+            connection.execute('BEGIN IMMEDIATE')
+            result=validate(pm,root,params,db=connection,operator=operator)
+            connection.commit()
+            return result
+        except BaseException:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
     base, m = read(pm, root, {k:params[k] for k in ('id','version')})
     require(m['state'] in {'awaiting_validation', 'validated', 'enabled'}, 'adaptation incomplete or conflicts unresolved')
     require(m['preset_sha256'] == allowed(pm, root, m['profession']), 'profession preset changed')
@@ -610,6 +647,12 @@ def validate(pm, root, params, db=None, operator=None):
     refs = dict(checked['gate_receipt']['files'], **checked['review_receipt']['files'], **checked['gate_receipt'].get('authority_files', {}), **checked['gate_receipt'].get('view_files', {}))
     bundle = evidence_bundles.seal_bundle(root, [dict(path=name, sha256=sha) for name, sha in refs.items()], checked,
         destination='management/expert-validations/' + component(m['id']) + '/' + component(m['version']) + '/' + component(checked['run_id']), follow_refs=False)
+    identity=m['id']+'/'+m['version']
+    old=pm.integrity.records(db,'expert_validation').get(identity)
+    require(old is None or old.get('bundle')==bundle and old.get('receipt_sha256')==record_digest(checked),
+            'validated expert snapshot is pinned in the original database; create a new version')
+    if old is None:
+        pm.integrity.save(pm,db,'expert_validation',dict(id=identity,bundle=bundle,receipt_sha256=record_digest(checked),operator=operator,at=pm.now()))
     m.update(state='validated', validation=dict(evidence, **checked, bundle=bundle, operator=operator, at=pm.now()))
     return save(pm, base, m)
 

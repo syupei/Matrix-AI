@@ -7,6 +7,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
+from pm_test_inputs import business_source,actual_output,confirmed_direction,bound_review_state
 from kit import KIT
 from practice_fixture import direction, pm_closed_fixture, put, review_state
 SOURCE = KIT
@@ -56,12 +57,11 @@ class DeliveryExits(unittest.TestCase):
                   conclusion='SIMULATED input is complete for static delivery-set mechanics',
                   resolved_risks=[], resolved_conflicts=[], open_items=[], human_required=False)
         self.call('intake_admit', id='SIM-delivery-input')
-        put(self.root, 'product/SIM-input-stage.json', review_state(self.root, self.gate, [self.input_path]))
-        # Controller-only synthetic initial direction; not professional/model approval.
-        self.tone_contract, data = direction(self.root, self.gate.tone)
-        pm_closed_fixture(self.root, self.gate.tone, data)
+        self.business=business_source(self,pm)
+        put(self.root, 'product/SIM-input-stage.json', bound_review_state(self,pm,[self.input_path],prefix='SIM-delivery-confirm'))
+        self.tone_contract=confirmed_direction(self,pm,self.business)
         put(self.root, 'engineering/SIM-technical-review.md', 'SIMULATED static delivery integration constraints')
-        upstream = review_state(self.root, self.gate, ['engineering/SIM-technical-review.md'], role='solution',
+        upstream = bound_review_state(self, pm, ['engineering/SIM-technical-review.md'], role='solution',
                                 stage='E-2.4', following='complete', scope_ids=['workspace'], prefix='SIM-upstream')
         upstream['tone_contract'] = self.tone_contract
         self.upstream = self.gate.check(self.root, upstream)
@@ -81,7 +81,8 @@ class DeliveryExits(unittest.TestCase):
         data = dict(id=tid, parent=None, title='SIM ' + tid, goal='SIMULATED', inputs=[self.input_path], admitted_inputs=['SIM-delivery-input'],
                     stage_transition='product/SIM-input-stage.json', outputs=['results/' + tid + '.md', 'reviews/' + tid + '.json'], criteria=['SIM ok'], next_action='SIM next')
         data.update(kw)
-        data.setdefault('executor', data['owner'])
+        data.setdefault('executor',None if data['owner']=='PM' else data['owner'])
+        if data['owner']=='PM':data.update(kind='coordination',outputs=['management/delivery-'+tid+'.md'])
         roles = {'product': ('product', 'P-3'), 'code-engineering': ('build', 'E-3.3'),
                  'quality-engineering': ('quality', 'Q-2'), 'experience-design': ('design', 'D-5')}
         profession = data['owner'].removesuffix('-001')
@@ -99,14 +100,14 @@ class DeliveryExits(unittest.TestCase):
         return self.call(op, actor or t['owner'], task_id=tid, expected_revision=t['revision'], **kw)
 
     def finish(self, tid):
-        output = 'results/' + tid + '.md'
+        output = self.t(tid)['outputs'][0]
         put(self.root, output, 'SIMULATED declared static delivery result ' + tid)
         changes = {'evidence': [output]}
         task = self.t(tid)
         stage = task.get('practice_stage')
         if stage and self.gate.framework(self.root, stage['role'], stage['current'])[1].get('complete'):
             following = self.gate.STAGES[stage['role']][self.gate.STAGES[stage['role']].index(stage['current']) + 1]
-            completed = review_state(self.root, self.gate, [output], role=stage['role'], stage=stage['current'],
+            completed = bound_review_state(self, pm, [output], role=stage['role'], stage=stage['current'],
                                      following=following, scope_ids=stage['scope'], prefix='SIM-completion-' + tid)
             completed.update(stage)
             name = 'reviews/' + tid + '.json'
@@ -206,8 +207,8 @@ class DeliveryExits(unittest.TestCase):
         rows = {r[0]: dict(zip(listed['columns'], r)) for r in listed['rows']}
         self.assertEqual('关闭 R-LOGIN-07', rows['ALL']['下一步'])
         self.assertEqual('记 R-LOGIN-08 的 交互与视觉设计 出口', rows['ART']['完成后'])
-        put(self.root, 'results/ALL.md', 'SIMULATED collection summary for the declared delivery exits')
-        self.mutate('update', 'ALL', changes={'evidence': ['results/ALL.md']}, reason='SIM')
+        put(self.root, 'management/delivery-ALL.md', 'SIMULATED collection summary for the declared delivery exits')
+        self.mutate('update', 'ALL', changes={'evidence': ['management/delivery-ALL.md']}, reason='SIM')
         self.mutate('review', 'ALL', 'quality-engineering-001', outcome='passed', criteria_checked=['SIM ok'], evidence=['SIMULATED check'])
         with self.assertRaisesRegex(pm.TaskError, 'delivery_not_current'):
             self.mutate('transition', 'ALL', 'PM', state='done', reason='SIM')

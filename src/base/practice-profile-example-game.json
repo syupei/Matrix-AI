@@ -7,14 +7,14 @@
     {
       "name": "RoyalUr.net 数字版本",
       "source": "https://royalur.net/game?mode=computer&rules=finkel&bot=easy&tab=play",
-      "borrows": "场内保留双方棋子/分数HUD，木纹背景与棋子材质形成同一场景语言。",
-      "observed": "2026-11-18实际打开电脑对手设置及开局画面，看到上述HUD、木纹及棋子；棋盘主体资源未完整呈现，未掷骰或完成回合，不据此判断走法和时序。"
+      "borrows": "待观察：核对棋盘、回合HUD和对象材质如何组织成同一活动场景，不把假设当观察结论。",
+      "observed": "候选参照，未保留可复核的画面证据；不可声称本项目已观察。采用前自行查看并记录实际观察范围，不据此判断玩法、时序或手感。"
     },
     {
       "name": "GNU Backgammon 官方手册数字界面与走法图",
       "source": "https://www.gnu.org/software/gnubg/manual/gnubg.html",
       "borrows": "棋盘保留点位与棋子空间关系，骰子放在盘内，走法图把骰值与棋子路径对应；分析记录侧栏服务复盘而不替代棋盘。",
-      "observed": "2026-11-18实际查看手册 images/gtkinterface.png 与 images/rulfig3.png；仅静态图像观察，未操作该软件或验证动画、可访问性及手感。"
+      "observed": "范例仅据官方手册 images/gtkinterface.png 与 images/rulfig3.png 的静态图像描述；采用时须自行观察，不代表本项目已操作软件或验证动画、可访问性及手感。"
     }
   ],
   "scopes": [

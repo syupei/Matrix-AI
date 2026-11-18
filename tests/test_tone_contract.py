@@ -28,13 +28,13 @@ class ToneContractTest(unittest.TestCase):
         self.profile=dict(schema=tone.practice.SCHEMA,version='1',scopes=[scope(tone,appearance_target='yes',direct_manipulation='yes')])
         self.put('human.md','I confirm this direction')
         self.data=dict(viewport='1280x800',capture_binding=capture_binding([self.scene],root=self.root,screenshot=self.png),version='1',genre='route game',profile='游戏与玩乐',tone='warm',core_loop='choose and move',
-                       references=[dict(name=f'Ref {i}',source=f'Guide, section {i}',borrows='operate the token',observed='not observed') for i in range(2)],
+                       references=[dict(name=f'Ref {i}',source=f'https://example.test/external-work-{i}',borrows='operate the token',observed='not observed') for i in range(2)],
                        avoid=['forms as the main scene'],
                        samples=[dict(moment=f'm{i%4}',text=f'Sample {i}',consequence='Resolve the selection') for i in range(6)],
                        parts=dict(brief=self.brief,scene=self.scene,preview=self.scene,samples=self.samples,screenshot=self.png,
                                   practice_profile=self.put('practice.json',json.dumps(self.profile))),
                        confirmation=dict(person='owner',quote='I confirm this direction',source='human.md'))
-        self.fit=dict(outcome='passed',mode='independent',checker='checker',producer='maker',artifacts=[self.scene],
+        self.fit=dict(outcome='passed',mode='same_instance',checker='maker',producer='maker',artifacts=[self.scene],
                       screenshot=self.png,viewport='1280x800',capture_binding=capture_binding([self.scene],root=self.root,screenshot=self.png),capture='browser',genre_fit='fits loop',
                       application_drift='none',copy_fit='fits tone')
 
@@ -82,7 +82,7 @@ class ToneContractTest(unittest.TestCase):
         self.contract()
         with self.assertRaisesRegex(ValueError,'six distinct'):
             tone.validate(self.root,tone.DEFAULT_PATH)
-        self.fit['checker']=self.fit['producer']
+        self.fit.update(mode='independent',checker=self.fit['producer'])
         self.put('fit.json',json.dumps(self.fit))
         with self.assertRaisesRegex(ValueError,'independent'):
             tone.check_fit(self.root,'fit.json',[self.scene])

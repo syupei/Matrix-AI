@@ -1,5 +1,6 @@
 """Mechanism tests: source packages, models, people and runner reports are SIMULATED."""
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 import shutil
@@ -7,7 +8,7 @@ import unittest
 from unittest.mock import patch
 from test_pm_instances import Fixture, pm
 from kit import KIT
-from practice_fixture import direction, fit_record, practice_record, put, scope, capture_binding, PIXEL
+from practice_fixture import direction, fit_record, practice_record, put, scope, capture_binding, PIXEL, review_state
 
 s=importlib.util.spec_from_file_location('expert_api_test', KIT/'matrix/orchestration/tools/platform_api.py')
 api=importlib.util.module_from_spec(s);s.loader.exec_module(api)
@@ -19,6 +20,35 @@ class Experts(Fixture, unittest.TestCase):
         self.write('expert-professions.json', dict(schema='matrix-expert-professions/1', professions=['code-engineering'], configured_by='SIM-person', authorization='SIM-human preset'))
         self.e=pm.team.experts
         self.ident=dict(id='sim-expert',version='1')
+
+    def ensure_admission_actors(self):
+        with pm.connect(self.root) as db:existing=pm.integrity.records(db,'instance')
+        for iid,profession in [(name,'code-engineering') for name in ('SIM-admission-instance','SIM-independent-reviewer','SIM-admission-instance-two','SIM-independent-reviewer-two','ADMISSION','SIM-admission-reviewer','SIM-INDEPENDENT-REVIEWER')]+[('VIEW-author','product'),('VIEW-checker','product')]:
+            if iid not in existing:self.call('register_instance',id=iid,instance=dict(role=profession,endpoint='SIM-'+iid,write_roots=['management/instances/'+iid+'/workspace']))
+
+    def business_source(self):
+        if hasattr(self,'expert_business_context'):return self.expert_business_context
+        with pm.connect(self.root) as db:masters=[row['id'] for row in pm.integrity.records(db,'instance').values() if row.get('active') and row.get('master') and row.get('profession')=='product']
+        if masters:master=masters[0]
+        else:
+            self.write('instance-config.json',{'entries':[dict(id='expert-source-master',profession='product',level='T7',model='SIM-big',count=1,master=True)]})
+            self.confirm();master=self.derive('expert-source-master')
+        path='external/expert-admission-brief.md';put(self.root,path,'SYNTHETIC approved bounded source: desktop route-race direction, scope workspace; source preservation and independent review only, no product publication.')
+        self.call('intake_register',id='EXPERT-BRIEF',path=path,version='1',source='SYNTHETIC complete business input',source_id='expert-admission-brief',profession='product')
+        self.call('intake_submit',id='EXPERT-BRIEF',master=master)
+        self.call('intake_review',actor=master,id='EXPERT-BRIEF',outcome='approved',conclusion='SYNTHETIC supplied scope read back',resolved_risks=[],resolved_conflicts=[],open_items=[],human_required=False,coexists_with=[],conflicts_with=[])
+        self.call('intake_admit',id='EXPERT-BRIEF')
+        gate=pm.admission.load_gate();state=review_state(self.root,gate,[path],prefix='expert-source')
+        reply=json.loads((self.root/state['response']).read_text());quote='SYNTHETIC unique confirmation of expert-admission business source'
+        put(self.root,reply['source'],quote);reply.update(quote=quote,message_sha256=gate.tone.evidence.digest(quote))
+        request=json.loads((self.root/state['request']).read_text())
+        self.call('human_attention',id='expert-source',kind='confirmation',display=request['display_evidence'],scope=state['scope'],inputs=[path])
+        self.call('human_attention',id='expert-source',response=reply['source'])
+        with pm.connect(self.root) as db:receipt=pm.direction.bind_attention(pm.api(),self.root,db,'expert-source',person='SIM-owner',quote=quote,scope=state['scope'],expected={})
+        reply['review_receipt']=receipt;put(self.root,state['response'],reply)
+        stage=put(self.root,'expert-source.json',state)['path']
+        self.expert_business_context=dict(inputs=[path],admitted_inputs=['EXPERT-BRIEF'],stage_transition=stage)
+        return self.expert_business_context
 
     def prepare_params(self, profession='code-engineering'):
         with patch.object(self.e,'fetch',return_value={'SKILL.md':b'SIM professional method','LICENSE':b'SIM permission'}):
@@ -34,12 +64,15 @@ class Experts(Fixture, unittest.TestCase):
         gate = pm.admission.load_gate()
         tone = gate.tone
         workspace = self.root/'management/instances'/getattr(self,'admission_author','SIM-admission-instance')/'workspace/public'
-        ref, data = direction(workspace, tone)
-        # SIMULATED controller-pinned approval lives in the original project, never an author DB.
-        shutil.copytree(workspace/'management/evidence',self.root/'management/evidence',dirs_exist_ok=True)
-        with pm.connect(self.root) as db:
-            pm.integrity.save(pm.api(),db,'direction_sample',dict(id='SIM-direction',tasks=[],closed=True,
-                reviewed_direction=tone.direction_binding(tone.DEFAULT_PATH,data),confirmation_receipt=data['confirmation']['review_receipt']))
+        from expert_direction_fixture import close_direction
+        ref,data=close_direction(self,pm)
+        # Copy the genuine closed prerequisite and its immutable dependencies into
+        # the author view; original controller DB remains the authority.
+        for path in self.root.rglob('*'):
+            if path.is_file() and not path.is_relative_to(self.root/'management') and not path.is_relative_to(self.root/'matrix') and not path.is_relative_to(self.root/'experts'):
+                put(workspace,path.relative_to(self.root).as_posix(),path.read_bytes())
+        shutil.copytree(self.root/'management/review-sources',workspace/'management/review-sources',dirs_exist_ok=True)
+        ref=put(workspace,tone.DEFAULT_PATH,(self.root/tone.DEFAULT_PATH).read_bytes())
         if profession == 'product':
             arts = [ref]
             fit = fit_record(workspace, tone.direction_binding(tone.DEFAULT_PATH,data),
@@ -76,17 +109,16 @@ class Experts(Fixture, unittest.TestCase):
             return adapted
         base,m=self.e.read(pm.api(),self.root,self.ident)
         sha=self.e.digest((base/'METHODS.md').read_bytes())
+        Experts.ensure_admission_actors(self)
+        context=Experts.business_source(self)
         author, reviewer = 'SIM-admission-instance'+token, 'SIM-independent-reviewer'+token
         self.admission_author=author
         task_id, author_run, review_run = 'SIM-admission-task'+token, 'SIM-admission'+token, 'SIM-review'+token
-        for iid in (author, reviewer):
-            self.call('register_instance',id=iid,instance=dict(role=profession,endpoint='SIM-'+iid,
-                      write_roots=['management/instances/'+iid+'/workspace']))
         installed=self.root/'matrix/base/MATRIX.md'
         installed.parent.mkdir(parents=True,exist_ok=True)
         shutil.copyfile(KIT/'matrix/base/MATRIX.md',installed)
         self.call('create',task=dict(id=task_id,title='SIM actual lifecycle',owner=author,executor=author,
-                  checker=reviewer,goal='SIM admission',inputs=['matrix/base/MATRIX.md'],outputs=['management/instances/'+author+'/workspace/public/'],
+                  checker=reviewer,goal='SIM admission',**context,outputs=['management/instances/'+author+'/workspace/public/'],
                   criteria=['SIM method and framework'],next_action='SIM bounded exercise'))
         self.call('launch_start',id=author_run,task_id=task_id,purpose='start',instance=author,
                   model='SIM-model',session='SIM-admission',command=['SIM'],admission_expert=self.ident,admission_runner='SIM-worker')
@@ -102,7 +134,7 @@ class Experts(Fixture, unittest.TestCase):
         gate=pm.admission.load_gate()
         workspace=self.root/'management/instances'/author/'workspace/public'
         state=json.loads((self.root/stage).read_text())
-        checked=gate.check(workspace,state,registry_root=self.root)
+        checked=gate.check(workspace,state,registry_root=self.root,seal=False)
         completed,_=gate.framework_outputs(workspace,state,checked,registry_root=self.root)
         tested={(checked['from'],r['requirement']) for r in completed}
         expected={(r['stage'],r['requirement']) for r in self.e.framework_contract(pm.api(),self.root,profession)['requirements']}
@@ -124,27 +156,29 @@ class Experts(Fixture, unittest.TestCase):
             self.e.enable(pm.api(),self.root,dict(self.ident,person='SIM-person',quote='SIMULATED enable authorization'),operator='SIM-controller')
         return self.e.read(pm.api(),self.root,self.ident)[1]
 
-    def composed_package(self, validate=True, enable=False, mutate=None, fit_transform=None):
+    def composed_package(self, validate=True, enable=False, mutate=None, fit_transform=None, alternate_stage=False):
         """No model: real author/check lifecycles with immutable, separately owned files."""
         self.write('expert-professions.json',dict(schema='matrix-expert-professions/1',professions=['product'],configured_by='SIM',authorization='SIM'))
         params=self.prepare_params('product');params['review']['review_points']=[dict(who='master',what='SIM independent direction')]
         self.e.adapt(pm.api(),self.root,params)
         author,reviewer,task_id='VIEW-author','VIEW-checker','VIEW-task'
-        for iid in (author,reviewer):
-            self.call('register_instance',id=iid,instance=dict(role='product',endpoint='SIM-'+iid,write_roots=['management/instances/'+iid+'/workspace']))
+        Experts.ensure_admission_actors(self)
+        context=Experts.business_source(self)
         trusted=self.root/'matrix/base/MATRIX.md';trusted.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(KIT/'matrix/base/MATRIX.md',trusted)
         author_public=self.root/'management/instances'/author/'workspace/public'
         checker_public=self.root/'management/instances'/reviewer/'workspace/public'
         self.call('create',task=dict(id=task_id,title='SIM two producer admission',owner=author,executor=author,checker=reviewer,
-            goal='SIM P1',inputs=['matrix/base/MATRIX.md'],outputs=[author_public.relative_to(self.root).as_posix()+'/'],criteria=['SIM real independent fit'],next_action='SIM draft'))
+            goal='SIM P1',**context,outputs=[author_public.relative_to(self.root).as_posix()+'/'],criteria=['SIM real independent fit'],next_action='SIM draft'))
         self.call('launch_start',id='VIEW-author-run',task_id=task_id,purpose='start',instance=author,model='SIM-model',session='SIM',command=['SIM'],admission_expert=self.ident,admission_runner='SIM-worker')
         self.call('launch_started',id='VIEW-author-run',pid=4242)
         tone=pm.admission.load_gate().tone;gate=pm.admission.load_gate()
         _,draft=direction(author_public,tone);draft.pop('confirmation')
+        draft['references']=[dict(name='Royal Game of Ur',source='https://royalur.net/rules',borrows='SIM route choice',observed='Synthetic fixture, source not visited'),dict(name='GNU Backgammon',source='https://www.gnu.org/s/gnubg/manual/gnubg.pdf',borrows='SIM turn feedback',observed='Synthetic fixture, source not visited')]
         contract_ref=put(author_public,tone.DEFAULT_PATH,'# Direction\n\n```tone-contract\n'+json.dumps(draft)+'\n```\n')
         original=dict(role='product',current='P-1',next='P-2',scope=['workspace'],blockers=[],artifacts=[contract_ref],tone_contract=contract_ref,
             conversation_check='conversation.md',request='pending-request.json',response='pending-response.json',tone_fit_review='pending-fit.json')
         put(author_public,'conversation.md','P-1 -> P-2');put(author_public,'stage-template.json',original)
+        if alternate_stage:put(author_public,'stage-alt.json',original)
         author_paths={p.relative_to(self.root).as_posix():self.e.digest(p.read_bytes()) for p in author_public.rglob('*')
             if p.is_file() and 'management' not in p.relative_to(author_public).parts and not p.name.startswith('synthetic-')}
         self.call('hand_over',actor=author,run='VIEW-author-run',evidence=sorted(author_paths),summary='SIM unconfirmed author originals')
@@ -167,7 +201,8 @@ class Experts(Fixture, unittest.TestCase):
         source_sha=self.e.admission_binding(pm.api(),self.root,self.ident)['methods_sha256']
         report=dict(passed=True,methods_sha256=source_sha,runner='SIM-worker',run_id='VIEW-author-run',review_run_id='VIEW-review-run',model='SIM-model',
             checks={key:dict(passed=True,evidence='SIM independently read actual draft') for key in ('method_preservation','write_isolation','handoff_contract')},
-            framework_scenario=dict(stage_state='stage.json',reviewer=reviewer,readback='SIM actual independent observations',contract_sha256=manifest['framework_contract_sha256'],mapping_sha256=manifest['framework_mapping_sha256']),
+            framework_scenario=dict(stage_state='stage.json',reviewer=reviewer,author_stage=dict(path=(author_public/'stage-template.json').relative_to(self.root).as_posix(),sha256=self.e.digest((author_public/'stage-template.json').read_bytes())),
+                fit=dict(path=(checker_public/'fit.json').relative_to(self.root).as_posix(),sha256=self.e.digest((checker_public/'fit.json').read_bytes())),readback='SIM actual independent observations',contract_sha256=manifest['framework_contract_sha256'],mapping_sha256=manifest['framework_mapping_sha256']),
             tested_requirements=[dict(stage=a,requirement=b) for a,b in sorted(tested)],untested_requirements=[dict(stage=a,requirement=b) for a,b in sorted(expected-tested)])
         put(checker_public,'report.json',report)
         self.report_ref=(checker_public/'report.json').relative_to(self.root).as_posix()
@@ -188,9 +223,15 @@ class Experts(Fixture, unittest.TestCase):
         display=put(self.root,'control-display.md','Synthetic display of actual author direction and independent fit; no production approval')
         reply=put(self.root,'control-message.md','Synthetic isolated exercise approval only')
         approval_binding=dict(format='matrix-review-binding/1',request_id='VIEW-request',scope=['workspace'],actor='user',direction_sha256=binding['direction_sha256'],
-            display=display,response=dict(reply,message_sha256=tone.evidence.digest('Synthetic isolated exercise approval only')),person='fixture-person',quote='Synthetic isolated exercise approval only',outcome='approved')
-        receipt=tone.evidence.review_receipt(self.root,approval_binding)
-        final=dict(draft,confirmation=dict(person='fixture-person',quote=approval_binding['quote'],source=reply['path'],direction_sha256=binding['direction_sha256'],review_receipt=receipt))
+            display=display,response=dict(reply,message_sha256=tone.evidence.digest('Synthetic isolated exercise approval only')),person='SYNTHETIC controller fixture',quote='Synthetic isolated exercise approval only',outcome='approved')
+        import sys,importlib.util
+        evals=Path(__file__).resolve().parents[1]/'evals';sys.path.insert(0,str(evals))
+        try:
+            spec=importlib.util.spec_from_file_location('expert_synthetic_attention',evals/'imported_framework_probe.py');controller=importlib.util.module_from_spec(spec);spec.loader.exec_module(controller)
+        finally:sys.path.remove(str(evals))
+        actual_author=self.e.validation_run(pm.api(),self.root,'VIEW-author-run')
+        receipt=controller.synthetic_direction_attention(pm,self.root,self.root/'fixture-display-evidence',actual_author,reviewer,draft,display,reply,approval_binding['quote'],approval_binding['request_id'],tone.DEFAULT_PATH)
+        final=dict(draft,confirmation=dict(person='SYNTHETIC controller fixture',quote=approval_binding['quote'],source=reply['path'],direction_sha256=binding['direction_sha256'],review_receipt=receipt))
         final_ref=put(view,tone.DEFAULT_PATH,'# Direction\n\n```tone-contract\n'+json.dumps(final)+'\n```\n')
         content_hash=gate.artifact_digest(view,[final_ref])
         request=dict(request_id='VIEW-request',role='product',stage='P-1',scope=['workspace'],artifact_sha256=content_hash,display_evidence=display['path'],display_sha256=display['sha256'])
@@ -316,12 +357,10 @@ class Experts(Fixture, unittest.TestCase):
 
     def test_same_practice_dispatch_prerequisites_for_imported_and_builtin_experts(self):
         self.package()
-        self.staff(self.config())
         tone = pm.admission.load_gate().tone
-        contract, data = direction(self.root,tone,[scope(tone,appearance_target='yes')])
-        with pm.connect(self.root) as db:
-            pm.integrity.save(pm.api(),db,'direction_sample',dict(id='SIM-stage-direction',tasks=[],closed=True,
-                reviewed_direction=tone.direction_binding(tone.DEFAULT_PATH,data),confirmation_receipt=data['confirmation']['review_receipt']))
+        from expert_direction_fixture import close_direction
+        contract,data=close_direction(self,pm,[scope(tone,appearance_target='yes')])
+        self.staff(self.config())
         stage = dict(role='solution',current='E-2.3',scope=['workspace'],tone_contract=contract)
         for iid in ('code-engineering-001','code-engineering-002'):
             with self.subTest(instance=iid):
@@ -336,13 +375,15 @@ class Experts(Fixture, unittest.TestCase):
         self.staff({'entries':[dict(id='imported',profession='product',level='T7',model='SIM-big',
                     count=1,master=True,expert=self.ident)]})
         path=self.root/'external'
-        path.mkdir()
+        path.mkdir(exist_ok=True)
         (path/'prd.md').write_text('Synthetic external input')
-        self.call('intake_register',id='PRD',path='external/prd.md',version='1',source='fixture',source_id='SIM-PRD',profession='product')
-        r=self.call('intake_submit',id='PRD',master='product-001')['input']
+        with pm.connect(self.root) as db:
+            imported=next(row['id'] for row in pm.integrity.records(db,'instance').values() if row.get('config_entry')=='imported')
+        self.call('intake_register',id='PRD',path='external/prd.md',version='1',source='fixture',source_id='SIM-PRD',profession='product',new_family_reason='SYNTHETIC separate external request remains pending')
+        r=self.call('intake_submit',id='PRD',master=imported)['input']
         self.assertEqual(r['expert']['id'],'sim-expert')
         with self.assertRaisesRegex(ValueError,'not admitted'):
-            self.create('PROD',owner='product-001',inputs=['external/prd.md'],admitted_inputs=['PRD'])
+            self.create('PROD',owner=imported,checker='VIEW-checker',inputs=['external/prd.md'],admitted_inputs=['PRD'])
 
     def config(self):
         return {'entries':[dict(id='internal',profession='code-engineering',level='T7',model='SIM-big',count=1,master=True,aliases=['小 M.ai']),
@@ -496,7 +537,7 @@ class Experts(Fixture, unittest.TestCase):
         self.package(enable=False,validate=False)
         with pm.connect(self.root) as db:
             run=pm.integrity.records(db,'launch')['SIM-admission']
-            output=next(name for name in run['handover']['files'] if name.endswith('/direction-brief.md'))
+            output=next(name for name in run['handover']['files'] if name.endswith('/product/specs/方向简报.md'))
             del run['handover']['files'][output]
             pm.integrity.save(pm.api(),db,'launch',run)
         with self.assertRaisesRegex(ValueError,'evidence closure and resources must be actual handed-over'):
@@ -511,6 +552,39 @@ class Experts(Fixture, unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'receipt changed'):
             self.e.binding(pm.api(),self.root,'code-engineering',self.ident)
 
+    def test_malformed_adaptation_review_is_a_local_binding_error(self):
+        self.package();self.staff(self.config());base,manifest=self.e.read(pm.api(),self.root,self.ident)
+        (base/'REVIEW.json').write_text('[]');self.e.save(pm.api(),base,manifest)
+        entries={entry['id']:entry for entry in self.team()['instance_config']['entries']}
+        self.assertTrue(entries['internal']['current']);self.assertFalse(entries['imported']['current'])
+        self.assertIn('REVIEW must be an object',entries['imported']['binding_error'])
+
+    def test_resealing_validation_cannot_replace_its_database_anchor(self):
+        manifest=self.package();old=manifest['validation']['bundle']
+        view,bundle=self.e.evidence_bundles.verify_bundle(self.root,old)
+        refs=[dict(path=name,sha256=sha) for name,sha in manifest['validation']['gate_receipt']['files'].items()]
+        refs += [dict(path=name,sha256=sha) for name,sha in manifest['validation']['review_receipt']['files'].items()]
+        refs += [dict(path=name,sha256=sha) for name,sha in manifest['validation']['gate_receipt']['authority_files'].items()]
+        replacement=self.e.evidence_bundles.seal_bundle(self.root,refs,bundle['context'],destination='management/resealed-validation',follow_refs=False)
+        base,changed=self.e.read(pm.api(),self.root,self.ident);changed['validation']['bundle']=replacement
+        self.e.save(pm.api(),base,changed)
+        with self.assertRaisesRegex(ValueError,'database anchor differs'):
+            self.e.binding(pm.api(),self.root,'code-engineering',self.ident)
+
+    def test_check_run_cannot_reuse_preexisting_report(self):
+        self.package(enable=False,validate=False);task=self.t('SIM-admission-task')
+        self.call('launch_start',id='CHECK-PREEXISTING',purpose='check',task_id=task['id'],instance='SIM-independent-reviewer',model='SIM-model',session='SIM',command=['SIM'])
+        self.call('launch_started',id='CHECK-PREEXISTING',pid=4344)
+        with self.assertRaisesRegex(ValueError,'new or changed|newly produced'):
+            self.call('review',actor='SIM-independent-reviewer',task_id=task['id'],expected_revision=task['revision'],outcome='passed',criteria_checked=task['criteria'],evidence=[self.report_ref])
+
+    def test_controller_cannot_choose_another_handed_author_stage(self):
+        def mutate(view,context):
+            row=next(row for row in context['control_derivations'] if row['kind']=='stage')
+            row['source_path']=row['source_path'].replace('stage-template.json','stage-alt.json')
+        with self.assertRaisesRegex(ValueError,'stage chosen in the independent report'):
+            self.composed_package(alternate_stage=True,mutate=mutate)
+
     def test_source_nested_manifest_is_hashed(self):
         self.package();base,m=self.e.read(pm.api(),self.root,self.ident)
         (base/'source/manifest.json').write_text('{}')
@@ -522,6 +596,37 @@ class Experts(Fixture, unittest.TestCase):
         self.write('expert-professions.json',dict(schema='matrix-expert-professions/1',professions=[],configured_by='SIM',authorization='SIM revoked'))
         with self.assertRaisesRegex(ValueError,'not preset'):
             self.e.binding(pm.api(),self.root,'code-engineering',self.ident)
+
+    def test_design_d4_missing_anchor_mapping_blocks_adaptation(self):
+        self.write('expert-professions.json',dict(schema='matrix-expert-professions/1',professions=['experience-design'],configured_by='SIM',authorization='SIM explicit design fixture'))
+        params=self.prepare_params('experience-design')
+        params['review']['review_points']=[dict(who='master',what='Compare actual anchors against confirmed direction')]
+        contract=self.e.framework_contract(pm.api(),self.root,'experience-design')
+        row=next(r for r in contract['requirements'] if (r['stage'],r['requirement'])==('D-4','asset_anchors'))
+        self.assertGreaterEqual(row['definition']['version'],2)
+        params['review']['framework_mapping']=[r for r in params['review']['framework_mapping'] if (r['stage'],r['requirement'])!=('D-4','asset_anchors')]
+        result=self.e.adapt(pm.api(),self.root,params)
+        self.assertEqual('blocked',result['state'])
+        with self.assertRaisesRegex(ValueError,'adaptation must be complete'):
+            self.e.admission_binding(pm.api(),self.root,self.ident)
+
+    def test_design_d4_missing_anchor_record_is_rejected_by_common_gate(self):
+        self.package()
+        from expert_direction_fixture import close_direction
+        gate=pm.admission.load_gate();tone=gate.tone
+        ref,_=close_direction(self,pm,[scope(tone,asset_family='yes')])
+        artifact=put(self.root,'design/current-anchor.html','<body>SYNTHETIC current scene anchor</body>')
+        state=review_state(self.root,gate,[artifact['path']],role='design',stage='D-4',following='D-5',scope_ids=['workspace'],prefix='design-d4')
+        request=json.loads((self.root/state['request']).read_text());reply=json.loads((self.root/state['response']).read_text())
+        quote='SYNTHETIC fixture response to this D4 display only'
+        put(self.root,reply['source'],quote);reply.update(quote=quote,message_sha256=tone.evidence.digest(quote))
+        self.call('human_attention',id='design-d4',kind='confirmation',display=request['display_evidence'],scope=state['scope'],inputs=[artifact['path']])
+        self.call('human_attention',id='design-d4',response=reply['source'])
+        with pm.connect(self.root) as db:receipt=pm.direction.bind_attention(pm.api(),self.root,db,'design-d4',person='SIM-owner',quote=quote,scope=state['scope'],expected={})
+        reply['review_receipt']=receipt;put(self.root,state['response'],reply)
+        state.update(tone_contract=ref,practice_evidence={})
+        with self.assertRaisesRegex(ValueError,'missing practice evidence: asset_anchors'):
+            gate.check(self.root,state,seal=False)
 
     def test_git_fetch_rejects_credentials_and_nonfixed_refs_without_network(self):
         for url,commit in [('https://token@example.org/a.git','a'*40),('file:///tmp/a','a'*40),('https://example.org/a.git','main')]:
@@ -538,12 +643,19 @@ class PlatformFixture(Fixture):
             if row['model']=='SIM-small': row['model_version']='SIM-actual-small'
         self.write('model-fit.json',assessments)
         self.staff()
+        self.platform_business=Experts.business_source(self)
         self.create('A')
         caps={k:{'state':'supported','evidence':'SIMULATED fixture; no real sandbox claim'} for k in ('launch','write_isolation','model_selection')}
         self.config=dict(schema=api.SPEC, project_id='SIMULATED', principals={'SIM-controller':dict(active=True,actor='PM',operations=sorted(api.OPERATIONS),task_ops=['create','derive'])},
                          runners={'default':dict(version='SIM',models={'SIM-big':'SIM-actual'},capabilities=caps)})
         self.access()
         self.seq=0
+
+    def create(self,tid,*args,**fields):
+        if 'inputs' not in fields:
+            fields.update(self.platform_business)
+        fields.setdefault('outputs',['management/instances/'+fields.get('executor',fields.get('owner','code-engineering-001'))+'/workspace/public/'])
+        return super().create(tid,*args,**fields)
 
     def access(self):
         (self.root/api.CONFIG).write_text(json.dumps(self.config))
@@ -665,6 +777,36 @@ p.write_text(json.dumps({'summary':'SIM actual local worker handover','evidence'
         self.assertEqual('SIM-concrete-version',runs[0]['reported_model'])
 
 
+    def test_action_queries_do_not_publish_or_rewrite_upstream_stage_states(self):
+        self.invoke('runtime.configure',mode='local',expected_generation=0)
+        original=Path.write_text
+        def reject_stage_write(path,*args,**kwargs):
+            if 'management/stage-reviews/' in str(path):
+                raise OSError('SIM deterministic rejection of the old query-time rewrite window')
+            return original(path,*args,**kwargs)
+        def snapshots():
+            return {str(path.relative_to(self.root)):(hashlib.sha256(path.read_bytes()).hexdigest(),path.stat().st_mtime_ns)
+                    for folder in ('management/stage-reviews','management/stage-receipts') for path in (self.root/folder).rglob('*') if path.is_file()}
+        before=snapshots()
+        self.assertEqual({},before,'readiness checks must not publish a completed stage')
+        with patch.object(Path,'write_text',reject_stage_write):
+            first=self.invoke('actions.plan');second=self.invoke('actions.plan')
+        self.assertEqual(['A'],[row['task'] for row in first['actions']])
+        self.assertEqual(first['actions'],second['actions'])
+        self.assertEqual(before,snapshots())
+
+    def test_successful_stage_reseal_keeps_existing_state_bytes_and_inode(self):
+        gate=pm.admission.load_gate();state=json.loads((self.root/self.platform_business['stage_transition']).read_text())
+        first=gate.check(self.root,state)
+        state_file=self.root/first['upstream_state'];before=(state_file.read_bytes(),state_file.stat().st_ino,state_file.stat().st_mtime_ns)
+        original=Path.write_text
+        def reject_existing_write(path,*args,**kwargs):
+            if path==state_file:raise OSError('SIM deterministic rejection of an in-place immutable-state rewrite')
+            return original(path,*args,**kwargs)
+        with patch.object(Path,'write_text',reject_existing_write):second=gate.check(self.root,state)
+        self.assertEqual(first['review_bundle'],second['review_bundle'])
+        self.assertEqual(before,(state_file.read_bytes(),state_file.stat().st_ino,state_file.stat().st_mtime_ns))
+
     def test_parallel_workers_complete_start_callbacks_and_handover(self):
         import sys
         import subprocess
@@ -706,6 +848,10 @@ time.sleep(0.05)
                                     if 'STALE_REVISION' not in str(error) or attempt==3:raise
                         with ThreadPoolExecutor(max_workers=2) as pool:
                             results=list(pool.map(execute,actions))
+                        if not all(r.get('handed') for r in results):
+                            diagnostic=dict(results=results,continuation=pm.execute(c.root,dict(op='continue',detail=True)),tasks={tid:c.t(tid) for tid in ('A','B')},actions=actions)
+                            debug=Path(__import__('tempfile').mkdtemp(prefix='expert-parallel-failure-'))
+                            shutil.copytree(c.root,debug,dirs_exist_ok=True);(debug/'diagnostic.json').write_text(json.dumps(diagnostic,ensure_ascii=False,indent=2))
                         self.assertTrue(all(r.get('handed') for r in results),results)
                         runs=c.invoke('runs.query')['runs']
                         self.assertEqual(2,len(runs));self.assertTrue(all(r['state']=='exited' and r.get('pid') for r in runs),runs)

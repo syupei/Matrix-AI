@@ -52,14 +52,14 @@ def upstream_check(root, role, current, state, registry_root=None):
     if need:
         if not state.get('upstream'):
             raise ValueError('upstream review record required: %s %s' % need)
-        upstream_root = root
-        if state.get('upstream_bundle'):
-            upstream_root, manifest = tone.evidence.verify_bundle(registry_root or root, state['upstream_bundle'])
-            if manifest['context'].get('state_path') != state['upstream']:
-                raise ValueError('upstream snapshot does not bind the required review state')
+        if not state.get('upstream_bundle'):
+            raise ValueError('upstream_bundle of the successful review is required')
+        upstream_root, manifest = tone.evidence.stage_receipt(registry_root or root, state['upstream_bundle'])
+        if manifest['context'].get('state_path') != state['upstream']:
+            raise ValueError('upstream snapshot does not bind the required review state')
         up = json.loads(checked_file(upstream_root, state['upstream']).read_text())
-        if state.get('tone_contract') and up.get('tone_contract') != state['tone_contract']:
-            raise ValueError('upstream review is for a different confirmed tone contract')
+        if state.get('tone_contract') and up.get('tone_contract'):
+            tone.check_contract_scope(upstream_root, up['tone_contract'], root, state['tone_contract'], state.get('practice_scope') or state['scope'], registry_root=registry_root or root)
         if (up.get('role'), up.get('current')) != need:
             raise ValueError('upstream record is not the required review: %s %s' % need)
         try:
@@ -68,21 +68,21 @@ def upstream_check(root, role, current, state, registry_root=None):
             raise ValueError('upstream review not confirmed or changed: ' + str(error)) from error
     return need
 
-def check_entry(root, state):
+def check_entry(root, state, task_context=None):
     root = Path(root).resolve()
     role, stage = state['role'], state['current']
     if stage not in STAGES.get(role, [])[:-1]:
         raise ValueError('dispatch must name a registered professional stage')
     profession, requirements = framework(root, role, stage)
     upstream_check(root, role, stage, state)
-    triggered = tone.check_stage(root, state, [], requirements, phase='entry', registry_root=root)
+    triggered = tone.check_stage(root, state, [], requirements, phase='entry', registry_root=root, task_context=task_context)
     return {'profession': profession, 'triggered': triggered}
 
 def framework_outputs(root, state, result, registry_root=None):
     """Files that demonstrate newly checked obligations produced by this stage."""
     _, requirements = framework(registry_root or root, state['role'], state['current'])
     completed = [row for row in result.get('framework', {}).get('triggered', [])
-                 if row['requirement'] in requirements.get('complete', ())]
+                 if row['requirement'] in requirements.get('complete', ()) or result.get('increment_review') and row['requirement'] in {'implementation_walkthrough','increment_fit'}]
     paths = {item['path'] for item in state['artifacts']}
     if any(row['requirement'] == 'direction_fit' for row in completed):
         direction = tone.read(root, tone.DEFAULT_PATH)
@@ -99,16 +99,12 @@ def framework_outputs(root, state, result, registry_root=None):
         paths.update(item['path'] for item in record['artifacts'])
         paths.update(record[key]['path'] for key in ('screenshot', 'manual_review') if key in record)
         paths.update(item['path'] for item in record.get('anchors', ()))
+        if key=='asset_anchors':paths.update(record['comparison'][name]['path'] for name in ('review_page','scene_sample'))
     return completed, paths
 
 def digest(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 def checked_file(root,ref):
-    root=Path(root).resolve()
-    rel=Path(ref)
-    if rel.is_absolute() or '..' in rel.parts:raise ValueError('evidence path must stay in project')
-    p=root/rel
-    if p.is_symlink() or not p.resolve().is_relative_to(root) or not p.is_file():raise ValueError('evidence is missing or unsafe: '+ref)
-    return p
+    return tone.evidence.file(root,ref)
 
 def artifact_digest(root,artifacts):
     if not artifacts:raise ValueError('artifacts required')
@@ -125,7 +121,7 @@ def deciding_person(root,role,reply):
     """In projects with two or more listed people, the reply names a person who may decide for this flow."""
     path=Path(root).resolve()/ROSTER
     if not path.is_file():return None
-    people={p.get('id'):p for p in json.loads(path.read_text(encoding='utf-8')).get('people',[]) if isinstance(p,dict)}
+    people={p.get('id'):p for p in json.loads(checked_file(root, ROSTER).read_text(encoding='utf-8')).get('people',[]) if isinstance(p,dict)}
     if not people:raise ValueError('explicit people registry is empty')
     pid=reply.get('person_id')
     if pid not in people:raise ValueError('team project: reply must name a listed person (person_id)')
@@ -133,13 +129,20 @@ def deciding_person(root,role,reply):
     if not allowed&set(people[pid].get('decides',[])):raise ValueError('person has no decision authority for this flow or its upstream')
     return pid
 
-def check(root,state,conversation=True,registry_root=None,seal=True):
+def _check(root,state,conversation=True,registry_root=None,seal=True,task_context=None,historical=False):
     root=Path(root).resolve();role=state['role'];stages=STAGES[role]
     current=state['current'];following=state['next']
     if current not in stages[:-1] or stages[stages.index(current)+1]!=following:raise ValueError('invalid or skipped stage transition')
     scope=state['scope']
     if not isinstance(scope,list) or not scope or not all(isinstance(s,str) and s.strip() for s in scope) or len(set(scope))!=len(scope):raise ValueError('explicit unique scope required')
     if state.get('blockers')!=[]:raise ValueError('unresolved or unspecified blockers')
+    if task_context:
+        dispatched=task_context.get('dispatched',{})
+        for key in ('role','current','scope','practice_scope','tone_contract','upstream','upstream_bundle'):
+            if key in dispatched and state.get(key)!=dispatched[key]:raise ValueError('completion differs from dispatched '+key)
+        _, declared=framework(registry_root or root,role,current)
+        for key in declared.get('entry',[]):
+            if state.get('practice_evidence',{}).get(key)!=dispatched.get('practice_evidence',{}).get(key):raise ValueError('completion replaced dispatched historical evidence: '+key)
     if conversation:
         # Requests made in conversation must reach files before moving on (FEEDBACK-PROTOCOL §6).
         ref=state.get('conversation_check')
@@ -170,41 +173,79 @@ def check(root,state,conversation=True,registry_root=None,seal=True):
         if reply.get('quote') != message:raise ValueError('reply quote must equal the complete response message')
         if reply.get('display_sha256') != req['display_sha256']:raise ValueError('reply is bound to another display')
         if reply.get('message_sha256') != tone.evidence.digest(message):raise ValueError('reply message changed')
+        if (Path(registry_root or root)/'management/runtime/tasks.sqlite3').is_file() and current!='P-1':
+            receipt=reply.get('review_receipt') or state.get('review_receipt')
+            binding=tone.evidence.verify_human_receipt(registry_root or root,receipt,artifacts=state['artifacts'])
+            if binding['display']['sha256']!=req['display_sha256'] or binding['quote']!=message:raise ValueError('stage confirmation differs from its actual PM attention')
+            if task_context and binding.get('task_id') and binding['task_id']!=task_context['task_id']:raise ValueError('stage confirmation was displayed for a different task')
     need=upstream_check(root, role, current, state, registry_root)
     profession, requirements = framework(registry_root or root, role, current)
-    triggered = tone.check_stage(root, state, state['artifacts'], requirements, registry_root=registry_root or root, seal=seal)
+    triggered = tone.check_stage(root, state, state['artifacts'], requirements, registry_root=registry_root or root, seal=seal, task_context=task_context, historical=historical)
+    increment_review=bool(task_context and task_context.get('increment_review'))
+    if increment_review:
+        additional=tone.check_increment(root,state,state['artifacts'],registry_root=registry_root or root,seal=seal,task_context=task_context,historical=historical)
+        triggered += [row for row in additional if row not in triggered]
     result={'allowed':True,'role':role,'from':current,'to':following,'scope':scope,'artifact_sha256':content_hash,'limitation':'Validates records and files, not human identity or professional quality.'}
+    if increment_review:result['increment_review']=True
     if triggered:
         result['framework'] = {'profession': profession, 'triggered': triggered, 'tone_contract': state['tone_contract']}
     result.update(delegated)
     if current in REVIEW[role] and person:result['confirmed_by']=person
     if need:result['upstream']=state['upstream']
-    if seal:
-        # Only a successful check creates a frozen closure. Persist returned refs for later stages.
-        token = tone.evidence.digest(state)
-        state_path = 'management/stage-reviews/' + token + '/state.json'
-        dest = Path(root) / state_path
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        body = json.dumps(state, ensure_ascii=False, sort_keys=True, indent=2) + '\n'
-        if dest.exists() and dest.read_text(encoding='utf-8') != body:raise ValueError('stage review state is immutable')
-        dest.write_text(body, encoding='utf-8')
-        refs = [tone.evidence.ref(root, state_path), *state['artifacts']]
-        for key in ('request', 'response', 'conversation_check', 'tone_fit_review'):
-            if state.get(key):refs.append(tone.evidence.ref(root, state[key]))
-        if current in REVIEW[role] and not delegated:
-            refs.extend([tone.evidence.ref(root, req['display_evidence']), tone.evidence.ref(root, reply['source'])])
-        # Historical entries live in their own verified bundles. They may reference an older
-        # version of the same logical source path, so never merge them into the current view.
-        current_refs = [state['tone_contract']] if state.get('tone_contract') else []
-        for key in requirements.get('complete', []):
-            current_refs.extend(state.get('practice_evidence', {}).get(key, {}).values())
-        current_files = tone.evidence.closure(root, current_refs) if current_refs else {}
-        refs.extend({'path':name,'sha256':sha} for name,sha in current_files.items())
-        result['review_bundle'] = tone.evidence.seal_bundle(root, refs,
-            {'role':role, 'stage':current, 'scope':scope, 'tone_contract':state.get('tone_contract'), 'state_path':state_path},follow_refs=False)
-        result['upstream_state'] = state_path
-        result['practice_evidence'] = state.get('practice_evidence', {})
+    if task_context:
+        controls={state.get(key) for key in ('request','response','conversation_check','tone_fit_review','practice_completion') if state.get(key)}
+        for value in tone.evidence.references(state.get('practice_evidence',{})):
+            controls.add(value['path'])
+            record=json.loads(tone.verify_ref(root,value).read_text())
+            for key in ('screenshot','manual_review','run_evidence','timing_evidence','playtest_evidence'):
+                if isinstance(record.get(key),dict):controls.add(record[key]['path'])
+            if isinstance(record.get('capture_binding'),dict) and record['capture_binding'].get('receipt'):controls.add(record['capture_binding']['receipt']['path'])
+        controls.update(task_context.get('review_files',{}))
+        if isinstance(state.get('implementation_handoff'),dict):controls.add(state['implementation_handoff']['path'])
+        actual={value['path']:value['sha256'] for value in state['artifacts']}
+        handed=task_context.get('handed_files',{})
+        required={name:sha for name,sha in handed.items() if name not in controls}
+        if not required or any(actual.get(name)!=sha for name,sha in required.items()):raise ValueError('stage artifacts do not cover the actual task and child handover')
     return result
+
+
+def check(root,state,conversation=True,registry_root=None,seal=True,task_context=None):
+    root=Path(root).resolve();authority=Path(registry_root or root).resolve()
+    if seal and root!=authority:raise ValueError('cross-root stage sealing is not supported; use seal=False for an isolated evidence view')
+    historical=False
+    candidate=root.parent/'manifest.json'
+    if root!=authority and candidate.is_file():
+        manifest=json.loads(candidate.read_text())
+        context=manifest.get('context',{})
+        if all(context.get(key) for key in ('role','stage','state_path')):
+            reference=tone.evidence.ref(authority,candidate.relative_to(authority).as_posix())
+            _,manifest=tone.evidence.stage_receipt(authority,reference)
+            task_context=manifest['context'].get('task_context')
+            historical=True
+    with tone.evidence.track_reads() as reads:
+        result=_check(root,state,conversation,authority,seal,task_context,historical)
+        if not seal:return result
+        token=tone.evidence.digest(state)
+        state_path='management/stage-reviews/'+token+'/state.json'
+        body=json.dumps(state,ensure_ascii=False,sort_keys=True,indent=2)+'\n'
+        published=tone.evidence.publish_immutable(root,state_path,body)
+        refs={state_path:published['sha256']}
+        # Include every project evidence file actually read, including delegated grants,
+        # handoff metadata, nested upstream states and the exact bundle members consumed.
+        for path,sha in reads.items():
+            if path.is_relative_to(root):refs[path.relative_to(root).as_posix()]=sha
+        context={'role':state['role'],'stage':state['current'],'scope':state['scope'],
+                 'tone_contract':state.get('tone_contract'),'state_path':state_path,'task_context':task_context}
+        bundle=tone.evidence.seal_bundle(root,[dict(path=name,sha256=sha) for name,sha in refs.items()],context,follow_refs=False)
+        view,_=tone.evidence.verify_bundle(root,bundle)
+        saved=json.loads(tone.evidence.file(view,state_path).read_text())
+        # Replay first. No successful receipt is published for a snapshot that cannot
+        # independently read the exact evidence the live check consumed.
+        _check(view,saved,conversation,authority,False,task_context,True)
+        tone.evidence.register_stage_receipt(authority,bundle)
+        result.update(review_bundle=bundle,upstream_state=state_path,practice_evidence=state.get('practice_evidence',{}))
+        return result
+
 
 def digests(root,paths):
     """Helper for preparing gate input: per-file sha256 and the combined artifact digest."""

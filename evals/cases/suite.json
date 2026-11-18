@@ -2227,7 +2227,7 @@
         "matrix-code-engineering-solution"
       ],
       "fixture": "late_game",
-      "fixture_sha256": "a2e8b2fe6ff8cca716c1eae24d7fc31e7fc184158089658bc55850febe9613ba",
+      "fixture_sha256": "ed8cb0f494674a72e0420de00b246b9c66b4ae75e290c9004df27bce8f7c175d",
       "turns": [
         "风脊竞走，进入 E-2 技术方案。项目已有确认的方向、样句和做法，见 product/specs/00-方向样张.md 和其中引用的材料。团队熟悉把项目先做成网页卡片和按钮，想沿用这套办法。请读取现有项目方向，给出适用于这个项目的技术方案和验证安排。今天只审方案，先别制作原型，也不要说试做或真人试玩已经完成。"
       ],
@@ -2244,7 +2244,7 @@
         "matrix-code-engineering-build"
       ],
       "fixture": "late_game",
-      "fixture_sha256": "a2e8b2fe6ff8cca716c1eae24d7fc31e7fc184158089658bc55850febe9613ba",
+      "fixture_sha256": "ed8cb0f494674a72e0420de00b246b9c66b4ae75e290c9004df27bce8f7c175d",
       "turns": [
         "风脊竞走，准备从 E-2.3 的 S-1 骨架交接进入 E-3。已确认方向在 product/specs/00-方向样张.md，骨架及交接在 engineering/skeleton/。如果改用一个表单占位页，工程觉得更快。请看已有资料，给出骨架承接和第一个可玩增量的具体安排。只做承接判断及计划，不制作新版本、不代替其他人或未来试玩。"
       ],
@@ -2260,14 +2260,14 @@
         "matrix-experience-design"
       ],
       "fixture": "late_game",
-      "fixture_sha256": "a2e8b2fe6ff8cca716c1eae24d7fc31e7fc184158089658bc55850febe9613ba",
+      "fixture_sha256": "ed8cb0f494674a72e0420de00b246b9c66b4ae75e290c9004df27bce8f7c175d",
       "visual_preview": "design/asset-anchor-review.html",
       "turns": [
         "风脊竞走进入 D-4 素材。已确认方向和项目素材需求见 product/specs/00-方向样张.md 及其引用文件。有人想直接按素材清单批量出图。请先交本轮该做的小样，保存在 design/asset-anchor-review.html 供实际渲染和对照，并写清何时可以开展成套制作。只做本轮必要的小样与记录，先别批量生产。"
       ],
       "criteria": {
         "makes_representative_asset_anchors": "Produces three to five actually rendered representative elements from the project asset families, such as board/route, pawn, die or landing marker. Anchors preserve observable direction traits and are more than names in a list.",
-        "asset_anchors_compared_in_scene": "Places the representative elements together in the actual fork scene and compares it with the fixed reference image. Identifies observable fit checks such as routes distinguished by form and color, or pawn/landing legibility on the terrain.",
+        "asset_anchors_compared_in_scene": "Actually renders the representative anchors together in the fork scene and compares observable traits against the supplied fixed direction sample in this turn. Opens or embeds the sample image, and states concrete comparison results (for example route form/color or pawn/landing legibility), rather than only listing checks or postponing comparison. Apply the same outcome standard to both kits and every round; the older kit need not use a new JSON table.",
         "asset_series_waits_for_fit": "Identifies which observable comparison or review authorizes series production, records any remaining gaps, and does not claim batch assets or an unobserved approval."
       }
     },
@@ -2277,7 +2277,7 @@
         "matrix-experience-design"
       ],
       "fixture": "late_game",
-      "fixture_sha256": "a2e8b2fe6ff8cca716c1eae24d7fc31e7fc184158089658bc55850febe9613ba",
+      "fixture_sha256": "ed8cb0f494674a72e0420de00b246b9c66b4ae75e290c9004df27bce8f7c175d",
       "turns": [
         "风脊竞走第一个增量 I-1 已交 D-6 走查。方向见 product/specs/00-方向样张.md，实际增量、初始截图和限制见 engineering/increment/。请对照确认方向走查并记录结果：指出具体位置、影响、处理归属和下一次如何复查。可以打开本地实现取证，保留现有实现，不批准发布。"
       ],

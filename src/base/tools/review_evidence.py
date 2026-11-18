@@ -8,7 +8,38 @@ from pathlib import Path
 import re
 import struct
 import tempfile
+import os
+import fcntl
 import zlib
+import contextvars
+import contextlib
+import sqlite3
+import sys
+from types import ModuleType
+
+# Several consumer tools load this helper by file path. Share read tracking across those
+# module instances so a nested gate cannot silently escape its caller's snapshot.
+_shared = sys.modules.setdefault('_matrix_evidence_reads', ModuleType('_matrix_evidence_reads'))
+if not hasattr(_shared, 'collectors'):
+    _shared.collectors = contextvars.ContextVar('matrix_evidence_reads', default=())
+
+
+@contextlib.contextmanager
+def track_reads():
+    reads = {}
+    token = _shared.collectors.set((*_shared.collectors.get(), reads))
+    try:
+        yield reads
+    finally:
+        _shared.collectors.reset(token)
+
+
+def note_read(path):
+    path = Path(path).resolve()
+    for collector in _shared.collectors.get():
+        sha = hashlib.sha256(path.read_bytes()).hexdigest()
+        old = collector.setdefault(path, sha)
+        require(old == sha, 'evidence changed while the gate was reading it: ' + str(path))
 
 
 def require(ok, message):
@@ -29,11 +60,46 @@ def file(root, name):
     require(path.resolve().is_relative_to(root) and path.is_file()
             and not any(p.is_symlink() for p in [path, *path.parents] if p != root and root in p.parents)
             and path.stat().st_nlink == 1, 'missing or unsafe project file: ' + name)
+    note_read(path)
     return path
 
 
 def ref(root, name):
     return {'path': name, 'sha256': hashlib.sha256(file(root, name).read_bytes()).hexdigest()}
+
+
+def publish_immutable(root, name, payload):
+    """Atomically publish complete bytes; concurrent same-byte publishers never rewrite."""
+    root=Path(root).resolve()
+    require(isinstance(name,str) and name.strip(),'project file path required')
+    rel=Path(name)
+    require(not rel.is_absolute() and '..' not in rel.parts,'project-relative path required: '+name)
+    require(isinstance(payload,(bytes,str)),'immutable publication needs bytes or text')
+    payload=payload.encode('utf-8') if isinstance(payload,str) else payload
+    target=root/rel;parent=target.parent
+    require(parent.resolve().is_relative_to(root) and not any(p.is_symlink() for p in [parent,*parent.parents]
+            if p!=root and root in p.parents),'unsafe immutable publication directory')
+    parent.mkdir(parents=True,exist_ok=True)
+    lock=parent/('.'+target.name+'.publish.lock')
+    descriptor=os.open(lock,os.O_CREAT|os.O_RDWR|getattr(os,'O_NOFOLLOW',0),0o600)
+    with os.fdopen(descriptor,'r+b') as guard:
+        require(os.fstat(guard.fileno()).st_nlink==1,'unsafe immutable publication lock')
+        fcntl.flock(guard.fileno(),fcntl.LOCK_EX)
+        if target.exists() or target.is_symlink():
+            require(file(root,name).read_bytes()==payload,'immutable file differs: '+name)
+            return ref(root,name)
+        temporary=None
+        try:
+            with tempfile.NamedTemporaryFile(prefix='.'+target.name+'-',suffix='.publish',dir=parent,delete=False) as stream:
+                temporary=Path(stream.name)
+                stream.write(payload);stream.flush();os.fsync(stream.fileno())
+            # The stable per-destination lock serializes all framework publishers.
+            # The target becomes visible only after its complete temporary file exists.
+            os.replace(temporary,target)
+            temporary=None
+        finally:
+            if temporary is not None:temporary.unlink(missing_ok=True)
+    return ref(root,name)
 
 
 def verify_ref(root, value):
@@ -48,7 +114,7 @@ def references(value):
         if isinstance(value.get('path'), str) and isinstance(value.get('sha256'), str):
             yield value
         for key, child in value.items():
-            if key != 'bundle':
+            if key != 'bundle' and not (key=='tool' and value.get('format')=='direction-tool-receipt/1'):
                 yield from references(child)
     elif isinstance(value, list):
         for child in value:
@@ -139,6 +205,41 @@ def verify_bundle(root, value):
     return view, manifest
 
 
+def register_stage_receipt(root, bundle):
+    """Publish only after the caller has successfully replayed the frozen stage."""
+    _, manifest = verify_bundle(root, bundle)
+    context = manifest['context']
+    require(all(context.get(key) for key in ('role', 'stage', 'state_path')), 'stage receipt context required')
+    name = 'management/stage-receipts/' + bundle['sha256'] + '.json'
+    body = {'bundle': bundle, 'role': context['role'], 'stage': context['stage'], 'state_path': context['state_path']}
+    return publish_immutable(root,name,json.dumps(body,ensure_ascii=False,sort_keys=True))
+
+
+def stage_receipt(root, bundle):
+    """A self-consistent bundle alone is not evidence that its stage ever passed."""
+    view, manifest = verify_bundle(root, bundle)
+    name = 'management/stage-receipts/' + bundle['sha256'] + '.json'
+    stored = json.loads(file(root, name).read_text())
+    context = manifest['context']
+    require(stored == {'bundle': bundle, 'role': context.get('role'), 'stage': context.get('stage'),
+                       'state_path': context.get('state_path')}, 'unregistered or substituted stage evidence')
+    return view, manifest
+
+
+def record_origin(root, record, requirement, scope):
+    """Return the successful frozen state that actually carried this exact record ref."""
+    _,record_manifest=verify_bundle(root,record.get('bundle'))
+    producer=record_manifest['context']
+    for path in sorted((Path(root) / 'management/stage-receipts').glob('*.json')):
+        receipt = json.loads(file(root, path.relative_to(root).as_posix()).read_text())
+        view, manifest = stage_receipt(root, receipt['bundle'])
+        state = json.loads(file(view, manifest['context']['state_path']).read_text())
+        candidate = state.get('practice_evidence', {}).get(requirement, {}).get(scope)
+        if candidate == record and all(manifest['context'].get(key)==producer.get(key) for key in ('role','stage')):
+            return view, manifest, state
+    raise ValueError('historical evidence is not from a successful registered stage: ' + requirement)
+
+
 def response_message(root, source, response_id=None):
     """Select a whole stable message; never extract an approval substring."""
     path = file(root, source)
@@ -170,7 +271,74 @@ def review_receipt(root, binding):
     message = response_message(root, response['path'], response.get('response_id'))
     require(message == binding['quote'].strip(), 'confirmation quote must equal the complete response message')
     require(digest(message) == response['message_sha256'], 'response message changed')
+    # Stable message ids disambiguate separate replies with identical wording. With a raw
+    # text reply there is no such evidence, so renaming/copying it cannot create new authority.
+    identity = {'message': response['message_sha256'], 'id': response.get('response_id')}
+    registration = Path(root) / 'management/review-bindings' / (digest(identity) + '.json')
+    authority = {key: binding.get(key) for key in ('display', 'scope', 'direction_sha256')}
+    if registration.exists():
+        require(json.loads(file(root, registration.relative_to(root).as_posix()).read_text()) == authority,
+                'the same response is already bound to another display, scope or direction')
+    else:
+        registration.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with registration.open('x', encoding='utf-8') as stream:
+                json.dump(authority, stream, ensure_ascii=False, sort_keys=True)
+        except FileExistsError:
+            require(json.loads(registration.read_text()) == authority, 'response binding changed')
     return seal_bundle(root, [binding['display'], {'path': response['path'], 'sha256': response['sha256']}], binding, follow_refs=False)
+
+
+def verify_response_registration(root, binding):
+    identity = {'message': binding['response']['message_sha256'], 'id': binding['response'].get('response_id')}
+    name = 'management/review-bindings/' + digest(identity) + '.json'
+    registered = json.loads(file(root, name).read_text())
+    require(registered == {key: binding.get(key) for key in ('display', 'scope', 'direction_sha256')},
+            'response authority was rebound to another display, scope or direction')
+    return binding
+
+
+@contextlib.contextmanager
+def authority_connection(root, authority_db=None):
+    database = (Path(root) / 'management/runtime/tasks.sqlite3').resolve()
+    if authority_db is not None:
+        locations = {Path(row[2]).resolve() for row in authority_db.execute('PRAGMA database_list') if row[1] == 'main' and row[2]}
+        require(database in locations, 'authority connection must belong to this project PM database')
+        yield authority_db
+    else:
+        with sqlite3.connect(database.as_uri() + '?mode=ro', uri=True) as db:
+            yield db
+
+
+def verify_human_receipt(root, receipt, *, artifacts=None, direction_sha256=None, authority_db=None):
+    """A PM human observation must be a receipt of its actual answered attention record."""
+    view, manifest = verify_bundle(root, receipt)
+    binding = check_review_binding(manifest['context'], direction_sha256=direction_sha256)
+    wanted = {(row['path'], row['sha256']) for row in artifacts or ()}
+    shown = {(row['path'], row['sha256']) for row in binding.get('artifacts', ())}
+    require(not wanted or wanted <= shown, 'human observation does not cover the current artifacts')
+    database = Path(root) / 'management/runtime/tasks.sqlite3'
+    if database.is_file():
+        with authority_connection(root, authority_db) as db:
+            rows = [(kind, json.loads(raw)) for kind, raw in db.execute('SELECT kind,data FROM pm_records')]
+            tasks = [json.loads(raw) for (raw,) in db.execute('SELECT data FROM tasks')]
+        attention = next((row for kind, row in rows if kind == 'human_attention'
+                          and row.get('id') == binding['request_id']), {})
+        require(attention.get('seconds') is not None and attention.get('response_message') == binding['quote']
+                and attention.get('context', {}).get('scope') == binding['scope'],
+                'human receipt must come from the actual answered PM human_attention')
+        receipts = list(attention.get('review_receipts', ()))
+        receipts += [row.get('confirmation_receipt') for kind, row in rows if kind == 'direction_sample']
+        receipts += [(task.get('human_review') or {}).get('review_receipt') for task in tasks]
+        require(receipt in receipts, 'human receipt has no trusted PM binding operation')
+        _, displayed = verify_bundle(root, attention['display_bundle'])
+        _, replied = verify_bundle(root, attention['response_bundle'])
+        require(binding['display']['path'] == attention['display']
+                and any(row['logical_path'] == binding['display']['path'] and row['sha256'] == binding['display']['sha256']
+                        for row in displayed['files'])
+                and any(row['logical_path'] == binding['response']['path'] and row['sha256'] == binding['response']['sha256']
+                        for row in replied['files']), 'human receipt differs from the real display or response')
+    return binding
 
 
 def png_dimensions(path):

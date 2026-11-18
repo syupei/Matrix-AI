@@ -70,6 +70,19 @@ class LayoutTests(unittest.TestCase):
         self.assertTrue(manifest['package'].startswith('matrix-ai/'))
         self.assertTrue((KIT / 'START.md').read_text(encoding='utf-8').startswith('# Matrix-AI '))
 
+    def test_runtime_links_resolve_in_both_installed_skill_directories(self):
+        checker = load(ROOT / 'tools/install_test.py', 'runtime_link_install_check')
+        for skills, entry in checker.HOSTS:
+            with self.subTest(skills=skills), tempfile.TemporaryDirectory() as folder:
+                target = Path(folder)
+                code, result = checker.install(KIT, target, '--skills-dir', skills, '--entry', entry, '--apply')
+                self.assertEqual(code, 0, result)
+                self.assertEqual(checker.installed_links(target, skills), [])
+                # The same audit must detect the cross-host regression, not only count files.
+                page = target / 'matrix/orchestration/DIRECTION-SAMPLE.md'
+                page.write_text(page.read_text() + '\n[missing](missing-template.md)\n')
+                self.assertTrue(any('missing-template.md' in error for error in checker.installed_links(target, skills)))
+
 
 class SharedIndexTests(unittest.TestCase):
     def setUp(self):

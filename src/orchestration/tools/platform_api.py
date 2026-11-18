@@ -168,6 +168,10 @@ def event(root, db, request, p):
         for n, item in enumerate(commands):
             need(isinstance(item,dict) and not {'actor','event_id'} & item.keys(), 'INVALID_REQUEST', 'controller supplies command identity')
             need(item.get('op') in {'create','update','report','review','transition','reassign','handoff','production_feedback'}, 'UNAUTHORIZED', 'run cannot issue configuration or human approval commands')
+            if rec.get('purpose')=='start':
+                need(item.get('op') in {'report','production_feedback'}, 'UNAUTHORIZED', 'start runs may only report/feedback; use the handover event to yield')
+            elif rec.get('purpose')=='check':
+                need(item.get('op') in {'review','report','production_feedback'}, 'UNAUTHORIZED', 'check runs may only submit review/report/feedback')
             tasks = pm.task_map(db)
             tid = (item.get('task') or {}).get('parent') if item.get('op')=='create' else item.get('task_id')
             need(pm.team.within(tid, rec.get('task_ids') or [rec['task_id']], tasks), 'UNAUTHORIZED', 'command is outside run task scope')

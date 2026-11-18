@@ -122,6 +122,8 @@ def packet(pm, root, rid, purpose, inst, tasks, stops, all_tasks=None, managed=F
         back = t.get('sent_back')
         body += ['## 任务 ' + t['id'] + '：' + t['title'], '', '- 目标：' + t['goal'], '- 输入：' + bullet(t['inputs']), '- 成果：' + bullet(t['outputs']),
                  '- 判据：' + bullet(t['criteria']), '- 下一步：' + t['next_action']]
+        if t.get('input_provenance'):
+            body += ['- 本次启动的可信输入快照：'+json.dumps(t['input_provenance'],ensure_ascii=False)+'；outputs内可继续演进，范围外输入变化交PM。']
         if t.get('practice_stage'):
             body += ['- 当前专业阶段与前置记录：' + json.dumps(t['practice_stage'], ensure_ascii=False),
                      '- 阶段完成记录交回路径：' + str(t.get('practice_completion') or '向派发者核对')]
@@ -137,7 +139,7 @@ def packet(pm, root, rid, purpose, inst, tasks, stops, all_tasks=None, managed=F
                  '- 交出（自检完成）：{"op":"hand_over","actor":"' + iid + '","event_id":"' + rid + '-handover","run":"' + rid + '",'
                  '"evidence":["<成果与证据的路径>"],"summary":"<一句话说明>"}',
                  '- 受阻：{"op":"report_blocked","actor":"' + iid + '","event_id":"' + rid + '-blocked","run":"' + rid + '","reason":"<卡在哪、需要谁做什么>"}',
-                 '- 要拆给别人做的：按你的任职建子任务（见 matrix/orchestration/TASK-TOOL.md），写一条 report 说明拆分，然后结束本次运行；子任务交出后平台会再拉起你检验。',
+                 '- 要拆给别人做的：执行者先报 production_feedback；仅 PM、范围内 lead/workflow_pm 或本专业 master 可按任职建子任务（见 matrix/orchestration/TASK-TOOL.md），写一条 report 说明拆分，然后结束本次运行；子任务交出后平台会再拉起你检验。',
                  '- 不写"完成"：交出后由派发者检验、采用。']
     elif purpose == 'check':
         body += ['## 待你检验', '']
@@ -165,7 +167,7 @@ def packet(pm, root, rid, purpose, inst, tasks, stops, all_tasks=None, managed=F
         body = body[:split] + ['## 回报', '',
             '将最终回报写入 management/instances/' + iid + '/workspace/public/' + rid + '-handoff.json。',
             'JSON 为 {"summary":"交付摘要","evidence":["本实例 workspace/public/ 下候选文件的项目相对路径"]}；受阻则写 {"reason":"缺口及待谁处理"}。',
-            '检验或协调运行可写 {"commands":[任务工具命令]}；每条省略 actor/event_id，仅限本次任务树内的 create/update/report/review/transition/reassign/handoff，修改仍带当前 expected_revision。人工批准和配置不得由执行者提交。',
+            '执行 start 运行只能用 commands 上报 report/production_feedback，交回用 handover；检验 check 的 commands 仅 review/report/production_feedback；协调 attend 才可在任职范围与本次任务树内 create/update/report/review/transition/reassign/handoff。每条省略 actor/event_id，修改仍带当前 expected_revision。人工批准和配置不得由执行者提交。',
             '只写本实例工作区，不直接调用任务工具或平台控制器。控制器按真实实例身份接收回报，交出不等于采用。']
     text = '\n'.join(head + body) + '\n'
     path = 'management/instances/' + iid + '/runs/' + rid + '.md'

@@ -9,6 +9,8 @@ import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 
+from pm_test_inputs import business_source,actual_output,bound_review_state
+from practice_fixture import put
 from kit import KIT
 from practice_fixture import installed_rule_input
 SOURCE = KIT
@@ -26,6 +28,11 @@ class IntegrityTests(unittest.TestCase):
         self.seq = 0
         self.call('init', 'PM', config=dict(project='SIMULATED', pm_actor='PM', authorization='SIMULATED only',
                   frontdoor_id='SIMULATED', max_slots=8))
+        roots='code/common' if self._testMethodName=='test_parallel_instances_cannot_write_same_registered_range' else None
+        roles=('matrix-code-engineering-build' if self._testMethodName in {'test_query_counts_project_work_once_and_groups_instances_by_role','test_parallel_instances_cannot_write_same_registered_range','test_disjoint_same_role_instances_can_start_independently'} else 'SIM-task-engine-worker')
+        actors=[(iid,roles,{'write_roots':[roots or 'code/'+iid]}) for iid in ['DEV-1','DEV-2']]+[(iid,'SIM-task-engine-'+iid) for iid in ['QA-1','PROD-1','DES-1','OTHER']]
+        self.business=business_source(self,pm,actors=actors)
+
 
     def call(self, op, actor='DEV-1', **kw):
         self.seq += 1
@@ -36,19 +43,20 @@ class IntegrityTests(unittest.TestCase):
 
     def create(self, tid, parent=None, actor=None, **kw):
         data = dict(id=tid, parent=parent, title='SIM '+tid, owner='DEV-1', checker='QA-1',
-                    goal='SIMULATED delivery', inputs=[self.rule_input], outputs=['SIM output'], criteria=['SIM correct'],
+                    goal='SIMULATED delivery', inputs=[self.rule_input], outputs=['SIM output '+tid], criteria=['SIM correct'],
                     next_action='SIM next', executor='DEV-1')
         data.update(kw)
+        if data['inputs']==[self.rule_input]:data.update(self.business)
         with pm.connect(self.root,readonly=True) as db:
             if 'code-engineering' in pm.admission.task_professions(pm.api(),self.root,db,data):
                 data.setdefault('practice_stage',{'role':'engineering','current':'E-1.2','scope':['SIM interface model']})
-        return self.call('create', actor or ('PM' if parent is None or data.get('project_level') else self.t(parent)['owner']), task=data)
+        return self.call('create', actor or 'PM', task=data)
 
     def mutate(self, op, tid, actor=None, **kw):
         return self.call(op, actor or self.t(tid)['owner'], task_id=tid, expected_revision=self.t(tid)['revision'], **kw)
 
     def prepare(self, tid, **kw):
-        self.mutate('update', tid, changes=dict(evidence=['SIMULATED work evidence'], **kw), reason='SIMULATED work')
+        self.mutate('update', tid, 'PM' if kw else None, changes=dict(evidence=[actual_output(self,self.t(tid))], **kw), reason='SIMULATED work')
         self.mutate('review', tid, self.t(tid)['checker'], outcome='passed', criteria_checked=self.t(tid)['criteria'], evidence=['SIMULATED checker; not real verification'])
         if self.t(tid)['human_required']:
             self.mutate('human_review', tid, 'PM', outcome='approved', presented_ref='SIM shown', source='SIM reply', quote='SIMULATED not real human approval', scope='SIM scope')
@@ -79,6 +87,12 @@ class IntegrityTests(unittest.TestCase):
     def change(self, affected=('WORK',), parties=('DEV-1',), scopes=()):
         self.create('ANALYZE', owner='PROD-1')
         (self.root/'oral.txt').write_text('SIMULATED: change this requirement')
+        self.call('intake_register','PM',id='SIM-change',source_id='SIM-change',path='oral.txt',version='1',source='SIM exact change text',profession='product',new_family_reason='SIM separately reviewed change')
+        self.call('intake_submit','PM',id='SIM-change',master='product-001')
+        self.call('intake_review','product-001',id='SIM-change',outcome='approved',conclusion='SIM original change assessed for this mechanism',resolved_risks=[],resolved_conflicts=[],open_items=[],human_required=False,coexists_with=self.business['admitted_inputs'],conflicts_with=[])
+        self.call('intake_admit','PM',id='SIM-change')
+        state=bound_review_state(self,pm,[*self.business['inputs'],'oral.txt'],prefix='SIM-change-confirm',person='SIM-owner')
+        self.change_basis=dict(inputs=[*self.business['inputs'],'oral.txt'],admitted_inputs=[*self.business['admitted_inputs'],'SIM-change'],stage_transition=put(self.root,'SIM-change-stage.json',state)['path'])
         return self.call('record_change', 'PM', id='C', type='modify', source='oral.txt', quote='SIMULATED requirement change',
                          affected_tasks=list(affected), scope_ids=list(scopes), analysis_task='ANALYZE', participants=list(parties))
 
@@ -100,7 +114,7 @@ class IntegrityTests(unittest.TestCase):
 
     def test_cancellation_does_not_remove_delivery_obligation(self):
         self.scope(('A',)); self.create('A','ALL')
-        self.mutate('transition','A','DEV-1',state='cancelled',reason='SIM cancel')
+        self.mutate('transition','A','PM',state='cancelled',reason='SIM cancel')
         self.bind('A','A'); self.prepare('ALL')
         with self.assertRaisesRegex(pm.TaskError,'delivery_not_current'):
             self.close('ALL')
@@ -122,10 +136,12 @@ class IntegrityTests(unittest.TestCase):
         self.assertTrue(self.t('WORK')['needs_recheck']); self.assertEqual('done',self.t('WORK')['state'])
 
     def test_no_fake_human_exit_and_no_self_signed_independent_qa(self):
-        self.scope(('A',), exits=('qa','human')); self.create('A','ALL',checker='DEV-1'); self.complete('A')
-        self.bind('A','A','qa'); self.bind('A','A','human')
+        self.scope(('A',), exits=('qa','human'))
+        with self.assertRaisesRegex(pm.TaskError,'independent'):
+            self.create('SELF','ALL',checker='DEV-1')
+        self.create('A','ALL');self.complete('A');self.bind('A','A','qa');self.bind('A','A','human')
         codes={i['code'] for i in pm.execute(self.root,dict(op='audit',task_ids=['ALL']))['issues']}
-        self.assertEqual({'human_gate_missing','independent_check_missing'},codes)
+        self.assertEqual({'human_gate_missing'},codes)
 
     def test_pending_change_blocks_only_related_dispatch(self):
         self.create('WORK'); self.create('OTHER'); self.change()
@@ -137,11 +153,11 @@ class IntegrityTests(unittest.TestCase):
 
     def test_owner_assessment_applies_plan_and_retries_are_idempotent(self):
         self.create('WORK'); self.change()
-        c=dict(op='update',actor='DEV-1',task_id='WORK',expected_revision=1,changes={'inputs':['SIM v2']},reason='SIM change',scope_authorization='SIM source')
+        c=dict(op='update',actor='DEV-1',task_id='WORK',expected_revision=1,changes=self.change_basis,reason='SIM change',scope_authorization='SIM source')
         self.assess([{'action':'update','task_id':'WORK'}],[c])
         cmd=dict(op='apply_change_plan',actor='PM',event_id='SIM-PLAN',id='C',expected_revision=self.record('change','C')['revision'])
         result=pm.execute(self.root,cmd); self.assertEqual(result,pm.execute(self.root,cmd))
-        self.assertEqual(['SIM v2'],self.t('WORK')['inputs'])
+        self.assertEqual(self.change_basis['inputs'],self.t('WORK')['inputs'])
         self.mutate('transition','WORK',state='running',reason='SIM start',execution_receipt='SIM receipt')
 
     def test_partial_assessments_cannot_activate_a_plan(self):
@@ -157,7 +173,7 @@ class IntegrityTests(unittest.TestCase):
 
     def test_failed_plan_rolls_back_all_task_changes_and_events(self):
         self.create('WORK'); self.change()
-        c=dict(op='update',actor='DEV-1',task_id='WORK',expected_revision=1,changes={'inputs':['SIM v2']},reason='SIM change',scope_authorization='SIM')
+        c=dict(op='update',actor='DEV-1',task_id='WORK',expected_revision=1,changes=self.change_basis,reason='SIM change',scope_authorization='SIM')
         self.assess([{'action':'update','task_id':'WORK'}],[c,dict(c,expected_revision=999)])
         before=pm.execute(self.root,{'op':'status'})
         with self.assertRaisesRegex(pm.TaskError,'stale revision'):
@@ -170,7 +186,7 @@ class IntegrityTests(unittest.TestCase):
         self.create('WORK')
         command=dict(op='update',actor='DEV-1',event_id='forged-plan',task_id='WORK',expected_revision=1,
                      changes={'inputs':['Unapproved new input']},reason='Claimed PM plan',_applying={'change_id':'C'})
-        with self.assertRaisesRegex(pm.TaskError,'responsible manager'):
+        with self.assertRaisesRegex(pm.TaskError,'authorized manager'):
             pm.execute(self.root,command)
         with self.assertRaisesRegex(pm.TaskError,'trusted internal'):
             pm.execute(self.root,command,_applying='C')
@@ -184,15 +200,14 @@ class IntegrityTests(unittest.TestCase):
     def test_completed_task_keeps_history_when_new_rework_is_planned(self):
         self.create('WORK'); self.complete('WORK'); revision=self.t('WORK')['work_revision']; self.change()
         self.assess([{'action':'keep','task_id':'WORK'},{'action':'rework','task_id':'FIX','replaces':'WORK'}])
-        task=dict(id='FIX',parent=None,title='SIM fix',owner='DEV-1',checker='QA-1',goal='SIM v2',inputs=['v2'],outputs=['new'],criteria=['ok'],next_action='fix',executor='DEV-1')
+        task=dict(id='FIX',parent=None,title='SIM fix',owner='DEV-1',checker='QA-1',goal='SIM v2',**self.change_basis,outputs=['new'],criteria=['ok'],next_action='fix',executor='DEV-1')
         self.apply(pm_commands=[dict(op='create',actor='PM',task=task)])
         old=self.t('WORK'); self.assertEqual('done',old['state']); self.assertEqual(revision,old['work_revision']); self.assertTrue(old['needs_recheck'])
         with self.assertRaisesRegex(pm.TaskError,'incomplete|analysis task is not complete'):
             self.call('close_change','PM',id='C',expected_revision=self.record('change','C')['revision'])
 
     def test_query_counts_project_work_once_and_groups_instances_by_role(self):
-        for iid in ['DEV-1','DEV-2']:
-            self.call('register_instance','PM',id=iid,instance=dict(role='matrix-code-engineering-build',endpoint='SIM-'+iid,write_roots=['code/'+iid]))
+        self.assertTrue(all(self.record('instance',iid)['role']=='matrix-code-engineering-build' for iid in ['DEV-1','DEV-2']))
         self.create('ONE'); self.create('TWO',owner='DEV-2',executor='DEV-2'); self.create('CHILD','ONE')
         q=pm.execute(self.root,dict(op='query',role='matrix-code-engineering-build'))
         self.assertEqual(2,q['counts']['total']); self.assertEqual({'ONE','TWO'},{t['id'] for t in q['tasks']})
@@ -208,8 +223,7 @@ class IntegrityTests(unittest.TestCase):
         self.assertEqual(['WORK'],[t['id'] for t in pm.execute(self.root,{'op':'query'})['tasks']])
 
     def test_parallel_instances_cannot_write_same_registered_range(self):
-        for iid in ['DEV-1','DEV-2']:
-            self.call('register_instance','PM',id=iid,instance=dict(role='matrix-code-engineering-build',endpoint='SIM-'+iid,write_roots=['code/common']))
+        self.assertTrue(all(self.record('instance',iid)['role']=='matrix-code-engineering-build' for iid in ['DEV-1','DEV-2']))
         self.create('ONE'); self.create('TWO',owner='DEV-2',executor='DEV-2')
         self.mutate('transition','ONE',state='running',reason='SIM',execution_receipt='SIM')
         with self.assertRaisesRegex(pm.TaskError,'instance_or_write_busy'):
@@ -217,8 +231,8 @@ class IntegrityTests(unittest.TestCase):
 
     def test_live_executor_cannot_be_silently_swapped(self):
         self.create('WORK'); self.mutate('transition','WORK',state='running',reason='SIM',execution_receipt='SIM')
-        with self.assertRaisesRegex(pm.TaskError,'stop current executor'):
-            self.mutate('update','WORK',changes={'executor':'DEV-2'},reason='SIM replacement')
+        with self.assertRaisesRegex(pm.TaskError,'stop admitted production'):
+            self.mutate('update','WORK','PM',changes={'executor':'DEV-2'},reason='SIM replacement')
 
     def test_interruption_returns_resume_candidate_without_starting_agent(self):
         self.create('WORK'); self.create('URGENT')
@@ -268,7 +282,7 @@ class IntegrityTests(unittest.TestCase):
         self.assess([{'action':'new','task_id':'BUILD'}])
         commands=[]
         for tid,owner in [('PRODUCT','PROD-1'),('BUILD','DEV-1')]:
-            task=dict(id=tid,parent=None,title='SIM '+tid,owner=owner,checker='QA-1',goal='SIM requirement',inputs=['SIM source'],outputs=['SIM output'],criteria=['SIM acceptance'],next_action='SIM next',executor=owner)
+            task=dict(id=tid,parent=None,title='SIM '+tid,owner=owner,checker='QA-1',goal='SIM requirement',**self.change_basis,outputs=['SIM output '+tid],criteria=['SIM acceptance'],next_action='SIM next',executor=owner)
             commands.append(dict(op='create',actor='PM',task=task))
         self.apply(pm_commands=commands)
         self.assertEqual({'PRODUCT','BUILD'},{d['task_id'] for d in self.record('change','C')['dispositions']})
@@ -400,8 +414,7 @@ class IntegrityTests(unittest.TestCase):
         self.assertFalse(self.t('WAIT')['ready'])
 
     def test_disjoint_same_role_instances_can_start_independently(self):
-        for iid in ['DEV-1','DEV-2']:
-            self.call('register_instance','PM',id=iid,instance=dict(role='matrix-code-engineering-build',endpoint='SIM-'+iid,write_roots=['code/'+iid]))
+        self.assertTrue(all(self.record('instance',iid)['role']=='matrix-code-engineering-build' for iid in ['DEV-1','DEV-2']))
         self.create('ONE'); self.create('TWO',owner='DEV-2',executor='DEV-2')
         for tid in ['ONE','TWO']:
             self.mutate('transition',tid,state='running',reason='SIM start',execution_receipt='SIM receipt')

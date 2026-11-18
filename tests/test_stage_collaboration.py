@@ -127,8 +127,9 @@ class CollaborationTests(unittest.TestCase):
         self.assertEqual(route['inform'], ['lead'])
 
     def task(self, tid, **kw):
-        return self.call('create', task=dict(id=tid, title=tid, parent=None, owner='PM', executor='PM', checker='QA',
-                                            goal='SIM personnel and decision routing only', inputs=[self.rule_input], outputs=['SIM'], criteria=['SIM'], next_action='SIM next', **kw))
+        kw.setdefault('kind','coordination')
+        return self.call('create', task=dict(id=tid, title=tid, parent=None, owner='PM', executor=None, checker='QA',
+                                            goal='SIM personnel and decision routing only', inputs=[self.rule_input], outputs=['management/SIM'], criteria=['SIM'], next_action='SIM next', **kw))
 
     def test_actual_human_review_uses_same_route(self):
         self.configure(delegations=[self.delegation()])

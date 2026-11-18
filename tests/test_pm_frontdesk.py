@@ -5,6 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
+from pm_test_inputs import business_source,actual_output
 from kit import KIT
 SCRIPT = KIT / 'matrix/orchestration/tools/pm_tasks.py'
 spec = importlib.util.spec_from_file_location('pm_frontdesk_under_test', SCRIPT)
@@ -20,6 +21,7 @@ class FrontDeskTests(unittest.TestCase):
         self.n = 0
         self.call('init', 'SIM-PM', config={'project': 'SIMULATED', 'pm_actor': 'SIM-PM',
                   'authorization': 'SIMULATED only', 'frontdoor_id': 'SIMULATED', 'max_slots': 4})
+        self.business=business_source(self,pm,pm_actor='SIM-PM',actors=[('SIM-OWNER', 'SIM-task-engine-owner'), ('SIM-CHECKER', 'SIM-task-engine-checker'), ('子 Agent build-1', 'SIM-task-engine-executor')])
 
     def call(self, op, actor='SIM-OWNER', **fields):
         self.n += 1
@@ -32,6 +34,8 @@ class FrontDeskTests(unittest.TestCase):
         data = dict(id=tid, parent=None, title='SIM ' + tid, owner='SIM-OWNER', checker='SIM-CHECKER',
                     goal='simulated', inputs=['in'], outputs=['out'], criteria=['ok'], next_action='next')
         data.update(fields)
+        if data['inputs']==['in']:data.update(self.business)
+        data.setdefault('executor',data['owner'])
         return self.call('create', 'SIM-PM', task=data)
 
     def decide(self, tid, actor, outcome='approved'):

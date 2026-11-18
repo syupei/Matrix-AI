@@ -22,18 +22,20 @@ from admission_run import admitted_sources
 REPO = Path(__file__).resolve().parents[1]
 SOURCE = 'https://github.com/syupei/Matrix-AI.git'
 SUBDIR = 'src/professions/product/skills/matrix-product'
-IDENTITY = {'id': 'imported-product-v037', 'version': '3'}
-PROJECT_ID = 'SIM-IMPORTED-PRODUCT-037-REVIEW-REPAIR'
+IDENTITY = {'id': 'imported-product-v037', 'version': '4'}
+PROJECT_ID = 'SIM-IMPORTED-PRODUCT-037-ROUND2-REPAIR'
 MODEL, EFFORT, RUNNER = 'gpt-6-luna', 'medium', 'codex'
 TEMPLATE = REPO / 'docs/platforms/codex-0.167.0.json'
-LEDGER = REPO / 'eval-results/v0.37-review-repair-import-call-ledger'
+LEDGER = REPO / 'eval-results/v0.37-round2-import-call-ledger'
 AUTHOR, REVIEWER = 'ADMISSION', 'SIM-INDEPENDENT-REVIEWER'
 TASK_ID = 'SIM-ADMISSION-037-REPAIR'
 STAGE_STATE = 'product/reviews/P-1-gate.json'
 FIT = 'product/reviews/方向贴合.json'
 FIT_SCREENSHOT = 'design/fit.png'
 FIT_CAPTURE = 'design/fit.png.capture.json'
-SCENE = seed.SCENE
+SCENE = 'design/preview.html'
+PREVIEW_SCREENSHOT = 'design/preview.png'
+PREVIEW_CAPTURE = 'design/preview.png.capture.json'
 CONTRACT = 'product/specs/00-方向样张.md'
 PROFILE = 'product/specs/项目做法档.json'
 TONE_TOOL = 'matrix/base/tools/tone_contract.py'
@@ -78,6 +80,7 @@ def reserve(path, record):
 
 
 def append_event(path, record):
+    path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('a', encoding='utf-8') as stream:
         stream.write(json.dumps(record, ensure_ascii=False) + '\n')
 
@@ -104,6 +107,9 @@ def pm_call(pm, project, out, op, actor='PM', **fields):
 
 
 def source_mapping(base, contract):
+    template=contract.get('templates',{}).get('tone_contract')
+    require(isinstance(template,dict) and template.get('path')=='matrix/base/tone-contract-template.md' and template.get('sha256'),
+            'current shared direction template must be declared in the framework contract')
     source = (base / 'source/SKILL.md').read_text(encoding='utf-8')
     require('## 工作流' in source and '## 硬性关卡' in source and 'P-1 需求澄清' in source,
             'pinned product workflow cannot be located')
@@ -115,6 +121,7 @@ def source_mapping(base, contract):
     }
     methods = [
         '# 适配的产品方法',
+        'P-1按当前框架契约templates.tone_contract读取matrix/base/tone-contract-template.md；共同格式只以该模板为准。',
         '先查用户原话、领域事实、设计建议与待决项。先覆盖核心模块和主线，再细化对象与规则。'
         '产品维护目标、范围、规则及验收；设计制作、工程实现及对外发布交有权角色。'
         '实际批准才标确认；范围变更先核对历史快照并通知受影响接收方。按 ENTRY 指向的共用约束工作。',
@@ -148,8 +155,8 @@ def populate(project):
     require(html.count('已确认方向样张') == 1, 'candidate scene derivation needs the fixed source title')
     html = html.replace('已确认方向样张', 'P-1 待审方向候选')
     html = html.replace('第 3 回合 · 棋子停在岔路', 'P-1 候选待审 · 第 3 回合 · 棋子停在岔路')
-    scene = late_game.put(fixture, SCENE, html)
-    rendered = capture(fixture, SCENE)
+    scene = late_game.put(fixture, seed.SCENE, html)
+    rendered = capture(fixture, seed.SCENE)
     require(rendered['status'] == 'captured', 'prebuilt synthetic design capture failed: ' + str(rendered))
     shutil.copyfile(fixture / rendered['screenshot'], fixture / seed.SCREENSHOT)
     capture_binding = {'artifacts': [scene], 'pixel_size': [1280, 800], 'viewport': '1280x800', 'scale': 1,
@@ -164,10 +171,12 @@ def populate(project):
     write_json(fixture / 'external-references.json', {'references': REFERENCES,
         'observation': 'The preparer located these primary texts. An author who only reads this list has not read the sources or played the games.'})
     shutil.copyfile(Path(seed.__file__), fixture / 'copy_inputs.py')
+    shutil.copyfile(REPO/'evals/import_preflight.py',fixture/'import_preflight.py')
     late_game.put(fixture, 'copy-samples.md', '# 合成内容设计样句草稿\n\n' + late_game.sample_lines())
     late_game.put(fixture, 'review-input.md',
                   '# 合成 P-1 审阅输入\n\n仅用于隔离验证，人物与确认均为合成输入。'
                   '此记录不提供完成结果，也不授权实际项目开发、发布或专家启用。\n\n' + QUOTE + '\n')
+    seed.seal_inputs(fixture)
 
 
 def boundary_script(path, project, out, workspace, sibling):
@@ -218,7 +227,7 @@ def preflight(out, project, boundary, runner, script):
 
 def instrument_hashes():
     return {name:sha(REPO/'evals'/name) for name in ('imported_framework_probe.py','capture_broker.py',
-        'capture_page.mjs','author_capture.py','fixtures/expert_probe_copy_inputs.py','admission_run.py')}
+        'capture_page.mjs','author_capture.py','fixtures/expert_probe_copy_inputs.py','admission_run.py','import_preflight.py')}
 
 
 def prepare(kit, out):
@@ -292,7 +301,7 @@ AUTHOR_SELF = 'product/reviews/作者自检.json'
 REVIEW_REPORT = 'review.json'
 PUBLIC_FILES = (
     STAGE_STATE, CONTRACT, PROFILE, AUTHOR_SELF, 'product/specs/方向简报.md', SCENE,
-    seed.SCREENSHOT, seed.CAPTURE, FIT_SCREENSHOT, FIT_CAPTURE, 'content/场内样句.md', seed.REVIEW_OUTPUT,
+    PREVIEW_SCREENSHOT, PREVIEW_CAPTURE, FIT_SCREENSHOT, FIT_CAPTURE, 'content/场内样句.md', seed.REVIEW_OUTPUT,
     'product/reviews/conversation.md', 'product/reviews/截图回读.md',
 )
 
@@ -316,13 +325,16 @@ def author_prompt(project):
 2. 定向读取experts/{IDENTITY['id']}/{IDENTITY['version']}/ENTRY.md、METHODS.md、REVIEW.json的P-1映射，产品profession的P-1及当前DIRECTION-SAMPLE/PRACTICE-PROFILES/STAGE-GATES所需条款。业务见synthetic-input/genre-dice.md；两项外部参照见external-references.json，只读摘要须注明未直接访问。
 3. 实际查看附入1280×800 PNG，写截图回读.md具体对象、位置、动作关系与限制。它是准备者从候选HTML真实截图的设计输入，没有证明实际可玩性。自己形成做法档、方向简报、方向契约和至少六条覆盖四时刻的样句（moment/text/consequence）。只交回下列文件：
 {chr(10).join('- '+name for name in PUBLIC_FILES)}
-契约scene/preview均为{SCENE}，screenshot为{seed.SCREENSHOT}；viewport及原capture_binding精确引用{seed.CAPTURE}。契约不得包含confirmation，禁止声称真人批准。作者自检单独写{AUTHOR_SELF}，不生成独立fit。
-4. 四份业务材料完成后，亲自请求真实新图：
+固定参照仅在{source/seed.SCENE}、{source/seed.SCREENSHOT}、{source/seed.CAPTURE}，不可写且不复制为作者成果。你自己制作可点{SCENE}；契约scene/preview均为{SCENE}，screenshot为{PREVIEW_SCREENSHOT}。viewport=1280x800，capture_binding必须逐字段取下述真实采图返回值，不另写method/source或手工拼回执。契约不得包含confirmation，禁止声称真人批准。作者自检单独写{AUTHOR_SELF}，不生成独立fit。
+4. 可点预览完成后，先亲自采契约图：
+   {shlex.join([sys.executable,str(public/'_evaluation/capture_preview.py'),'--preview',SCENE,'--output',PREVIEW_SCREENSHOT,'--state','作者P-1可点首稿代表画面','--artifact',SCENE])}
+   将返回的capture_binding原样用于契约，receipt实际生成{PREVIEW_CAPTURE}。四份业务材料完成后，再亲自请求fit新图：
    {capture_command}
 scene和preview同文件，artifacts去重合法。回执会生成{FIT_CAPTURE}；不得改body；读取新PNG，在作者自检写实际观察。此采集不代写契约和结论。
 5. 单独实际运行（不合并其它命令），保存成功delivery：
    {direction_check}
-6. 阶段模板{STAGE_STATE}须role=product,current=P-1,next=P-2,scope=["race"],blockers按实记录，artifacts和tone_contract绑定真实业务；conversation_check引用现有conversation.md；request/response/tone_fit_review写待独审后控制器补齐的相对路径。P-1 completion关卡将在实际独审之后运行，此时不得补造批准/独审或passed。
+6. 阶段模板{STAGE_STATE}须role=product,current=P-1,next=P-2,scope=["race"],blockers只写阻止当前P-1业务通过的真实未决；待独审、待控制器合成确认是后续流程，写在作者自检pending，不能作为blockers；业务未决不得藏匿或清空。artifacts和tone_contract绑定真实业务；conversation_check引用现有conversation.md；request/response/tone_fit_review写待独审后控制器补齐的相对路径。P-1 completion关卡将在实际独审之后运行，此时不得补造批准/独审或passed。
+先运行只读阶段预检：{shlex.join([sys.executable,str(source/'import_preflight.py'),'--project',str(project),'--author-public',str(public)])}。它不替代独审或最终关卡。
 7. 本会话收尾前实际运行 `{check_copy}`，发现差异只报告，不恢复或改写副本。可信控制器随后真实交回并退出，另一实例实际独审。"""
 
 
@@ -333,14 +345,17 @@ def reviewer_prompt(out, public, source, author, review_run_id, binding, contrac
     metadata = dict(runner=RUNNER, run_id=author['id'], review_run_id=review_run_id, model=MODEL,
         methods_sha256=binding['methods_sha256'], tested_requirements=tested, untested_requirements=untested,
         framework_scenario=dict(stage_state=STAGE_STATE, reviewer=REVIEWER,
+            author_stage=dict(path=(public/STAGE_STATE).relative_to(public.parents[4]).as_posix(),sha256=sha(public/STAGE_STATE)),
+            fit=dict(path='management/instances/'+REVIEWER+'/workspace/public/'+FIT,sha256='写完实际fit后计算该文件摘要，不得照抄此占位'),
             contract_sha256=binding['contract_sha256'], mapping_sha256=binding['mapping_sha256']))
     return f"""你是原任务{author['task_id']}的真实独立checker={REVIEWER}，本次check-run={review_run_id}。一次会话；禁止嵌套模型、其它CLI、子代理，禁止改作者或专家包。
 实际读{source}/source/SKILL.md的P-1、METHODS.md/REVIEW.json映射、作者public原件{public}、{out}/author-boundary.json及原shell轨迹（定向读取）。核对方法保留、真实写隔离、待审交回；先查AUTHOR的真实handover摘要。
 实际查看附入新fit PNG，并读取其采集回执{public/FIT_CAPTURE}及原方向图，检查四材料的当前hash、动作/规则后果、对象位置、语气和偏离。合成输入/准备者旧截图/作者新采图分清；记录未观察项。
-在自己的workspace/public/{FIT}写独立贴合：producer={AUTHOR},checker={REVIEWER},mode=independent,review_task={author['task_id']},binding_mode=pre_confirmation_direction。tone_contract用作者draft的规范direction_binding（排除confirmation），artifacts用scene/preview/samples/practice_profile真实逻辑ref，screenshot引用design/fit.png，capture_binding精确取作者{FIT_CAPTURE}内容除screenshot_sha256外各字段，并receipt指其逻辑path/sha。不得重写图片或回执。genre_fit/application_drift/copy_fit/capture和outcome按实际填。
+在自己的workspace/public/{FIT}写独立贴合：producer={AUTHOR},checker={REVIEWER},mode=independent,review_task={author['task_id']},binding_mode=pre_confirmation_direction。tone_contract用作者draft的规范direction_binding（排除confirmation），artifacts用scene/preview/samples/practice_profile真实逻辑ref，screenshot引用design/fit.png，viewport必须明确填写1280x800（与作者方向契约同视口），capture_binding精确取作者{FIT_CAPTURE}内容除screenshot_sha256外各字段，并receipt指其逻辑path/sha。不得重写图片或回执。genre_fit/application_drift/copy_fit/capture和outcome按实际填。
 在自己的workspace/public/{REVIEW_REPORT}写完整原始准入报告：固定元信息如下（这些不是通过结论）：
 {json.dumps(metadata,ensure_ascii=False,indent=2)}
 加passed实际bool、checks三个键{CHECKS}各{{passed:bool,evidence:具体观察}}；framework_scenario加readback具体方向/图像/材料及缺口，不改stage_state。tested_requirements仅列真正覆盖的P-1，untested如实列其余；证据不足passed=false。报告与fit结论由你亲自写，控制器不会补passed或改报告。
+收尾前实际执行只读fit预检：{shlex.join([sys.executable,str(public.parents[4]/'synthetic-input/import_preflight.py'),'--project',str(public.parents[4]),'--checker-public',str(public.parents[2]/REVIEWER/'workspace/public')])}。预检只核结构/真实当前材料，输出author_stage/fit实际摘要供报告绑定；不写你的文件，不提交review，不跳过最终身份/交回关卡。报告字段不得残留占位。
 尚无完整synthetic确认/最终stage，故不声称已通过最终completion关卡；核对作者业务是否已足以供之后合成展示与同一关卡检查。禁止冒充真人批准、启用专家或专业质量认证。控制器将真实review交回你的原fit/report并退出，再派生纯控制view、运行同一gate/validate。"""
 
 
@@ -450,7 +465,7 @@ def runner_with_image(runner, image):
     return dict(runner, argv=[*runner['argv'][:-1], '--image=' + str(image), '-'])
 
 
-def verify_author_capture(out, public):
+def verify_author_capture(out, public, screenshot=FIT_SCREENSHOT, receipt=FIT_CAPTURE):
     """Only a broker event from this author phase authenticates the new fit image."""
     log=out/'author-capture-events.jsonl'
     require(log.is_file(),'no actual author capture broker event')
@@ -459,9 +474,9 @@ def verify_author_capture(out, public):
         row=json.loads(line)
         ref=row.get('capture_binding',{}).get('receipt',{})
         if (row.get('status')=='captured' and row.get('format')=='author-requested-capture/1'
-            and row.get('screenshot')==FIT_SCREENSHOT and row.get('preview')==SCENE
-            and row.get('sha256')==sha(public/FIT_SCREENSHOT)
-            and ref.get('path')==FIT_CAPTURE and ref.get('sha256')==sha(public/FIT_CAPTURE)):
+            and row.get('screenshot')==screenshot and row.get('preview')==SCENE
+            and row.get('sha256')==sha(public/screenshot)
+            and ref.get('path')==receipt and ref.get('sha256')==sha(public/receipt)):
             matching.append(row)
     require(len(matching)==1,'author fit PNG/receipt do not match one actual broker capture')
     return matching[0]
@@ -476,10 +491,11 @@ def author_handover(pm, project, out, public, run_id, delivery_receipts):
     require(not tone.get('confirmation'), 'author must not prefill confirmation for unseen results')
     require(tone['parts']['scene']['path'] == SCENE, 'undeclared scene output: use ' + SCENE)
     require(tone['parts']['preview']['path'] == SCENE, 'undeclared preview output: use ' + SCENE)
-    require(tone['parts']['screenshot']['path'] == seed.SCREENSHOT, 'use the actual synthetic design screenshot')
+    require(tone['parts']['screenshot']['path'] == PREVIEW_SCREENSHOT, 'use the actual broker-authenticated author screenshot')
     require({ref['source'] for ref in REFERENCES} <= {ref['source'] for ref in tone['references']},
             'name the two actual external game references with their sources')
     state = read_json(public / STAGE_STATE)
+    require(state.get('blockers')==[], 'business blockers must be resolved before independent review; retain the unmodified stage')
     require((state.get('role'), state.get('current'), state.get('next'), state.get('scope')) ==
             ('product','P-1','P-2',['race']), 'author stage must retain the bounded P-1 race scenario')
     allowed = set(PUBLIC_FILES)
@@ -490,6 +506,8 @@ def author_handover(pm, project, out, public, run_id, delivery_receipts):
     require(direction_delivery in delivery_receipts, 'no actual author --draft receipt matches the handed direction')
     for ref in [*tone['parts'].values(), *state['artifacts'], state['tone_contract']]:
         gate.tone.evidence.verify_ref(public, ref)
+    preview_capture=verify_author_capture(out,public,PREVIEW_SCREENSHOT,PREVIEW_CAPTURE)
+    require(tone.get('capture_binding')==preview_capture['capture_binding'], 'contract must use the actual preview capture_binding unchanged')
     verify_author_capture(out,public)
     capture = read_json(public / FIT_CAPTURE)
     observed = [tone['parts'][key] for key in ('scene','preview','samples','practice_profile')]
@@ -615,7 +633,7 @@ def run_reviewer(pm, out, project, boundary, runner, author, public, base, bindi
     workspace = boundary.safe_workspace(project, REVIEWER)
     review_public = workspace / 'public'
     rid = 'import-review-' + uuid.uuid4().hex
-    runner = runner_with_image(runner_with_image(runner,public/seed.SCREENSHOT),public/FIT_SCREENSHOT)
+    runner = runner_with_image(runner_with_image(runner,project/'synthetic-input'/seed.SCREENSHOT),public/FIT_SCREENSHOT)
     command = boundary.command_template(project, workspace, [], runner, MODEL, EFFORT)[0]
     pm_call(pm, project, out, 'launch_start', id=rid, task_id=author['task_id'], purpose='check', instance=REVIEWER,
         model=MODEL, session=rid, command=command)
@@ -653,6 +671,47 @@ def run_reviewer(pm, out, project, boundary, runner, author, public, base, bindi
         raise
     require(report.get('passed') is True, 'independent reviewer did not pass; originals retained')
     return pm.team.experts.validation_run(pm.api(),project,rid), review_public/REVIEW_REPORT
+
+
+def synthetic_direction_attention(pm,project,out,author,reviewer,draft,display,reply,quote,request_id,contract_path=CONTRACT):
+    """Use the ordinary PM sample/display API; every new sample task stays planned."""
+    with pm.connect(project,readonly=True) as db:
+        instances=pm.integrity.records(db,'instance');task=pm.task_map(db)[author['task_id']]
+    masters=[row['id'] for row in instances.values() if row.get('active') and row.get('master') and row.get('profession')=='product']
+    require(masters,'an already appointed product master is required for the synthetic combined display')
+    master=masters[0];require(len({master,author['instance'],reviewer})==3,'actual producer, fit checker and planned-task checker must be distinct')
+    require(task.get('admitted_inputs'),'the real admitted brief is required for this one combined display')
+    origins=[]
+    for source,expected in author['handover']['files'].items():
+        logical=(project/source).relative_to(project/'management/instances'/author['instance']/'workspace/public').as_posix()
+        target=project/logical
+        require(not target.exists() or sha(target)==expected,'synthetic display cannot overwrite another project artifact')
+        target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(project/source,target)
+        origins.append(dict(source_path=source,display_source=logical,sha256=expected))
+    key='SYNTHETIC-P1-'+uuid.uuid4().hex[:16]
+    result=pm_call(pm,project,out,'direction_sample',id=key,brief=task['inputs'][0],admitted_inputs=task['admitted_inputs'],
+        profile=draft['profile'],person='SYNTHETIC controller fixture',combined_review_authorization='SYNTHETIC isolated P-1 capability display only; no production milestone completion',
+        assigned={'product':master,'fit_checker':reviewer,'task_checker':author['instance']})
+    sample=result['direction_sample'];compose=project/sample['outputs']['compose'];compose.parent.mkdir(parents=True,exist_ok=True)
+    payload=(project/'management/instances'/author['instance']/'workspace/public'/contract_path).read_bytes()
+    require(not compose.exists() or compose.read_bytes()==payload,'synthetic compose source cannot replace prior business bytes')
+    compose.write_bytes(payload)
+    origins.append(dict(source_path=(project/'management/instances'/author['instance']/'workspace/public'/contract_path).relative_to(project).as_posix(),display_source=sample['outputs']['compose'],sha256=sha(compose)))
+    scope=[row['id'] for row in pm.admission.load_gate().tone.profile(project,draft)['scopes']]
+    display_scope='SYNTHETIC P-1 capability display: '+', '.join(scope)
+    pm_call(pm,project,out,'human_attention',id=request_id,kind='confirmation',task_id=key,display=display['path'],scope=display_scope,
+        inputs=[row['display_source'] for row in origins])
+    pm_call(pm,project,out,'human_attention',id=request_id,response=reply['path'])
+    binding=pm.admission.load_gate().tone.direction_binding(contract_path,draft)
+    with pm.connect(project) as db:
+        receipt=pm.direction.bind_attention(pm.api(),project,db,request_id,person='SYNTHETIC controller fixture',quote=quote,scope=display_scope,
+            expected={'direction_sha256':binding['direction_sha256'],'task_id':key})
+    with pm.connect(project,readonly=True) as db:
+        planned={name:pm.task_map(db)[name]['state'] for name in [key,*sample['tasks']]}
+    require(set(planned.values())=={'planned'},'the synthetic display must not complete or launch the PM project tasks')
+    write_json(out/'synthetic-display-origin.json',dict(sample_id=key,origin_files=origins,tasks=planned,missing_roles=sample['missing_roles'],
+        limit='One synthetic display only. Existing actual author/checker handbacks remain the evidence; no PM milestone closure is claimed.'))
+    return receipt
 
 
 def assemble_scenario(pm, project, out, author, review_run, report_path,
@@ -709,7 +768,7 @@ def assemble_scenario(pm, project, out, author, review_run, report_path,
     approval=dict(format='matrix-review-binding/1',request_id=request_id,scope=original['scope'],actor='user',
         direction_sha256=binding['direction_sha256'],display=display,
         response=dict(reply,message_sha256=tone.evidence.digest(quote)),person='SYNTHETIC controller fixture',quote=quote,outcome='approved')
-    receipt=tone.evidence.review_receipt(project,approval)
+    receipt=synthetic_direction_attention(pm,project,out,author,reviewed['reviewer'],draft,display,reply,quote,request_id,contract_path)
     final=dict(draft,confirmation=dict(person=approval['person'],quote=quote,source=reply_path,
         direction_sha256=binding['direction_sha256'],review_receipt=receipt))
     # Preserve markdown outside the one JSON block exactly.
@@ -742,12 +801,13 @@ def assemble_scenario(pm, project, out, author, review_run, report_path,
     require(all(sha(view/path)==expected for path,expected in material_hashes.items()), 'control projection changed business material')
     context=dict(format='matrix-admission-scenario/1',author_run_id=author['id'],review_run_id=review_run['id'],
         state_path=state_path,origins=origins,control_derivations=controls)
-    checked=gate.check(view,stage,registry_root=project,seal=False)
-    completed,required=gate.framework_outputs(view,stage,checked,registry_root=project)
-    write_json(out/'gate-precheck.json',dict(checked=checked,completed=completed,required_outputs=sorted(required)))
     refs=[tone.evidence.ref(view,file.relative_to(view).as_posix()) for file in view.rglob('*') if file.is_file()]
     local=tone.evidence.seal_bundle(view,refs,context,destination='sealed',follow_refs=False)
     result=dict(local,path=(view/local['path']).relative_to(project).as_posix())
+    frozen,_=tone.evidence.verify_bundle(project,result)
+    checked=gate.check(frozen,stage,registry_root=project,seal=False)
+    completed,required=gate.framework_outputs(frozen,stage,checked,registry_root=project)
+    write_json(out/'gate-precheck.json',dict(checked=checked,completed=completed,required_outputs=sorted(required)))
     write_json(out/'scenario-projection.json',dict(scenario_view=result,context=context,canonical_direction=binding,
         author_contract_sha256=sha(author_public/contract_path),projected_contract_sha256=final_ref['sha256'],
         independent_fit_sha256=before_fit,material_hashes=material_hashes,synthetic=True,

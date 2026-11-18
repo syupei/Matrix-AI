@@ -15,6 +15,12 @@ import tempfile
 import unittest
 
 from kit import KIT
+# Legacy discovery puts only tests/legacy on sys.path; share current normal-API inputs.
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+try:
+    from pm_test_inputs import business_source, actual_output
+finally:
+    sys.path.pop(0)
 SCRIPT = KIT / 'matrix/orchestration/tools/pm_tasks.py'
 spec = importlib.util.spec_from_file_location('pm_tasks_under_test', SCRIPT)
 pm = importlib.util.module_from_spec(spec)
@@ -31,6 +37,14 @@ class TaskRuntimeTests(unittest.TestCase):
             'project': 'SIMULATED TEST ONLY', 'pm_actor': 'SIM-PM',
             'authorization': 'SIMULATED test authorization; no external action',
             'frontdoor_id': 'SIMULATED-NOT-A-REAL-THREAD', 'max_slots': 2})
+        self.actor_ids=['SIM-OWNER','SIM-CHECKER','SIM-ENGINEER','SIM-SPECIALIST','SIM-NEW-OWNER','SIM-EXECUTOR-TWO',*['SIM-EXECUTOR-'+str(i) for i in range(1,16)]]
+        actors=[(name,'SIM-mechanism') for name in self.actor_ids]
+        self.input_context=business_source(self,pm,pm_actor='SIM-PM',actors=actors)
+        self.initial_event_seq=self.events()[-1]['seq']
+        self.task_executors={}
+        self.appointment_roots=[]
+        allocation=self.root/'management/SIM-allocation.md'
+        allocation.write_text('SYNTHETIC mechanism fixture: PM explicitly appoints scoped leads and their registered executor/checker allocation for the task trees created by each test. No professional ability or production authorization is claimed.')
 
     def call(self, op, actor='SIM-OWNER', **fields):
         self.serial += 1
@@ -45,24 +59,43 @@ class TaskRuntimeTests(unittest.TestCase):
 
     def create(self, tid='T-1', parent=None, actor=None, **fields):
         manager = 'SIM-PM' if parent is None else self.task(parent)['owner']
+        executor=self.task_executors.setdefault(tid,'SIM-EXECUTOR-'+str(len(self.task_executors)+1))
         data = dict(id=tid, parent=parent, title='SIMULATED ' + tid,
             owner='SIM-OWNER', checker='SIM-CHECKER', goal='deliver test fixture',
-            inputs=['SIMULATED input v1'], outputs=['evidence/' + tid + '.txt'],
+            **self.input_context, outputs=['evidence/' + tid + '.txt'],
             criteria=['fixture passes'], next_action='produce simulated fixture',
-            executor='SIMULATED executor; no agent started')
+            executor=executor)
         data.update(fields)
-        return self.call('create', actor or manager, task=data)
+        result=self.call('create', actor or manager, task=data)
+        if parent is None:
+            self.appointment_roots.append(tid)
+            with pm.connect(self.root,readonly=True) as db:appointments=pm.integrity.records(db,'appointment')
+            for iid in self.actor_ids:
+                lead=iid in {'SIM-OWNER','SIM-ENGINEER','SIM-SPECIALIST','SIM-NEW-OWNER'}
+                spec=dict(mode='lead' if lead else 'auxiliary' if iid=='SIM-CHECKER' else 'executor',role='SIM-mechanism',root_tasks=list(self.appointment_roots),delegates=[other for other in self.actor_ids if other!=iid] if lead else [],source='management/SIM-allocation.md')
+                self.call('appoint','SIM-PM',id=iid,appointment=spec,expected_revision=appointments.get(iid,{}).get('revision',0))
+        return result
 
     def mutate(self, op, tid='T-1', actor=None, **fields):
         task = self.task(tid)
         return self.call(op, actor or task['owner'], task_id=tid,
             expected_revision=task['revision'], **fields)
 
+    def actual_evidence(self,tid,values):
+        result=[]
+        for value in values:
+            if (self.root/value).is_file():result.append(value);continue
+            path=actual_output(self,self.task(tid));(self.root/path).write_text(value);result.append(path)
+        return result
+
     def update(self, tid='T-1', **changes):
-        return self.mutate('update', tid, changes=changes,
+        if 'evidence' in changes:changes['evidence']=self.actual_evidence(tid,changes['evidence'])
+        actor=self.task(tid)['manager'] if set(changes)&{'next_action','executor'} else None
+        return self.mutate('update', tid, actor, changes=changes,admission_basis=self.task(tid)['admitted_inputs'],
             reason='SIMULATED local fixture change')
 
     def transition(self, state, tid='T-1', actor=None, **fields):
+        if 'evidence' in fields:fields['evidence']=self.actual_evidence(tid,fields['evidence'])
         return self.mutate('transition', tid, actor, state=state,
             reason='SIMULATED state change', **fields)
 
@@ -85,6 +118,7 @@ class TaskRuntimeTests(unittest.TestCase):
         return self.transition('done', tid, self.task(tid)['manager'])
 
     def events(self, **fields):
+        fields.setdefault('after',getattr(self,'initial_event_seq',0))
         return pm.execute(self.root, dict(op='events', full=True, **fields))['events']
 
     def assert_rejected_unchanged(self, action):
@@ -104,7 +138,10 @@ class TaskRuntimeTests(unittest.TestCase):
         self.assertEqual('SIM-PM', self.task('T-1')['manager'])
         self.assertEqual('SIM-ENGINEER', self.task('T-1.a')['manager'])
         self.assertEqual('SIM-SPECIALIST', self.task('T-1.a.i')['manager'])
-        self.assert_rejected_unchanged(lambda: self.create('T-1.bad', 'T-1', actor='SIM-PM'))
+        # PM may route new managed work; an auxiliary checker cannot delegate.
+        self.create('T-1.pm','T-1',actor='SIM-PM',owner='SIM-ENGINEER')
+        self.assertEqual('SIM-PM',self.task('T-1.pm')['manager'])
+        self.assert_rejected_unchanged(lambda: self.create('T-1.bad', 'T-1', actor='SIM-CHECKER'))
         self.assert_rejected_unchanged(lambda: self.mutate('update', 'T-1.a', 'SIM-PM',
             changes={'next_action': 'override'}, reason='SIMULATED improper override'))
         self.assert_rejected_unchanged(lambda: self.update('T-1', id='new-id'))
@@ -116,7 +153,7 @@ class TaskRuntimeTests(unittest.TestCase):
         self.assertFalse(self.task('T-1')['ready'])
         self.assert_rejected_unchanged(lambda: self.transition('running',
             execution_receipt='SIMULATED start'))
-        self.update(executor='SIMULATED executor')
+        self.update(executor='SIM-EXECUTOR-TWO')
         self.assertTrue(self.task('T-1')['ready'])
         self.assert_rejected_unchanged(lambda: self.transition('running'))
         self.transition('running', execution_receipt='SIMULATED start receipt')
@@ -214,7 +251,7 @@ class TaskRuntimeTests(unittest.TestCase):
         self.assert_rejected_unchanged(lambda: self.update(criteria=['different contract']))
         self.assert_rejected_unchanged(lambda: self.mutate('update', changes={'criteria':['different contract']},
             reason='SIMULATED claimed approval', scope_authorization='SIMULATED arbitrary manager reference'))
-        self.mutate('update', actor='SIM-PM', changes={'criteria':['different contract']},
+        self.mutate('update', actor='SIM-PM', admission_basis=self.input_context['admitted_inputs'], changes={'criteria':['different contract']},
             reason='SIMULATED approved scope change', scope_authorization='SIMULATED manager reference')
 
     def test_child_completion_does_not_complete_parent_or_replace_parent_review(self):
@@ -266,7 +303,7 @@ class TaskRuntimeTests(unittest.TestCase):
 
     def test_event_retry_is_idempotent_even_after_later_work(self):
         self.create()
-        command = dict(op='update', actor='SIM-OWNER', event_id='SIM-RETRY', task_id='T-1',
+        command = dict(op='update', actor='SIM-PM', admission_basis=self.input_context['admitted_inputs'], event_id='SIM-RETRY', task_id='T-1',
             expected_revision=1, changes={'next_action':'SIMULATED next'}, reason='SIMULATED update')
         first = pm.execute(self.root, command)
         self.update(next_action='SIMULATED later action')
@@ -284,7 +321,7 @@ class TaskRuntimeTests(unittest.TestCase):
         self.assert_rejected_unchanged(lambda: self.call('update', task_id='T-1', expected_revision=1,
             changes={'next_action':'SIMULATED obsolete'}, reason='SIMULATED late command',
             occurred_at='2000-01-01T00:00:00Z'))
-        self.mutate('update', changes={'next_action':'SIMULATED current revision, old clock'},
+        self.mutate('update', actor='SIM-PM',admission_basis=self.input_context['admitted_inputs'],changes={'next_action':'SIMULATED current revision, old clock'},
             reason='SIMULATED clock skew', occurred_at='2000-01-01T00:00:00Z')
         self.assertEqual(3, self.task('T-1')['revision'])
         self.assertEqual('2000-01-01T00:00:00Z', self.events()[-1]['occurred_at'])
@@ -292,9 +329,11 @@ class TaskRuntimeTests(unittest.TestCase):
     def test_event_pagination_is_complete_and_ordered(self):
         self.create()
         self.update(next_action='SIMULATED next')
-        first = self.events(limit=2)
-        second = self.events(after=first[-1]['seq'], limit=2)
-        self.assertEqual(self.events(), first + second)
+        self.update(next_action='SIMULATED third event for a nonempty next page')
+        first = self.events(task_id='T-1',limit=2)
+        second = self.events(task_id='T-1',after=first[-1]['seq'], limit=2)
+        self.assertTrue(second)
+        self.assertEqual(self.events(task_id='T-1'), first + second)
         self.assertTrue(all(e['recorded_at'] and e['occurred_at'] for e in self.events()))
         self.assertEqual('planned', self.events()[-1]['before_data']['state'])
 
@@ -447,7 +486,7 @@ class TaskRuntimeTests(unittest.TestCase):
         self.transition('done', actor='SIM-PM')
 
     def test_review_and_human_evidence_are_findable_from_task_detail(self):
-        self.create(human_required=True)
+        self.create(human_required=True,outputs=['evidence/work.txt'])
         evidence_dir = self.root / 'evidence'
         evidence_dir.mkdir()
         for name in ['work.txt', 'check.txt', 'presentation.txt', 'reply.txt']:

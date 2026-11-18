@@ -6,6 +6,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
+from pm_test_inputs import business_source,actual_output
 from kit import KIT
 SCRIPT = KIT / 'matrix/orchestration/tools/pm_tasks.py'
 spec = importlib.util.spec_from_file_location('pm_team_under_test', SCRIPT)
@@ -29,6 +30,7 @@ class TeamTests(unittest.TestCase):
         self.n = 0
         self.call('init', 'SIM-PM', config={'project': 'SIMULATED', 'pm_actor': 'SIM-PM',
                   'authorization': 'SIMULATED only', 'frontdoor_id': 'SIMULATED', 'max_slots': 4})
+        self.business=business_source(self,pm,pm_actor='SIM-PM',actors=[('SIM-OWNER', 'SIM-task-engine-owner'), ('SIM-CHECKER', 'SIM-task-engine-checker')])
 
     def call(self, op, actor='SIM-OWNER', **fields):
         self.n += 1
@@ -41,7 +43,9 @@ class TeamTests(unittest.TestCase):
         data = dict(id=tid, parent=None, title='SIM ' + tid, owner='SIM-OWNER', checker='SIM-CHECKER',
                     goal='simulated', inputs=['in'], outputs=['out'], criteria=['ok'], next_action='next')
         data.update(fields)
-        return self.call('create', 'SIM-PM' if data['parent'] is None else self.task(data['parent'])['owner'], task=data)
+        if data['inputs']==['in'] and data.get('kind','work')!='coordination':data.update(self.business)
+        data.setdefault('executor',data['owner'])
+        return self.call('create', 'SIM-PM', task=data)
 
     def update(self, tid, actor='SIM-OWNER', authorization=None, **changes):
         extra = {'scope_authorization': authorization} if authorization else {}
@@ -128,7 +132,7 @@ class TeamTests(unittest.TestCase):
 
     def test_single_person_project_has_no_personal_views(self):
         (self.root / 'management/people.json').write_text(json.dumps({'people': [{'id': 'me', 'name': '我'}]}))
-        self.create('A', title='only task')
+        self.create('A', title='only task',kind='coordination',owner='SIM-PM',executor=None,outputs=['management/only.md'])
         out = pm.render(self.root)
         self.assertNotIn('people/me.md', out['views'])
         self.assertIn('plan.md', out['views'])

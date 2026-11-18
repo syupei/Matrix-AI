@@ -8,7 +8,7 @@ import re
 
 
 READ_OPS = {'intake_status'}
-WRITE_OPS = {'intake_register', 'intake_submit', 'intake_review', 'intake_admit', 'production_feedback'}
+WRITE_OPS = {'intake_register', 'intake_submit', 'intake_review', 'intake_admit', 'production_feedback', 'resolve_production_feedback'}
 FIELDS = {'admitted_inputs', 'stage_transition', 'intake_review_id', 'practice_stage', 'practice_completion'}
 
 
@@ -53,6 +53,24 @@ def execute(pm, root, db, cmd):
         pm.integrity.save(pm, db, 'production_feedback', rec)
         return {'feedback': rec}
 
+    if op == 'resolve_production_feedback':
+        pm.require(actor == cfg['pm_actor'], 'PM disposes production feedback')
+        rec=pm.integrity.records(db,'production_feedback').get(cmd.get('id'))
+        pm.require(rec and rec['status']=='pending','pending production feedback required')
+        action=cmd.get('disposition');pm.require(action in {'intake','change','rejected'} and pm.nonempty(cmd.get('reason')),'feedback disposition and reason required')
+        target=cmd.get('target_id')
+        if action!='rejected':
+            kind='input_admission' if action=='intake' else 'change'
+            target_record=pm.integrity.records(db,kind).get(target)
+            pm.require(target_record,'feedback disposition must name an actual intake/change record')
+            path=target_record['path'] if action=='intake' else target_record['source']
+            digest=target_record['sha256'] if action=='intake' else target_record['source_sha256']
+            pm.require(pm.integrity.file_hash(pm,root,path)==digest and rec['instruction'] in pm.local(root,path).read_text(encoding='utf-8'),
+                       'feedback target must preserve the complete recorded instruction and current source bytes')
+        rec.update(status='resolved',disposition=action,target_id=target,reason=cmd['reason'],resolved_by=actor,resolved_at=pm.now())
+        pm.integrity.save(pm,db,'production_feedback',rec)
+        return {'feedback':rec}
+
     key = cmd.get('id')
     pm.require(pm.nonempty(key) and re.fullmatch(pm.SAFE_ID, key), 'input id required')
     rec = records.get(key)
@@ -72,9 +90,13 @@ def execute(pm, root, db, cmd):
         path = Path(path).as_posix()
         pm.require(profession in pm.team.registries(pm, root), 'intake requires a registered profession')
         pm.require(not any(r['path'] == path and r['version'] == version for r in records.values()), 'input path/version already registered')
+        peers=[r['id'] for r in ref_latest(records).values() if r['state']=='admitted' and r['profession']==profession and r['source_id']!=source_id]
+        new_family=source_id not in ref_latest(records)
+        pm.require(not (new_family and peers) or pm.nonempty(cmd.get('new_family_reason')),
+                   'new source family alongside current admitted inputs needs new_family_reason and master coexistence review')
         rec = dict(id=key, state='registered', sequence=max((r['sequence'] for r in records.values()), default=0)+1,
                    path=path, version=version, source=source, source_id=source_id, supersedes=supersedes, profession=profession,
-                   sha256=pm.integrity.file_hash(pm, root, path))
+                   sha256=pm.integrity.file_hash(pm, root, path),new_family_reason=cmd.get('new_family_reason'),family_review_required=bool(new_family and peers))
     else:
         pm.require(rec and ref_latest(records)[rec.get('source_id', rec['path'])]['id'] == key, 'PM: input is missing or superseded')
         pm.require(pm.integrity.file_hash(pm, root, rec['path']) == rec['sha256'], 'PM: input changed; register a new version')
@@ -92,8 +114,19 @@ def execute(pm, root, db, cmd):
                        and pm.strings(cmd.get('open_items')), 'review outcome, conclusion and open_items list required')
             pm.require(cmd['outcome'] != 'approved' or not cmd['open_items'], 'resolve open risks and conflicts before approval')
             pm.require(type(cmd.get('human_required')) is bool, 'declare whether human confirmation is required')
+            peers={r['id'] for r in ref_latest(records).values() if r['state']=='admitted' and r['profession']==rec['profession'] and r['source_id']!=rec['source_id']}
+            coexist,conflict=cmd.get('coexists_with',[]),cmd.get('conflicts_with',[])
+            pm.require(pm.strings(coexist) and pm.strings(conflict) and not set(coexist)&set(conflict) and
+                       set(coexist)|set(conflict)==peers,'master must classify current same-profession admitted families with coexists_with/conflicts_with')
             rec['review'] = {k:cmd[k] for k in ('outcome','conclusion','resolved_risks','resolved_conflicts','open_items','human_required')}
+            rec['review'].update(coexists_with=coexist,conflicts_with=conflict)
         elif op == 'intake_admit':
+            peers={r['id'] for r in ref_latest(records).values() if r['state']=='admitted' and r['profession']==rec['profession'] and r['source_id']!=rec['source_id']}
+            review=rec.get('review') or {}
+            pm.require(set(review.get('coexists_with',[]))|set(review.get('conflicts_with',[]))==peers,
+                       'current source families changed after review; master must review their coexistence again')
+            pm.require(not peers or rec.get('new_family_reason') or any(r['source_id']==rec['source_id'] and r['id']!=rec['id'] for r in records.values()),
+                       'new source family alongside current admitted inputs needs new_family_reason')
             pm.require(rec['state'] == 'reviewing' and (rec.get('review') or {}).get('outcome') == 'approved', 'assigned master approval is missing')
             pm.require(master(pm, root, db, rec['master'], rec['profession']) == rec['expert'], 'master binding changed; route again')
             if rec['review']['human_required']:
@@ -107,6 +140,8 @@ def execute(pm, root, db, cmd):
                 receipt = pm.direction.bind_attention(pm, root, db, cmd.get('attention_id'), person=cmd['person'],
                     quote=cmd['quote'], scope=cmd.get('scope'), expected=expected)
                 rec['confirmation'] = dict(person=cmd['person'], quote=cmd['quote'], review_receipt=receipt)
+            for old_id in rec['review'].get('conflicts_with',[]):
+                old=records[old_id];old.update(state='superseded',superseded_by=rec['id']);pm.integrity.save(pm,db,'input_admission',old)
             rec.update(state='admitted', admitted_by=actor)
     rec['updated_at'] = pm.now()
     pm.integrity.save(pm, db, 'input_admission', rec)
@@ -125,7 +160,7 @@ def task_professions(pm, root, db, task):
 
 
 def practice_check(pm, root, db, task, tasks, direction, phase):
-    if task['id'] in direction or task.get('intake_review_id'):
+    if task['id'] in direction or task.get('intake_review_id') or coordination_only(pm,db,task):
         return
     gate = load_gate()
     state = task.get('practice_stage')
@@ -143,15 +178,15 @@ def practice_check(pm, root, db, task, tasks, direction, phase):
         if parent.get('practice_stage'):
             state, inherited = parent['practice_stage'], True
         else:
-            if phase != 'planning' and task.get('kind') == 'work':
-                sandbox_run = phase == 'entry' and any(
+            if phase != 'planning' and task.get('kind') in {'work','stage'}:
+                sandbox_run = phase in {'entry','start'} and any(
                     run.get('admission_expert') and run['task_id'] == task['id'] and run['state'] in pm.platform.ACTIVE
                     for run in pm.integrity.records(db, 'launch').values())
                 pm.require(sandbox_run or not professions & governed,
                            'record the professional practice stage and current prerequisites')
             return
     pm.require(isinstance(state, dict) and set(state) <= {'role', 'current', 'scope', 'practice_scope', 'tone_contract',
-                                                          'practice_evidence', 'upstream', 'upstream_bundle', 'implementation_handoff'},
+                                                          'practice_evidence', 'upstream', 'upstream_bundle', 'implementation_handoff', 'delivery_kind'},
                'practice_stage must contain the professional stage and its current prerequisite records')
     role, current = state['role'], state['current']
     pm.require(current in gate.STAGES.get(role, [])[:-1], 'practice_stage must name a registered professional stage')
@@ -167,14 +202,13 @@ def practice_check(pm, root, db, task, tasks, direction, phase):
         snapshot, _ = gate.tone.evidence.verify_bundle(root, receipt['bundle'])
         frozen = json.loads(gate.checked_file(snapshot, receipt['state_path']).read_text())
         gate.check(snapshot, frozen, registry_root=root, seal=False)
-        if receipt.get('tone_contract'):
-            gate.tone.confirmed_contract(root, receipt['tone_contract'])
         return
     gate.check_entry(root, state)
-    if phase != 'complete' or inherited:
+    increment = increment_context(pm,root,db,task,tasks,phase)
+    if phase != 'complete':
         return
     ref = task.get('practice_completion')
-    if not ref and not requirements.get('complete') and task.get('kind') != 'stage':
+    if not ref and not requirements.get('complete') and task.get('kind') != 'stage' and not increment:
         return     # Finishing a work item does not advance its entire professional stage.
     pm.require(pm.nonempty(ref) and ref in task['evidence'],
                'hand over the current practice stage completion record')
@@ -183,9 +217,11 @@ def practice_check(pm, root, db, task, tasks, direction, phase):
                'practice stage completion must match the dispatched stage and scope')
     pm.require(not state.get('tone_contract') or completed.get('tone_contract') == state['tone_contract'],
                'practice stage completion must use the dispatched tone contract')
-    checked = gate.check(root, completed)
+    context=completion_context(pm,root,db,task,tasks,ref)
+    if increment:context['increment_review']=True
+    checked = gate.check(root, completed, registry_root=root,task_context=context)
     task['practice_receipt'] = {'bundle':checked['review_bundle'], 'state_path':checked['upstream_state'],
-                                'tone_contract':completed.get('tone_contract')}
+                                'tone_contract':completed.get('tone_contract'), 'increment_review':bool(checked.get('increment_review'))}
 
 
 def installed_rules(pm, root):
@@ -201,7 +237,179 @@ def installed_rules(pm, root):
     return {}
 
 
-def production_issues(pm, root, db, task, tasks=None, phase='entry'):
+def canonical_input(value):
+    path=Path(value).as_posix()
+    return path+'/' if value.endswith('/') and path != '.' else path
+
+
+def within_output(path, outputs):
+    return any(path == name or name.endswith('/') and path.startswith(name) for name in outputs)
+
+
+def coordination_only(pm,db,task):
+    return task.get('kind')=='coordination' or (task.get('kind')=='stage' and task['owner']==pm.config(db)['pm_actor'] and
+        not task.get('executor') and not task.get('practice_stage') and task.get('outputs') and
+        all(name.startswith('management/') for name in task['outputs']))
+
+
+def governed(pm,root,db,task):
+    return bool(task_professions(pm,root,db,task) or any(task.get(key) for key in FIELDS) or task.get('kind','work') in {'work','stage'})
+
+
+def review_child(pm, task, tasks):
+    """A declared independent inspection cannot deliver the parent's implementation."""
+    target=task.get('review_for')
+    if not target:return False
+    parent=tasks.get(task.get('parent'),{})
+    pm.require(target==parent.get('id'), 'review_for must name the managed parent')
+    producers={parent.get('owner'),parent.get('executor')}-{None}
+    pm.require(not producers & {task.get('owner'),task.get('executor')}, 'review child must be independent of the parent producers')
+    outputs=task.get('outputs',[])
+    pm.require(outputs and all(not name.endswith('/') and Path(name).suffix.lower() in {'.json','.md','.txt'} and
+               not within_output(name,[*parent.get('inputs',[]),*parent.get('outputs',[])]) for name in outputs),
+               'review child outputs must be separate inspection records, never parent business outputs')
+    return True
+
+
+def increment_context(pm,root,db,task,tasks,phase):
+    state=task.get('practice_stage') or tasks.get(task.get('parent'),{}).get('practice_stage') or {}
+    explicit=task.get('first_increment',False) or state.get('delivery_kind')=='first_operable_increment'
+    parent=tasks.get(task.get('parent'),{})
+    impl=(parent.get('practice_stage') or {}).get('current')=='E-3.2' and not review_child(pm,task,tasks)
+    if not impl:return bool(explicit)
+    siblings=[row for row in tasks.values() if row.get('parent')==parent['id'] and row.get('kind','work')=='work'
+              and row.get('state') not in {'cancelled','deprecated'} and not review_child(pm,row,tasks)]
+    # A registered child is not an increment until it actually starts or closes.
+    active=[row for row in siblings if row.get('state') in {'running','waiting_review','done'} or row.get('input_provenance')]
+    first=next((row for row in active if row.get('first_increment')),active[0] if active else task)
+    if first['id']!=task['id'] and phase != 'planning':
+        receipt=first.get('practice_receipt',{})
+        pm.require(pm.effective_done(first,tasks) and receipt.get('increment_review'),
+                   'complete the first actual increment and its fit/D6 receipt before subsequent implementation starts')
+        gate=load_gate();view,_=gate.tone.evidence.verify_bundle(root,receipt['bundle'])
+        frozen=json.loads(gate.checked_file(view,receipt['state_path']).read_text())
+        checked=gate.check(view,frozen,registry_root=root,seal=False)
+        pm.require(checked.get('increment_review'), 'first increment receipt must retain the increment review')
+    return bool(explicit or first['id']==task['id'])
+
+
+def task_boundary(pm,root,db,task,tasks,creator=None):
+    instances=pm.integrity.records(db,'instance');cfg=pm.config(db)
+    creator=creator or task.get('created_by')
+    inspection=review_child(pm,task,tasks)
+    parent=tasks.get(task.get('parent'),{})
+    if parent and governed(pm,root,db,parent):
+        pm.require(set(parent.get('admitted_inputs',[]))<=set(task.get('admitted_inputs',[])) and
+                   set(parent.get('inputs',[]))<=set(task.get('inputs',[])), 'managed children must retain the parent admitted business inputs')
+        pm.require(not parent.get('stage_transition') or task.get('stage_transition'), 'managed children retain upstream human confirmation')
+        pm.require(inspection or not parent.get('practice_stage') or task.get('practice_stage')==parent['practice_stage'],
+                   'managed implementation children must preserve the dispatched parent stage')
+    if task.get('kind')=='coordination':
+        pm.require(task['owner'] in {cfg['pm_actor'],cfg.get('frontdesk_actor')} and not task.get('executor'),
+                   'coordination has a PM/frontdesk owner and no production executor')
+        pm.require(all(path.startswith('management/') for path in task.get('outputs',[])), 'coordination writes management records only')
+        return
+    if task.get('kind')=='stage' and task['owner']==cfg['pm_actor'] and not task.get('executor'):
+        return
+    pm.require(all(iid in instances and instances[iid].get('active',True) for iid in
+                   {task['owner'],task.get('executor')} - {None,cfg['pm_actor']}), 'register the actual owner and executor before production dispatch')
+    pm.require(task['owner']!=cfg['pm_actor'] or task.get('executor') in instances,
+               'PM production work needs a registered professional executor; use coordination for PM-only records')
+    config=pm.team.read(pm,root,pm.team.CONFIG)[0] if pm.local(root,pm.team.CONFIG).is_file() else {}
+    confirmed=pm.integrity.records(db,'instance_config')
+    active=[row for row in instances.values() if row.get('active',True)]
+    single=bool(confirmed and len(active)==1 and sum(row.get('count',0) for row in config.get('entries',[]))==1)
+    pm.require(task['checker'] in instances and instances[task['checker']].get('active',True), 'registered active professional checker required')
+    pm.require(single or task['checker'] not in {task['owner'],task.get('executor'),creator},
+               'managed production requires a checker independent of creator, owner and executor')
+    if task.get('kind')=='rule_maintenance':
+        rules=installed_rules(pm,root)
+        pm.require(task.get('inputs') and set(task['inputs'])<=set(rules) and task.get('outputs') and
+                   set(task['outputs'])<=set(rules), 'rule maintenance is limited to existing frozen installed rule files')
+
+
+def semantic_basis(pm,root,db,before,after,cmd,applying=None):
+    changes=cmd.get('changes') or {}
+    if not set(changes)&{'title','goal','next_action','inputs','outputs','criteria','source','direction'}:return
+    ids=cmd.get('admission_basis',[]) or changes.get('admitted_inputs',[])
+    records=pm.integrity.records(db,'input_admission');latest=ref_latest(records)
+    if applying:
+        change=pm.integrity.records(db,'change').get(applying,{})
+        ids=list(dict.fromkeys([*ids,*[r['id'] for r in records.values() if r.get('path')==change.get('source') and r.get('sha256')==change.get('source_sha256')]]))
+        needed=task_professions(pm,root,db,before)
+        instances=pm.integrity.records(db,'instance')
+        reviewed={instances[p].get('profession') for p,a in change.get('assessments',{}).items()
+                  if p in instances and instances[p].get('active') and instances[p].get('master') and a.get('decision') in {'impacted','no_impact'}}
+        pm.require(needed<=reviewed, 'change plan needs the affected professional masters assessment')
+    pm.require(pm.strings(ids) and ids,'semantic production changes require an explicit currently admitted source basis')
+    for key in ids:
+        rec=records.get(key,{})
+        pm.require(rec.get('state')=='admitted' and latest.get(rec.get('source_id'),{}).get('id')==key and
+                   pm.integrity.file_hash(pm,root,rec['path'])==rec['sha256'], 'semantic source basis must be current and admitted')
+    pm.require(set(ids)<=set(after.get('admitted_inputs',[])) and all(records[key]['path'] in after.get('inputs',[]) for key in ids),
+               'bind the admitted change source and its path to the resulting task')
+
+
+def upstream_confirmation(pm,root,db,task,up,files,phase):
+    source=task_professions(pm,root,db,up);target=task_professions(pm,root,db,task)
+    if not source or source & target:return None
+    if phase=='planning':return None
+    gate=load_gate();receipt=up.get('practice_receipt') or (up.get('input_receipt') if not task.get('stage_transition') else None)
+    state_ref=task.get('stage_transition') or up.get('stage_transition')
+    if receipt:
+        view,_=gate.tone.evidence.verify_bundle(root,receipt['bundle'])
+        state=json.loads(gate.checked_file(view,receipt['state_path']).read_text())
+    else:
+        pm.require(pm.nonempty(state_ref),'cross-profession handoff needs the upstream human-review stage receipt')
+        view=root;state=json.loads(gate.checked_file(root,state_ref).read_text())
+    pm.require(state.get('current') in gate.REVIEW.get(state.get('role'),set()) and not state.get('delegated_decision'),
+               'cross-profession handoff requires effective upstream human confirmation')
+    if 'product' in source and 'code-engineering' in target:
+        pm.require(state.get('role')=='product' and state.get('next')=='complete','complete and confirm the product flow before engineering')
+    checked=gate.check(view,state,registry_root=root,seal=False)
+    approved={r['path']:r['sha256'] for r in state['artifacts']}
+    pm.require(all(approved.get(name)==digest for name,digest in files.items()), 'upstream human confirmation must cover the consumed handoff versions')
+    return checked.get('review_bundle') or (receipt or {}).get('bundle')
+
+
+def input_snapshot(pm,root,task):
+    saved=task.get('input_provenance')
+    if not saved:return None
+    gate=load_gate();view,bundle=gate.tone.evidence.verify_bundle(root,saved['bundle'])
+    context=bundle['context']
+    pm.require(context.get('task_id')==task['id'] and context.get('inputs')==task.get('inputs'), 'frozen dispatch inputs no longer match this task')
+    for path,digest in context['files'].items():
+        if not within_output(path,task.get('outputs',[])):
+            pm.require(pm.integrity.file_hash(pm,root,path)==digest,'read-only dispatched input changed: '+path)
+    return context
+
+
+def freeze_input_sources(pm,root,task,sources):
+    gate=load_gate();files={name:digest for row in sources.values() for name,digest in row['files'].items()}
+    if not files:return
+    refs=[dict(path=name,sha256=digest) for name,digest in files.items()]
+    context=dict(format='matrix-input-start/1',task_id=task['id'],inputs=task.get('inputs',[]),files=files,sources=sources)
+    task['input_provenance']={'bundle':gate.tone.evidence.seal_bundle(root,refs,context,follow_refs=False)}
+
+
+def completion_context(pm,root,db,task,tasks,completion):
+    selected=[task]
+    for row in tasks.values():
+        if row['id']!=task['id'] and pm.team.within(row['id'],[task['id']],tasks) and pm.effective_done(row,tasks):selected.append(row)
+    files={};producers={};review_files={}
+    for row in selected:
+        handed=row.get('handed_output_sha256',{})
+        if row['id']==task['id']:
+            handed={name:pm.integrity.file_hash(pm,root,name) for name in row.get('evidence',[])
+                    if name!=completion and pm.local(root,name).is_file() and within_output(name,row.get('outputs',[]))}
+        for name,digest in handed.items():
+            if name!=completion:files[name]=digest;producers[name]=row.get('executor') or row['owner']
+        review=row.get('review') or {}
+        for name,digest in review.get('artifact_sha256',{}).items():
+            files[name]=digest;producers[name]=review['checker'];review_files[name]=digest
+    return dict(task_id=task['id'],dispatched=task.get('practice_stage'),handed_files=files,producers=producers,review_files=review_files)
+
+def production_issues_impl(pm, root, db, task, tasks=None, phase='entry'):
     tasks = tasks or {}
     direction_samples = pm.integrity.records(db, 'direction_sample')
     direction = {tid: record for record in direction_samples.values() for tid in [record['id'], *record.get('tasks', [])]}
@@ -229,9 +437,12 @@ def production_issues(pm, root, db, task, tasks=None, phase='entry'):
     instances = pm.integrity.records(db, 'instance')
     professions = task_professions(pm,root,db,task)
     professional = bool(professions & pm.team.registries(pm, root).keys())
-    paths = {Path(path).as_posix():path for path in inputs}
+    paths = {canonical_input(path):path for path in inputs}
+    snapshot=input_snapshot(pm,root,task) if task.get('input_provenance') else None
+    input_sources={}
     requires = {path for path in paths if path in {row['path'] for row in latest.values()}}
-    if professional:
+    production=not coordination_only(pm,db,task) and task.get('kind')!='rule_maintenance'
+    if production or professional and not coordination_only(pm,db,task):
         requires.update(paths)
     upstream = [parent, *(tasks.get(tid, {}) for tid in task.get('dependencies', []))]
     pending = list(upstream); seen_upstream = set()
@@ -245,22 +456,48 @@ def production_issues(pm, root, db, task, tasks=None, phase='entry'):
     frozen_rules=installed_rules(pm,root)
     for path in list(requires):
         trusted = False
-        for up in upstream:
+        if snapshot and path in snapshot['sources']:
+            trusted=True;input_sources[path]=snapshot['sources'][path]
+        for up in sorted(upstream,key=lambda row:row.get('updated_at',''),reverse=True):
+            if trusted:break
             declared = any(path == out or out.endswith('/') and path.startswith(out) for out in up.get('outputs', []))
-            if not declared:
+            if not declared or up.get('kind') in {'coordination','rule_maintenance'} or up.get('intake_review_id') or not task_professions(pm,root,db,up):
                 continue
             if phase == 'planning':
                 trusted = True
             elif pm.effective_done(up, tasks):
                 handed = up.get('handed_output_sha256', {})
-                trusted = path in handed and pm.integrity.file_hash(pm, root, path) == handed[path]
+                consumed={name:digest for name,digest in handed.items() if name==path or path.endswith('/') and name.startswith(path)}
+                actual_files={file.relative_to(root).as_posix() for file in pm.local(root,path).rglob('*') if file.is_file()} if path.endswith('/') else {path}
+                trusted=bool(consumed) and actual_files<=set(consumed) and all(pm.integrity.file_hash(pm,root,name)==digest for name,digest in consumed.items())
+                if trusted:
+                    same_direction=task['id'] in direction and up['id'] in direction and direction[task['id']]['id']==direction[up['id']]['id']
+                    if not same_direction:upstream_confirmation(pm,root,db,task,up,consumed,phase)
+                    input_sources[path]=dict(task_id=up['id'],work_revision=up.get('work_revision'),files=consumed)
             if trusted:
                 break
+        if not trusted and path.endswith('/') and phase!='planning':
+            actual_names={p.relative_to(root).as_posix() for p in pm.local(root,path).rglob('*') if p.is_file()}
+            combined={};origins=[]
+            for up in upstream:
+                if not up or up.get('kind') in {'coordination','rule_maintenance'} or up.get('intake_review_id') or not task_professions(pm,root,db,up) or not pm.effective_done(up,tasks) or not any(path==out or out.endswith('/') and path.startswith(out) for out in up.get('outputs',[])):continue
+                consumed={name:digest for name,digest in up.get('handed_output_sha256',{}).items()
+                          if name in actual_names and pm.integrity.file_hash(pm,root,name)==digest}
+                if not consumed:continue
+                same_direction=task['id'] in direction and up['id'] in direction and direction[task['id']]['id']==direction[up['id']]['id']
+                if not same_direction:upstream_confirmation(pm,root,db,task,up,consumed,phase)
+                combined.update(consumed);origins.append(dict(task_id=up['id'],work_revision=up.get('work_revision'),files=consumed))
+            if actual_names and actual_names<=set(combined):
+                trusted=True;input_sources[path]=dict(files=combined,origins=origins)
         actual = pm.local(root, path)
         if path in frozen_rules and actual.is_file() and pm.integrity.file_hash(pm,root,path) == frozen_rules[path]:
             trusted = True
         if trusted:
             requires.remove(path)
+    if production and not task.get('intake_review_id') and task['id'] not in direction and task.get('kind') not in {'coordination','rule_maintenance'}:
+        pm.require(ids or any(source for source in upstream if source.get('kind') not in {'coordination','rule_maintenance'} and not source.get('intake_review_id') and task_professions(pm,root,db,source) and any(within_output(path,source.get('outputs',[])) for path in paths)),
+                   'professional production needs an admitted business source or declared upstream handoff; installed rules alone are not business input')
+    if phase=='start' and input_sources and not snapshot:freeze_input_sources(pm,root,task,input_sources)
     requires.update(registered[i]['path'] for upstream_task in upstream for i in upstream_task.get('admitted_inputs', [])
                     if i in registered and registered[i]['path'] in paths)
     role = ' '.join(str(value) for value in professions if value)
@@ -285,7 +522,7 @@ def production_issues(pm, root, db, task, tasks=None, phase='entry'):
     if not (ids or requires or gate_ref):
         return []
     try:
-        pm.require(pm.strings(ids) and ids and len(ids)==len(set(ids)), 'PM: bind each current admitted input version')
+        pm.require(pm.strings(ids) and (ids or not requires) and len(ids)==len(set(ids)), 'PM: bind each current admitted input version')
         bound = {}
         for key in ids:
             r = registered.get(key)
@@ -305,7 +542,8 @@ def production_issues(pm, root, db, task, tasks=None, phase='entry'):
         if 'code-engineering' in role and any(registered[i]['profession']=='product' for i in ids):
             pm.require(state.get('role') == 'product' and state.get('next') == 'complete',
                        'product master: complete and confirm the product flow before engineering')
-        checked = gate.check(root, state)
+        # Admission queries validate current evidence without publishing a close.
+        checked = gate.check(root, state, seal=phase == 'complete')
         if phase == 'complete':
             task['input_receipt']={'bundle':checked['review_bundle'],'state_path':checked['upstream_state']}
         artifacts = {a['path']:a['sha256'] for a in state['artifacts']}
@@ -313,6 +551,13 @@ def production_issues(pm, root, db, task, tasks=None, phase='entry'):
     except (ValueError, KeyError, OSError, TypeError, AttributeError) as error:
         return [pm.integrity.issue('production_admission', task['id'], str(error), responsible=pm.config(db)['pm_actor'])]
     return []
+
+
+def production_issues(pm,root,db,task,tasks=None,phase='entry'):
+    try:
+        return production_issues_impl(pm,root,db,task,tasks,phase)
+    except (ValueError,KeyError,OSError,TypeError,AttributeError) as error:
+        return [pm.integrity.issue('production_admission',task['id'],str(error),responsible=pm.config(db)['pm_actor'])]
 
 
 def submission(pm, root, task, paths):

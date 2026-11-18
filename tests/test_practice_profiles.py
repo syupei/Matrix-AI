@@ -34,6 +34,19 @@ class PracticeStages(unittest.TestCase):
         state['practice_evidence'].setdefault(key, {})[sid] = ref
         return ref
 
+    def complete_trial(self,state):
+        records=state['practice_evidence']
+        data=tone.read(self.root,tone.DEFAULT_PATH)
+        if 'rendering_choice' not in records:self.add_record(state,'rendering_choice')
+        if 'appearance_proof' not in records:
+            self.add_record(state,'appearance_proof',screenshot=put(self.root,'trial.png',PIXEL))
+        trial=dict(role='solution',current='E-2.2',next='E-2.3',scope=state['scope'],blockers=[],artifacts=state['artifacts'],
+                   tone_contract=state['tone_contract'],practice_evidence=records,
+                   conversation_check=put(self.root,'trial-conversation.md','E-2.2 → E-2.3')['path'])
+        result=gate.check(self.root,trial)
+        state['practice_evidence']=result['practice_evidence']
+        return result
+
     def test_default_profile_is_required_regardless_of_label(self):
         state = self.state('E-2.1', 'E-2.2', label='工具与业务')
         self.assertTrue(gate.check(self.root, state)['allowed'])
@@ -95,6 +108,7 @@ class PracticeStages(unittest.TestCase):
         state = self.state('E-2.3','E-2.4',[scope(tone,appearance_target='yes')])
         self.add_record(state,'rendering_choice')
         self.add_record(state,'appearance_proof',screenshot=put(self.root,'proof.png',PIXEL))
+        self.complete_trial(state)
         self.add_record(state,'core_scene_skeleton')
         with self.assertRaisesRegex(ValueError,'screenshot or recorded human'):
             gate.check(self.root,state)
@@ -115,13 +129,18 @@ class PracticeStages(unittest.TestCase):
         state = self.state('E-3.2','E-3.3',[scope(tone,appearance_target='yes')])
         state['role'] = 'build'
         contract = state['tone_contract']
-        state['practice_evidence']['implementation_walkthrough']={'workspace':design_walkthrough(self.root,gate,contract,[self.artifact])}
+        self.complete_trial(state)
         self.add_record(state,'core_scene_skeleton',screenshot=put(self.root,'core.png',PIXEL))
         reference = tone.read(self.root,tone.DEFAULT_PATH)['parts']['screenshot']
         view = dict(reference_screenshot=reference,reference_viewport='1280×800',
                     comparison_state='Start round three and leave the route selection open')
-        fit = fit_record(self.root,contract,[self.artifact], **view)
+        fit = fit_record(self.root,contract,[self.artifact],record_path='historical-skeleton-fit.json', **view)
         state['practice_evidence']['skeleton_fit']={'workspace':fit}
+        skeleton=dict(state,role='solution',current='E-2.3',next='E-2.4',conversation_check=put(self.root,'skeleton-conversation.md','E-2.3 → E-2.4')['path'])
+        completed=gate.check(self.root,skeleton)
+        state['practice_evidence']=completed['practice_evidence']
+        fit=state['practice_evidence']['skeleton_fit']['workspace']
+        state['practice_evidence']['implementation_walkthrough']={'workspace':design_walkthrough(self.root,gate,contract,[self.artifact])}
         with self.assertRaisesRegex(ValueError,'missing practice evidence: increment_fit'):
             tone.check_stage(self.root,state,state['artifacts'])
         state['practice_evidence']['increment_fit']={'workspace':fit}
@@ -155,6 +174,7 @@ class PracticeStages(unittest.TestCase):
         manual = put(self.root,'skeleton-view.md','Reviewer saw the same initial selection at desktop width')
         self.add_record(state,'rendering_choice')
         self.add_record(state,'appearance_proof',capture_unavailable='No capture channel',manual_review=manual)
+        self.complete_trial(state)
         self.add_record(state,'core_scene_skeleton',capture_unavailable='No capture channel',manual_review=manual)
         common = dict(mode='human',capture_unavailable='No capture channel',manual_review=manual,
                       reference_viewport='1280x800',comparison_state='Initial selection')

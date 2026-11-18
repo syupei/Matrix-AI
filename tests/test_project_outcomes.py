@@ -14,7 +14,8 @@ class ProjectTests(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory(); self.addCleanup(tmp.cleanup)
         self.root = Path(tmp.name); self.n = 0
         self.call('init', config=dict(project='SIM', pm_actor='PM', authorization='SIM', frontdoor_id='SIM', max_slots=3))
-        (self.root/'result.txt').write_text('SIM result')
+        (self.root/'management/result.txt').write_text('SIM coordination result')
+        (self.root/'management/request.md').write_text('SIM coordination request')
 
     def call(self, op, actor='PM', **kw):
         self.n += 1
@@ -24,14 +25,15 @@ class ProjectTests(unittest.TestCase):
         return self.call('project_config', expected_revision=self.call('project')['revision'], source='SIM source', changes=changes)
 
     def task(self, tid, **kw):
-        self.call('create', task=dict(id=tid,title=tid,parent=None,owner='PM',executor='PM',checker='QA',goal='SIM',
-                 inputs=['SIM input'],outputs=['result.txt'],criteria=['SIM checked'],next_action='SIM next', **kw))
+        kw.setdefault('kind','coordination')
+        self.call('create', task=dict(id=tid,title=tid,parent=None,owner='PM',executor=None,checker='QA',goal='SIM project coordination',
+                 inputs=['management/request.md'],outputs=['management/result.txt'],criteria=['SIM checked'],next_action='SIM next', **kw))
 
     def tasks(self):
         return {t['id']:t for t in self.call('status')['tasks']}
 
     def accept(self, tid):
-        self.call('update',task_id=tid,expected_revision=self.tasks()[tid]['revision'],changes={'evidence':['result.txt']},reason='SIM delivered')
+        self.call('update',task_id=tid,expected_revision=self.tasks()[tid]['revision'],changes={'evidence':['management/result.txt']},reason='SIM delivered')
         self.call('review','QA',task_id=tid,expected_revision=self.tasks()[tid]['revision'],outcome='passed',criteria_checked=['SIM checked'],evidence=['SIM check'])
         self.call('transition',task_id=tid,expected_revision=self.tasks()[tid]['revision'],state='done',reason='SIM accepted')
 

@@ -224,7 +224,10 @@ def task_list(c, asker, include_closed=False, link=None):
 def execute(pm, root, db, cmd):
     asker, closed = cmd.get('as'), cmd.get('include_closed', False)
     pm.require(pm.nonempty(asker) and type(closed) is bool, 'as (the PM actor or an instance id) and boolean include_closed required')
-    return task_list(context(pm, root, db), asker, closed)
+    result=task_list(context(pm,root,db),asker,closed)
+    result['production_feedback']=[r for r in pm.integrity.records(db,'production_feedback').values()
+        if r['status']=='pending' and (asker==pm.config(db)['pm_actor'] or r['task'] in pm.task_map(db) and asker in {pm.task_map(db)[r['task']].get('owner'),pm.task_map(db)[r['task']].get('manager')})]
+    return result
 
 
 def totals(usages):
