@@ -1,5 +1,6 @@
 """Public PM refuses review B until the current comparison page is checked."""
 import unittest
+import json
 from test_pm_instances import Fixture,pm
 import test_v037_direction_recovery as recovery
 import test_v037_rereview_stage as materials
@@ -20,7 +21,8 @@ class AssetPM(Fixture,unittest.TestCase):
         fixture=materials.StageRegressions();fixture.root=self.root;fixture.data=controller.data;fixture.contract=contract;fixture.serial=0
         record=fixture.asset_comparison()
         entry=dict(role='design',current='D-4',scope=['board'],tone_contract=contract)
-        state=dict(entry,practice_evidence={'asset_anchors':{'board':record}})
+        state=dict(entry,artifacts=json.loads((self.root/record['path']).read_text())['artifacts'],
+                   practice_evidence={'asset_anchors':{'board':record}})
         self.create('D4',project_level=False,owner='experience-design-001',executor='experience-design-001',
                     checker='quality-engineering-003',inputs=[tone.DEFAULT_PATH],admitted_inputs=[],dependencies=['DIR'],
                     practice_stage=entry,outputs=['design/current-scene.html','design/review.html'])

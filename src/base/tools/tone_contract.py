@@ -341,7 +341,7 @@ def check_fit(root, record, artifacts, contract=None, *, pre_confirmation=False,
                         for item in resolution.get('artifacts',[]):
                             if any(row.get('state')=='admitted' and row.get('path')==item['path']
                                    and row.get('sha256')==item['sha256'] for row in admitted):
-                                gap_sources[(item['path'],item['sha256'])]='human-gap:'+gap['id']
+                                gap_sources[(item['path'],item['sha256'])]=gap['decision']['choice']+'-gap:'+gap['id']
             for run in launches:
                 source_task=task_index.get(run.get('task_id'),{})
                 produced=(run.get('handover') or {}).get('files',{})
@@ -505,6 +505,29 @@ def embedded_page(root, page_path, *, recursive=False, visited=None):
     return parsed.paths, ' '.join(parsed.words)
 
 
+def comparison_table_rows(source):
+    """Read data cells per row; table headings cannot stand in for actual results."""
+    from html.parser import HTMLParser
+    class Rows(HTMLParser):
+        def __init__(self):
+            super().__init__();self.rows=[];self.cells=None;self.cell=None;self.header=0;self.data_cells=0
+        def handle_starttag(self,tag,attrs):
+            if tag=='thead':self.header+=1
+            if tag=='tr':self.cells=[];self.data_cells=0
+            if tag in {'td','th'} and self.cells is not None:
+                self.cell=[];self.data_cells+=tag=='td'
+        def handle_data(self,value):
+            if self.cell is not None:self.cell.append(value)
+        def handle_endtag(self,tag):
+            if tag in {'td','th'} and self.cell is not None:
+                self.cells.append(''.join(self.cell));self.cell=None
+            if tag=='tr' and self.cells is not None:
+                if not self.header and self.data_cells:self.rows.append(self.cells)
+                self.cells=None
+            if tag=='thead':self.header=max(0,self.header-1)
+    parsed=Rows();parsed.feed(source);return parsed.rows
+
+
 def check_asset_comparison(root, record, contract, *, allow_unmet=False):
     """Check the comparison deliverables and versions, not their visual quality."""
     data=record.get('comparison')
@@ -533,8 +556,10 @@ def check_asset_comparison(root, record, contract, *, allow_unmet=False):
     page=data.get('review_page');page_path=verify_ref(root,page)
     require(page_path.suffix.lower() in {'.html','.htm'},'actual side-by-side HTML review page required')
     embedded,visible=embedded_page(root,page_path)
-    require(not any(value in visible for value in ASSET_PAGE_PLACEHOLDERS),
-            'review page contains generated placeholders; replace them with actual observations, state and limitations')
+    placeholder=next((value for value in ASSET_PAGE_PLACEHOLDERS if value in visible),None)
+    require(placeholder is None,
+            'review page contains generated placeholder '+str(placeholder)+'; replace it with actual observations, state and limitations')
+    displayed_rows=comparison_table_rows(page_path.read_text())
     direction=read(root,contract['path'])
     reference={(ref['path'],ref['sha256']) for key,ref in direction['parts'].items() if key in {'preview','screenshot'}}
     anchors={(ref['path'],ref['sha256']) for ref in record['anchors']}|{(sample['path'],sample['sha256'])}
@@ -550,9 +575,19 @@ def check_asset_comparison(root, record, contract, *, allow_unmet=False):
         require((before['path'],before['sha256'])!=(sample['path'],sample['sha256']),'current scene sample cannot be the direction itself')
         expected.update((before['path'],after['path']))
         require(allow_unmet or row['status']!='unmet','an unmet appearance feature cannot release the asset family for production')
-        label={'achieved':'达到','close':'接近','unmet':'未达到'}[row['status']]
-        require(row['feature'] in visible and (row['status'] in visible or label in visible),
-                'review page must show every comparison feature and its status: '+row['feature'])
+        normalize=lambda value:re.sub(r'\s+','',value)
+        if displayed_rows:
+            matches=[cells for cells in displayed_rows if cells and normalize(cells[0])==normalize(row['feature'])]
+            require(len(matches)==1 and len(matches[0])>=4,
+                    'review page needs one data row with a status cell for feature: '+row['feature'])
+            status_text=matches[0][3]
+        else:
+            require(normalize(row['feature']) in normalize(visible),'review page must show comparison feature: '+row['feature'])
+            status_text=visible
+        labels={'达到':'achieved','接近':'close','未达到':'unmet'}
+        statuses={labels.get(value,value) for value in re.findall(r'(?<![A-Za-z])(?:achieved|close|unmet)(?![A-Za-z])|未达到|达到|接近',status_text)}
+        require(statuses=={row['status']} if displayed_rows else row['status'] in statuses,
+                'review page status differs from comparison row: '+row['feature'])
     require(expected<=embedded,'side-by-side review page must embed the actual direction and current scene/anchors: '+', '.join(sorted(expected-embedded)))
 
 
@@ -585,7 +620,7 @@ def asset_comparison_page(root, record_path, output, contract_path=DEFAULT_PATH)
     page=page.replace('{{COMPARISON_ROWS}}',rows)
     target.parent.mkdir(parents=True,exist_ok=True);target.write_text(page)
     return dict(allowed=True,status='draft_only',review_page=evidence.ref(root,output),
-                limitation='Generated placeholders are not an inspection or permission to submit review B.')
+                limitation='Generated placeholders are not an inspection or permission to submit anchor review.')
 
 
 def asset_comparison_receipt(root, record_path, contract_path=DEFAULT_PATH):
@@ -628,6 +663,11 @@ def check_asset_submission(root,state,display=None,*,registry_root=None,historic
                 and receipt.get('contract')==contract and receipt.get('scope')==sid
                 and receipt.get('review_page')==record['comparison']['review_page'], 'asset comparison receipt is stale or belongs to other material')
         for ref in receipt['materials']:verify_ref(root,ref)
+        direction_files={ref['path'] for ref in data['parts'].values()}|{contract['path']}
+        required=[receipt['review_page'],*[ref for ref in receipt['materials'] if ref['path'] not in direction_files]]
+        approved={(ref['path'],ref['sha256']) for ref in state.get('artifacts',[])}
+        missing=sorted({ref['path'] for ref in required if (ref['path'],ref['sha256']) not in approved})
+        require(not missing,'D-4 artifacts must bind every review page and non-direction receipt material before approval: '+', '.join(missing))
         if display is not None and display!=receipt['review_page']['path']:
             require((Path(root)/display).is_file(), 'review must show the page bound by each asset comparison receipt, directly or embedded')
             embedded,_=embedded_page(root,display,recursive=True)
@@ -930,7 +970,9 @@ def main():
         if args.draft:
             try:
                 pending=read(args.project,args.contract)
-                if text(pending.get('version')):result.update(direction_reference=direction_binding(DEFAULT_PATH,pending),status='draft_incomplete')
+                if text(pending.get('version')):
+                    result.update(direction_reference=direction_binding(DEFAULT_PATH,pending),
+                                  draft=evidence.ref(args.project,args.contract),status='draft_incomplete')
             except (ValueError,OSError,KeyError,TypeError,AttributeError):pass
         print(json.dumps(result,ensure_ascii=False));return 1
     print(json.dumps(result,ensure_ascii=False));return 0

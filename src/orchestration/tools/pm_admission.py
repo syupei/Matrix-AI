@@ -195,6 +195,9 @@ def practice_check(pm, root, db, task, tasks, direction, phase):
                'practice_stage must match the assigned and executing professions')
     scope = state.get('scope')
     pm.require(pm.strings(scope) and scope and len(scope) == len(set(scope)), 'practice_stage needs a unique workflow scope')
+    if role=='design' and current=='D-4':
+        pm.require(not state.get('practice_scope') or set(state['practice_scope'])==set(scope),
+                   'D-4 practice_scope must match the assigned scope before dispatch')
     if phase == 'planning':
         return
     if task['state'] == 'done' and task.get('practice_receipt'):
@@ -269,9 +272,13 @@ def review_child(pm, task, tasks):
     producers={parent.get('owner'),parent.get('executor')}-{None}
     pm.require(not producers & {task.get('owner'),task.get('executor')}, 'review child must be independent of the parent producers')
     outputs=task.get('outputs',[])
+    ancestors=[];ancestor=parent;seen=set()
+    while ancestor and ancestor.get('id') not in seen:
+        seen.add(ancestor['id']);ancestors.extend(ancestor.get('outputs',[]))
+        ancestor=tasks.get(ancestor.get('parent'),{})
     pm.require(outputs and all(not name.endswith('/') and Path(name).suffix.lower() in {'.json','.md','.txt'} and
-               not within_output(name,[*parent.get('inputs',[]),*parent.get('outputs',[])]) for name in outputs),
-               'review child outputs must be separate inspection records, never parent business outputs')
+               not within_output(name,[*parent.get('inputs',[]),*ancestors]) for name in outputs),
+               'review child outputs must be separate inspection records, never ancestor business outputs')
     return True
 
 
@@ -403,8 +410,24 @@ def input_snapshot(pm,root,task,tasks=None,phase='entry'):
     # refresh from live bytes alone, and never change a running task's input contract.
     if tasks and (phase == 'start' or task.get('state') not in {'running','done'} and phase in {'entry','planning'}):
         context=json.loads(json.dumps(context))
-        for path, source in context['sources'].items():
+        reachable=set();pending=[task.get('parent'),*task.get('dependencies',[])]
+        while pending:
+            tid=pending.pop()
+            if not tid or tid in reachable:continue
+            reachable.add(tid);up=tasks.get(tid,{})
+            pending.extend([up.get('parent'),*up.get('dependencies',[])])
+        for path, source in list(context['sources'].items()):
             origins=source.get('origins', [source])
+            if any(origin.get('task_id') not in reachable for origin in origins):
+                # A manager may replace an already-consumed upstream task with a
+                # successor. Re-resolve that input through normal admission; a
+                # retained path alone must not keep the departed source forever.
+                own=dict(task.get('handed_output_sha256',{}),**task.get('submitted_output_sha256',{}))
+                evolved=[name for name,sha in source['files'].items()
+                         if within_output(name,task.get('outputs',[])) and name in own and own[name]!=sha]
+                pm.require(not evolved,'evolved input changed upstream; merge the prior work before rebinding: '+', '.join(evolved))
+                del context['sources'][path]
+                continue
             refreshed=[]
             for origin in origins:
                 up=tasks.get(origin.get('task_id'), {})
@@ -456,22 +479,23 @@ def completion_context(pm,root,db,task,tasks,completion):
     selected=[task]
     for row in tasks.values():
         if row['id']!=task['id'] and pm.team.within(row['id'],[task['id']],tasks) and pm.effective_done(row,tasks):selected.append(row)
-    files={};producers={};review_files={};control_files=set()
+    files={};producers={};review_files={};control_files=set();inspection_files=set();production_files=set()
     for row in selected:
         if row.get('practice_completion'):control_files.add(row['practice_completion'])
-        if row.get('review_for'):control_files.update(row.get('handed_output_sha256',{}))
         handed=row.get('handed_output_sha256',{})
         if row['id']==task['id']:
             handed={name:pm.integrity.file_hash(pm,root,name) for name in row.get('evidence',[])
                     if name!=completion and pm.local(root,name).is_file() and within_output(name,row.get('outputs',[]))}
+        (inspection_files if row.get('review_for') else production_files).update(handed)
         for name,digest in handed.items():
             if name!=completion:files[name]=digest;producers[name]=row.get('executor') or row['owner']
         review=row.get('review') or {}
         for name,digest in review.get('artifact_sha256',{}).items():
             files[name]=digest;producers[name]=review['checker'];review_files[name]=digest
+    control_files.update(inspection_files-production_files)
     context=dict(task_id=task['id'],dispatched=task.get('practice_stage'),handed_files=files,producers=producers,review_files=review_files,control_files=sorted(control_files))
     state=json.loads(pm.local(root,completion).read_text())
-    if state.get('current') in {'D-6','E-3.2'}:
+    if state.get('current') in {'D-6','E-3.1','E-3.2'}:
         subjects={};subject_producers={}
         for item in state.get('artifacts',[]):
             candidates=[]
@@ -486,8 +510,9 @@ def completion_context(pm,root,db,task,tasks,completion):
                 subjects[item['path']]=item['sha256']
                 subject_producers[item['path']]=source.get('submitted_by') or source.get('executor') or source['owner']
         if subjects:
-            pm.require(all(item['path'] in subjects or files.get(item['path'])==item['sha256'] for item in state['artifacts']),
-                       'implementation artifacts must match a current trusted engineering handover or this design task delivery')
+            unmatched=[item['path'] for item in state['artifacts'] if item['path'] not in subjects and files.get(item['path'])!=item['sha256']]
+            pm.require(not unmatched,
+                       'implementation artifacts must match a current trusted engineering handover or this task delivery: '+', '.join(unmatched))
             context.update(review_subjects=subjects,subject_producers=subject_producers,implementation=True)
     return context
 

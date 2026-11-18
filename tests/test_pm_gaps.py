@@ -199,10 +199,12 @@ class Enforcement(Fixture, unittest.TestCase):
         for fields, message in [(dict(evidence=[]), 'evidence'), (dict(evidence='SIM'), 'evidence'), (dict(source=''), 'source')]:
             with self.assertRaisesRegex(pm.TaskError, message):
                 self.close_gap('G-001', **fields)
-        with self.assertRaisesRegex(pm.TaskError, 'owner or manager'):
+        with self.assertRaisesRegex(pm.TaskError, 'only PM or front desk'):
             self.close_gap('G-001', actor='product-001')
-        closed = self.close_gap('G-001', actor='code-engineering-001')['record']  # the owner of the linked task records it
-        self.assertEqual(('closed', 'legal/SIM-review.md', 'code-engineering-001'), (closed['status'], closed['result']['source'], closed['result']['by']))
+        with self.assertRaisesRegex(pm.TaskError, 'only PM or front desk'):
+            self.close_gap('G-001', actor='code-engineering-001')
+        closed = self.close_gap('G-001', actor='PM')['record']
+        self.assertEqual(('closed', 'legal/SIM-review.md', 'PM'), (closed['status'], closed['result']['source'], closed['result']['by']))
         self.start('T-1')
         with self.assertRaisesRegex(pm.TaskError, 'is closed'):
             self.decide('G-001')

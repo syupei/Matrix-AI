@@ -16,7 +16,7 @@ class AssetSubmission(unittest.TestCase):
         self.f.contract,self.f.data=self.f.direction([self.f.row(asset_family='yes')])
         self.record=self.f.asset_comparison()
         self.data=json.loads((self.root/self.record['path']).read_text())
-        self.state=dict(role='design',current='D-4',scope=['board'],tone_contract=self.f.contract,
+        self.state=dict(role='design',current='D-4',scope=['board'],tone_contract=self.f.contract,artifacts=self.data['artifacts'],
                         practice_evidence={'asset_anchors':{'board':self.record}})
 
     def cli(self,*args):
@@ -63,6 +63,29 @@ class AssetSubmission(unittest.TestCase):
         record=self.f.put('broken-assets.json',data)
         with self.assertRaisesRegex(ValueError,'image element.*image file'):
             tone.check_record(self.root,'asset_anchors','board',record,self.f.contract)
+
+    def test_table_header_cannot_replace_each_features_actual_status(self):
+        data=copy.deepcopy(self.data)
+        row=data['comparison']['rows'][0];feature=row['feature']
+        source=(self.root/data['comparison']['review_page']['path']).read_text()
+        for status in ('','close','unmet'):
+            page=self.f.put('design/table-review.html',source+'<table><thead><tr><th>achieved close unmet</th></tr></thead><tbody><tr><td>'+feature+'</td><td>SIM direction</td><td>SIM anchor</td><td>'+status+'</td><td>SIM difference</td></tr></tbody></table>')
+            changed=copy.deepcopy(data);changed['comparison']['review_page']=page
+            record=self.f.put('table-record.json',changed)
+            with self.subTest(status=status):
+                run=subprocess.run([sys.executable,'-B',str(BASE/'tone_contract.py'),'--project',str(self.root),
+                                    '--asset-comparison',record['path']],capture_output=True,text=True)
+                self.assertNotEqual(0,run.returncode,run.stdout)
+                self.assertIn('status differs',json.loads(run.stdout)['error'])
+
+    def test_inline_markup_preserves_feature_text_in_comparison_row(self):
+        data=copy.deepcopy(self.data);row=data['comparison']['rows'][0]
+        feature=row['feature'];left,right=feature.split(' ',1)
+        source=(self.root/data['comparison']['review_page']['path']).read_text()
+        page=self.f.put('design/markup-review.html',source+'<table><tr><td>'+left+' <b>'+right+'</b></td><td>SIM direction</td><td>SIM anchor</td><td>achieved</td><td>SIM difference</td></tr></table>')
+        data['comparison']['review_page']=page
+        record=self.f.put('markup-record.json',data)
+        self.assertTrue(self.cli('--asset-comparison',record['path'])['allowed'])
 
     def test_copied_direction_image_cannot_be_an_anchor(self):
         changed=copy.deepcopy(self.data)

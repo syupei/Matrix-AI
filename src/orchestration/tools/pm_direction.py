@@ -81,13 +81,14 @@ def attention(pm, root, db, cfg, cmd):
         elapsed = (datetime.fromisoformat(at.replace('Z','+00:00')) - datetime.fromisoformat(rec['opened_at'].replace('Z','+00:00'))).total_seconds()
         message = evidence.response_message(root, cmd['response'], cmd.get('response_id'))
         pm.require(message, 'complete response message is empty')
-        identity = {'response_id':cmd.get('response_id'), 'message_sha256':evidence.digest(message)}
+        identity = evidence.response_identity(root,{'path':cmd['response'],'response_id':cmd.get('response_id')})
         def reused(other):
             old=other.get('response_identity') or {}
-            return (old.get('response_id') == identity['response_id'] if identity['response_id'] is not None
-                    else old.get('response_id') is None and old.get('message_sha256') == identity['message_sha256'])
+            if not old.get('source') and other.get('response'):
+                old={'source':other['response'],'response_id':other.get('response_id')}
+            return old == identity
         pm.require(not any(reused(other) and other['id'] != rec['id'] for other in records.values()),
-                   'this response message is already bound to another displayed request; use its actual stable message id for a distinct reply')
+                   'this response source is already bound to another displayed request; save each actual new reply in its own source file')
         source_ref = evidence.ref(root, cmd['response'])
         rec.update(response=cmd['response'], response_id=cmd.get('response_id'), response_identity=identity,
                    response_message=message, response_bundle=evidence.seal_bundle(root, [source_ref], identity),
@@ -240,9 +241,9 @@ def resolve_gap(pm, root, db, cfg, cmd):
     else:
         pm.require(gap['status'] == 'closed' and adopted,
                    'external or human gap delivery needs closed gap evidence and admitted contribution versions')
-        if gap['decision']['choice']=='human':
+        if gap['decision']['choice'] in {'human','expert'}:
             pm.require((gap.get('result') or {}).get('by') in {cfg['pm_actor'],cfg.get('frontdesk_actor')} - {None},
-                       'human direction delivery must have been recorded by PM or front desk')
+                       gap['decision']['choice'] + ' direction delivery must have been recorded by PM or front desk')
         admissions = pm.integrity.records(db, 'input_admission')
         latest = pm.admission.ref_latest(admissions)
         covered = set()
@@ -457,23 +458,38 @@ def stage_confirmation(pm, root, db, cfg, cmd):
 
 def check_asset_attention(pm,root,task,display,state_path=None,*,allow_unmet=False):
     stage=task.get('practice_stage') or {}
-    if stage.get('role')!='design' or stage.get('current')!='D-4':return
+    explicit_state=state_path is not None
+    state_path=state_path or task.get('practice_completion')
+    state=None
+    if state_path:
+        if not explicit_state and not (stage.get('role')=='design' and stage.get('current')=='D-4') and not pm.local(root,state_path).is_file():return
+        pm.require(pm.nonempty(state_path) and pm.local(root,state_path).is_file(),
+                   'asset review requires stage_state: an existing D-4 JSON with practice_evidence and asset_comparison_receipts')
+        try:state=json.loads(pm.local(root,state_path).read_text())
+        except (ValueError,OSError) as error:
+            raise pm.TaskError('asset review stage_state must be a readable JSON object: '+str(state_path)) from error
+        pm.require(isinstance(state,dict),'asset review stage_state must be a JSON object')
+    if not any(row.get('role')=='design' and row.get('current')=='D-4' for row in (state or {},stage)):return
+    pm.require(stage.get('role')=='design' and stage.get('current')=='D-4',
+               'D-4 stage approval needs the assigned D-4 task, not another or unregistered stage')
+    pm.require(not stage.get('practice_scope') or set(stage['practice_scope'])==set(stage.get('scope',[])),
+               'D-4 practice_scope must match the assigned scope')
+    if state is not None:
+        pm.require(all(state.get(key)==stage.get(key) for key in ('role','current','scope','tone_contract')),
+                   'asset review state differs from the assigned D-4 scope')
     tone=pm.admission.load_gate().tone
     data=tone.confirmed_contract(root,stage.get('tone_contract'),registry_root=root)
     if not any('asset_anchors' in row for row in tone.practice.active(tone.profile(root,data),['asset_anchors'],stage.get('practice_scope') or stage.get('scope')).values()):return
-    state_path=state_path or task.get('practice_completion')
-    pm.require(pm.nonempty(state_path) and pm.local(root,state_path).is_file(),
+    pm.require(state is not None,
                'asset review requires stage_state: an existing D-4 JSON with practice_evidence and asset_comparison_receipts')
-    state=json.loads(pm.local(root,state_path).read_text())
-    pm.require(all(state.get(key)==stage.get(key) for key in ('role','current','scope','tone_contract')),
-               'asset review state differs from the assigned D-4 scope')
     tone.check_asset_submission(root,state,display,allow_unmet=allow_unmet)
     return True
 
 
 def bind_attention(pm, root, db, attention_id, *, person, quote, scope, expected):
     attention = pm.integrity.records(db, 'human_attention').get(attention_id)
-    pm.require(attention and attention.get('kind') == 'confirmation',
+    pm.require(attention, 'approval requires an existing answered human_attention; record the actual display and reply first')
+    pm.require(attention.get('kind') == 'confirmation',
                'approval requires a confirmation request; clarification or correction is not approval')
     pm.require(attention and attention.get('seconds') is not None and attention.get('scope') == scope,
                'approval requires the answered displayed request and scope')

@@ -6,6 +6,31 @@ from pm_game_fixture import Steps, h3, OUT_BUILD, OUT_D
 
 
 class GamePM(Steps, unittest.TestCase):
+    def test_early_e31_increment_can_review_unchanged_skeleton_file(self):
+        self.e22();self.e23();self.e24()
+        entry,path=self.stage_task('EARLY','build','E-3.1','code-engineering-001',OUT_BUILD,
+                                  self.f24['practice_evidence'],['T24'],delivery_kind='first_operable_increment',**self.up)
+        self.start('EARLY')
+        board=self.put('src/board.js','SIM early actual playable increment')
+        turn=self.put('src/turn.js','SIM early turn controller')
+        inc=[board,self.main1,turn]
+        self.handover('EARLY',[board['path'],turn['path']]);self.check('EARLY')
+        walk,receipt=self.design_review('D6EARLY',inc,'code-engineering-001')
+        data=json.loads((self.root/walk['path']).read_text())
+        data['design_review']=dict(bundle=receipt['bundle'],state_path=receipt['state_path'])
+        walk=self.put('engineering/build/early-walk.json',data)
+        fit=self.fit_child('EARLY','FIT-EARLY','quality-engineering-003','reviews/early-fit.json',
+            lambda:h3.fit(self.root,self.C,inc,'reviews/early-fit.json',shot=self.put('reviews/early.png',h3.shotpng()),
+                          direction_data=self.D,mode='independent',checker='quality-engineering-003',
+                          producer='code-engineering-001',review_task='FIT-EARLY'))
+        evidence=copy.deepcopy(self.f24['practice_evidence'])
+        evidence.update(implementation_walkthrough={'board':walk},increment_fit={'board':fit})
+        self.gate_file(path,self.state('build','E-3.1',inc,evidence,delivery_kind='first_operable_increment',**self.up))
+        self.mutate('update','EARLY',changes={'evidence':[board['path'],turn['path'],path]},reason='SIM early increment ready')
+        self.check('EARLY');self.close('EARLY')
+        self.assertTrue(self.t('EARLY')['practice_receipt']['increment_review'])
+        self.assertNotIn(self.main1['path'],self.t('EARLY')['handed_output_sha256'])
+
     def design_review(self, tid, inc, producer):
         path='design/'+tid+'/gate.json'
         self.create(tid,owner='experience-design-001',executor='experience-design-001',

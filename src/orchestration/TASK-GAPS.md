@@ -8,5 +8,5 @@
 
 - `gap_open`（PM、前台，或所列任务的 owner、manager）：`domain`（领域，或专业的 ID、名称）、`kind`（not_in_kit 本包没有；not_set_up 项目里没有在用实例）、`why`、`qualification`、`risk`，可带 `task_ids`。该领域已有常设选择时不再问人，返回 `existing` 与 `choice`，照此执行：self 挂到原缺口（风险更高时重新问）；expert、human 另建沿用该选择的缺口（`record`），各自交付、关闭。
 - `gap_decide`（PM 或前台）：`gap,expected_revision,choice`（expert/self/human）、`person,quote`，expert 另带 `expert`（专家 Agent 或人的名称、地址），`standing` 默认 true。person 须对每个关联任务有决定权，无关联任务时为项目级决定人。可以改选；human 给关联任务加"现在等人处理"的条目。
-- `gap_close`：只用于expert、human，传gap、expected_revision、source、evidence（数组）。human仅PM或前台登记真实人工交付；expert的记录者同gap_open。工具核记录者和来源，不能认证内容确由人写；保留实际答复/交付来源，不由合成者自填人工身份。登记后去掉等人条目。
+- `gap_close`：只用于expert、human，传gap、expected_revision、source、evidence（数组）。两者仅PM或前台登记实际收到的交付。工具核记录者和来源，不能认证真实作者；保留实际答复/交付来源，不由合成者自填人工或外部专家身份。登记后去掉等人条目。
 - 缺口未选择，或 expert、human 未关闭时，关联任务不能开工、交出或完成；选 self 的可以做，交出与完成时 evidence 须有一条含"非{领域}专家产出，未经具备资质的人审定"。任务列表、人审点汇总、计划表与群摘要显示缺口。

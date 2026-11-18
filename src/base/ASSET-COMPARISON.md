@@ -6,7 +6,7 @@
 
 ## 记录
 
-可先运行 `tone_contract.py --project <项目> --asset-page <记录.json> --page-output <新审看页.html>`，按confirmed_features生成双图槽和逐项待观察行。补上实际观察、差异和限制，更新记录中的审看页摘要后再做交审前检查；生成页面不代表比较通过。
+可先运行 `tone_contract.py --project <项目> --asset-page <记录.json> --page-output <新审看页.html>`，按confirmed_features生成双侧嵌入区和逐项待观察行。补上实际观察、差异和限制，更新记录中的审看页摘要后再做交审前检查；生成页面不代表比较通过。
 
 asset_anchors含scope、tone_contract、artifacts、anchors（3–5个不同真实ref）、scene_comparison、series_production及comparison：
 
@@ -28,6 +28,8 @@ asset_anchors含scope、tone_contract、artifacts、anchors（3–5个不同真�
 
 ref均为项目相对path/sha256。confirmed_features逐项来自已确认样稿，不随本轮做法任意删减；rows逐项覆盖，不用“精致/统一/以后再看”等空话代实际观察。reference须是当前契约parts.preview或parts.screenshot。anchor须是本记录anchors或scene_sample；小样属于本次artifacts，不能拿方向样稿本身冒新小样。审看页用img/iframe/object等真实嵌入两侧和小样，写路径或链接不等于并排呈现；依赖文件同交回并保持摘要有效。HTML/SVG保留实际内容；若小样是PNG，comparison另写viewport/capture_binding，按[采集证据](REVIEW-EVIDENCE.md)绑定实际artifacts和采集receipt。
 
-status仅achieved（达到）/close（接近）/unmet（未达到），页面逐项写特征和同一status。缺表、占位、旧ref、缺小样/审看素材时不发回执。unmet可取得release_ready:false回执并如实交人决定，完成与成套放行仍被阻断；不要为交审把unmet改成close。close保留实际差异与取舍，沿已有D-4审阅决定，不因表齐自动合格。程序只核结构、覆盖、文件和版本，不认证画质或观察确实发生。
+status仅achieved（达到）/close（接近）/unmet（未达到），表中每行特征与状态须对应，表头不算结果。生成占位词被拦时按报错改成具体观察或未决事项，不在正式句子里沿用“待观察”等占位词。缺表、占位、旧ref或素材时不发回执。unmet可取得release_ready:false并如实交人决定，完成与成套放行仍被阻断；不要为交审改成close。close保留实际差异与取舍，沿已有D-4审阅决定，不因表齐自动合格。程序不认证画质或观察真实性。
 
-导入专家须映射当前记录及pre_review_check，缺交审回执同样被拦。历史封存与当前成果见[阶段证据](STAGE-EVIDENCE.md)。
+D-4阶段artifacts须按当前摘要列入每张回执的review_page及materials中除契约和方向parts外的全部材料，包括小样与锚点。团队提请inputs包含这些成果；包装页不替代它们。批准后改动任一材料须重新展示并取得实答，不能只刷新回执沿用旧批准。
+
+导入专家须映射当前记录及pre_review_check，缺交审回执或未绑定审看材料同样被拦。隐藏嵌入、伪造展示和拆词规避仍须宿主与人核实；工具不认证实际可见性。历史封存与当前成果见[阶段证据](STAGE-EVIDENCE.md)。

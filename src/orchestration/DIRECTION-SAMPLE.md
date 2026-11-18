@@ -20,8 +20,10 @@
 
 ## 检查与一次合看
 
+单对话展示前按[证据格式](../base/REVIEW-EVIDENCE.md#展示与完整答复)准备：回复正文写明--draft返回的direction_reference.direction_sha256，原样保存为display；实答后再绑定，不事后补写展示。
+
 团队中由贴合检查员使用另一实例，优先用不同模型，回读做法档、实际截图、代表样句与方向草稿。指出与核心活动、目标人群、语气的具体偏离及调整办法；按本活动范围用[共用信号](../base/APPLICATION-DRIFT.md)检查。未通过先返工。单对话沿同一顺序并标「同一实例检验」。缺截图能力时，记录缺口并请人实际看稿，使用[阶段关卡](../base/STAGE-GATES.md)的人工记录。真实看稿随已有 P-1 展示安排处理。
 
 审前运行 `python3 matrix/base/tools/tone_contract.py --project . --contract product/specs/方向样张草稿.md --draft`。工具读取草稿，返回的绑定路径使用最终契约位置。将 `direction_reference` 写入贴合记录的 `tone_contract`，并写 `binding_mode: "pre_confirmation_direction"`。核对所审场景、预览、样句与做法档的摘要。它绑定除 `confirmation` 外的方向内容；合看只记录真实完整答复；confirmation按[契约模板](../base/tone-contract-template.md)绑定本次方向摘要及review_receipt，不能复用答复批准新材料。单对话把 `--contract` 指向实际草稿。回复前核验工具返回 `allowed: true` 及 `delivery`（`direction-delivery/1`）。从其中的成果及采集记录取链接，首稿标为待确认。若核验拒绝，回复指出具体缺项与已有进度，完成表述留到证据齐备时。截图只证明所见画面，可操作结果以实际试用记录说明。方向内容变化时重新复核。P-1 关卡的 `artifacts` 包含最终契约，`tone_contract` 引用其完整摘要。
 
-PM 用 `direction_sample` 组织已有专业及独立检查者、原 P-1 的一次合看；真实简报绑定当前准入版本。缺专业沿已有缺口选择，成果交回后以记录解除对应阻碍，其余继续。登记、补齐、重新展示与回执字段见[方向任务工具](DIRECTION-TOOL.md)。最终契约按[共同格式](../base/tone-contract-template.md)记录真实完整答复；P-1 里程碑实际关闭后供后段接续。单对话展示前按[证据格式](../base/REVIEW-EVIDENCE.md#展示与完整答复)准备：回复正文写明--draft返回的direction_reference.direction_sha256，原样保存为display；实答后再绑定，不事后补写展示。人的负担视图列展示次数、字数和答复用时。
+PM 用 `direction_sample` 组织已有专业及独立检查者、原 P-1 的一次合看；真实简报绑定当前准入版本。缺专业沿已有缺口选择，成果交回后以记录解除对应阻碍，其余继续。登记、补齐、重新展示与回执字段见[方向任务工具](DIRECTION-TOOL.md)。最终契约按[共同格式](../base/tone-contract-template.md)记录真实完整答复；P-1 里程碑实际关闭后供后段接续。人的负担视图列展示次数、字数和答复用时。

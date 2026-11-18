@@ -374,9 +374,8 @@ class DirectionBindings(Fixture,unittest.TestCase):
         self.call('human_attention',id='R2',kind='confirmation',task_id='Direction',scope='complete direction',display='shown.md')
         with self.assertRaisesRegex(ValueError,'already bound'):
             self.call('human_attention',id='R2',response='reply.md')
-        put(self.root,'renamed-reply.md','I approve the complete displayed direction')
-        with self.assertRaisesRegex(ValueError,'already bound'):
-            self.call('human_attention',id='R2',response='renamed-reply.md')
+        put(self.root,'new-actual-reply-R2.md','I approve the complete displayed direction')
+        self.call('human_attention',id='R2',response='new-actual-reply-R2.md')
 
     def test_live_response_append_keeps_only_the_original_message_authority(self):
         self.show_and_answer()
@@ -402,7 +401,7 @@ class DirectionBindings(Fixture,unittest.TestCase):
         self.check('Fit');self.close('Fit')
         put(self.root,'shown.md','SIM revised complete direction displayed')
         self.call('human_attention',id='R2',kind='confirmation',task_id='Direction',scope='complete direction',display='shown.md')
-        quote='I approve this newly displayed revised direction'
+        quote='I approve the complete displayed direction'  # another actual reply can use the same option text
         put(self.root,'new-reply.md',quote)
         self.call('human_attention',id='R2',response='new-reply.md')
         result=self.mutate('human_review','Direction','PM',outcome='approved',person='owner',presented_ref='shown.md',

@@ -24,6 +24,8 @@
 
 PM语义修改带admission_basis（当前intake id列表），并绑定到修改后inputs/admitted_inputs；变更方案还须受影响专业master的实际assessment。仅填写reason或私信来源不能改任务。production_feedback不改任务范围；PM用resolve_production_feedback带id、disposition=intake/change/rejected、reason及适用target_id处置，continue和任务视图列待办。
 
-一条工具记录只证明该来源、范围与版本的核对；宿主提供身份与写入边界。旧来源/答复未绑定新字段时须补核，不追改历史为已批准。
+工具只核来源、范围与版本；宿主提供身份与写入边界。旧来源/答复未绑定新字段须补核，不追改为已批准。
 
-已启动任务经PM准入修改时保留未变输入的原快照，只冻结新增或换源输入；从outputs移除的输入须仍匹配原只读字节，不把自己演进的成果重新包装为外部准入。阶段确认公开回执路径见[TASK-REVIEW](TASK-REVIEW.md)。
+PM准入修改保留未变输入的快照。依赖换到后继、原来源离开parent/dependencies链时重新取可信交回；已演进同一输入须保留、合并后另建任务承接。从outputs移除或仍只读的输入核原字节。事后把输入加入outputs即认可已有演进，PM须核实；不把自产成果重新包装为外部准入。回执见[TASK-REVIEW](TASK-REVIEW.md)。
+
+review_for不覆盖祖先业务输出；同路径生产成果仍须覆盖。artifacts限本任务或可信工程交回，含D-6复核文档；输入简报不算成果，缺件报路径。

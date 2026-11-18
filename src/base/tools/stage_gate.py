@@ -214,7 +214,8 @@ def _check(root,state,conversation=True,registry_root=None,seal=True,task_contex
         required={name:sha for name,sha in handed.items() if name not in controls}
         if role=='design' and current=='D-6' and task_context.get('implementation'):
             required.update(task_context.get('review_subjects',{}))
-        if not required or any(actual.get(name)!=sha for name,sha in required.items()):raise ValueError('stage artifacts do not cover the actual task and child handover')
+        missing=[name for name,sha in required.items() if actual.get(name)!=sha]
+        if not required or missing:raise ValueError('stage artifacts do not cover the actual task and child handover: '+(', '.join(missing) or 'no business artifacts'))
     return result
 
 

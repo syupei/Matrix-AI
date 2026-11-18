@@ -35,6 +35,43 @@ def materials(root,C,D,status='achieved'):
 
 
 class SingleAsset(unittest.TestCase):
+    def test_wrapper_cannot_approve_a_page_or_embedded_material_omitted_from_artifacts(self):
+        for missing in ('review.html','scene.html','a0.svg'):
+            with self.subTest(material=missing),tempfile.TemporaryDirectory() as directory:
+                root=Path(directory);C,D=h.direction(root,[h.feature_scope(asset_family='yes')])
+                arts,record,result,wrapper=materials(root,C,D)
+                shown=[a for a in arts if not a['path'].endswith('/'+missing)]
+                fit=h.fit(root,C,arts,'design/fit.json',shot=h.put(root,'design/fit.png',h.shotpng()),direction_data=D)
+                state=h.human_stage(root,h.stage(root,'design','D-4','D-5',C,shown,
+                    dict(asset_anchors={'board':record},asset_fit={'board':fit}),
+                    asset_comparison_receipts={'board':result['asset_comparison_receipt']}),'missing')
+                request=json.loads((root/state['request']).read_text());reply=json.loads((root/state['response']).read_text())
+                request.update(display_evidence=wrapper['path'],display_sha256=wrapper['sha256']);reply['display_sha256']=wrapper['sha256']
+                h.put(root,state['request'],request);h.put(root,state['response'],reply)
+                path=h.put(root,'missing.json',state)
+                with self.assertRaisesRegex(ValueError,'artifacts must bind'):
+                    cli(root,'stage_gate.py','--state',str(root/path['path']))
+
+    def test_refreshed_receipt_cannot_approve_post_reply_page_changes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);C,D=h.direction(root,[h.feature_scope(asset_family='yes')])
+            arts,record,result,wrapper=materials(root,C,D)
+            approved=[a for a in arts if a['path']!='design/assets/review.html']
+            page=root/'design/assets/review.html';completed=page.read_text()
+            page.write_text('<main>SIM pending observations</main>')
+            state=h.human_stage(root,h.stage(root,'design','D-4','D-5',C,approved),'old-display')
+            request=json.loads((root/state['request']).read_text());reply=json.loads((root/state['response']).read_text())
+            request.update(display_evidence=wrapper['path'],display_sha256=wrapper['sha256']);reply['display_sha256']=wrapper['sha256']
+            h.put(root,state['request'],request);h.put(root,state['response'],reply)
+            page.write_text(completed)
+            result=cli(root,'tone_contract.py','--asset-comparison',record['path'])
+            fit=h.fit(root,C,arts,'design/fit.json',shot=h.put(root,'design/fit.png',h.shotpng()),direction_data=D)
+            state.update(practice_evidence=dict(asset_anchors={'board':record},asset_fit={'board':fit}),
+                         asset_comparison_receipts={'board':result['asset_comparison_receipt']})
+            path=h.put(root,'changed-after-reply.json',state)
+            with self.assertRaisesRegex(ValueError,'artifacts must bind'):
+                cli(root,'stage_gate.py','--state',str(root/path['path']))
+
     def test_natural_evidence_folder_is_sealed_as_user_artifact(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);C,_=h.direction(root,[h.feature_scope()])
@@ -72,6 +109,67 @@ class SingleAsset(unittest.TestCase):
 class TeamAsset(Team,unittest.TestCase):
     rows=[h.feature_scope(asset_family='yes')]
 
+    def test_p1_and_d1_can_consume_distinct_replies_with_identical_words(self):
+        entry=dict(role='design',current='D-1',scope=['board'],tone_contract=self.C)
+        completion='design/d1-state.json'
+        self.create('D1-same-option',project_level=False,owner='experience-design-001',executor='experience-design-001',checker='quality-engineering-003',
+                    inputs=[self.tone.DEFAULT_PATH],admitted_inputs=[],dependencies=['DIR'],outputs=OUT_D,
+                    practice_stage=entry,practice_completion=completion)
+        self.start('D1-same-option')
+        artifact=self.put('design/d1.md','SIM current direction contribution')
+        contribution=h.record(self.root,'direction_contribution',self.C,[artifact],'design/d1-contribution.json')
+        quote=self.D['confirmation']['quote']
+        state=h.human_stage(self.root,self.state('design','D-1',[artifact],dict(direction_contribution={'board':contribution})),
+                            'D1-same-option',reply=quote)
+        request=json.loads((self.root/state['request']).read_text());response=json.loads((self.root/state['response']).read_text())
+        self.put(completion,state)
+        self.call('human_attention',id='D1-same-option',task_id='D1-same-option',kind='confirmation',display=request['display_evidence'],
+                  scope=['board'],inputs=[artifact['path']])
+        with self.assertRaisesRegex(ValueError,'already bound'):
+            self.call('human_attention',id='D1-same-option',response=self.D['confirmation']['source'])
+        self.call('human_attention',id='D1-same-option',response=response['source'])
+        response['review_receipt']=self.call('stage_confirmation',state=completion,attention_id='D1-same-option',person='SIM-owner')['review_receipt']
+        self.put(state['response'],response)
+        self.finish('D1-same-option',[completion,contribution['path'],artifact['path'],state['response']])
+        self.assertEqual('done',self.t('D1-same-option')['state'])
+
+    def test_d4_cannot_consume_another_stage_or_unstaged_tasks_attention(self):
+        arts,record,result,wrapper=materials(self.root,self.C,self.D)
+        for stage in ('D-3',None):
+            tid='other-'+(stage or 'none')
+            entry=dict(role='design',current=stage,scope=['board'],tone_contract=self.C) if stage else None
+            self.create(tid,project_level=False,owner='experience-design-001',executor='experience-design-001',checker='quality-engineering-003',
+                        inputs=[self.tone.DEFAULT_PATH],admitted_inputs=[],dependencies=['DIR'],outputs=OUT_D,
+                        **({'practice_stage':entry} if entry else {}))
+            state=h.human_stage(self.root,self.state('design','D-4',arts,
+                dict(asset_anchors={'board':record}),asset_comparison_receipts={'board':result['asset_comparison_receipt']}),tid)
+            request=json.loads((self.root/state['request']).read_text());reply=json.loads((self.root/state['response']).read_text())
+            request.update(display_evidence=wrapper['path'],display_sha256=wrapper['sha256']);reply['display_sha256']=wrapper['sha256']
+            self.put(state['request'],request);self.put(state['response'],reply)
+            path=self.put('design/'+tid+'-state.json',state)['path']
+            self.call('human_attention',id=tid,task_id=tid,kind='confirmation',display=wrapper['path'],scope=['board'],inputs=[a['path'] for a in arts])
+            self.call('human_attention',id=tid,response=reply['source'])
+            with self.subTest(task_stage=stage),self.assertRaisesRegex(ValueError,'assigned D-4 task'):
+                self.call('stage_confirmation',state=path,attention_id=tid,person='SIM-owner')
+
+    def test_d4_dispatch_rejects_different_practice_scope(self):
+        entry=dict(role='design',current='D-4',scope=['board'],practice_scope=['other'],tone_contract=self.C)
+        with self.assertRaisesRegex(ValueError,'practice_scope must match'):
+            self.create('bad-scope',project_level=False,owner='experience-design-001',executor='experience-design-001',checker='quality-engineering-003',
+                        inputs=[self.tone.DEFAULT_PATH],admitted_inputs=[],dependencies=['DIR'],outputs=OUT_D,practice_stage=entry)
+
+    def test_team_stage_review_locks_embedded_page_before_requesting_approval(self):
+        entry=dict(role='design',current='D-4',scope=['board'],tone_contract=self.C)
+        self.create('D4-omit',project_level=False,owner='experience-design-001',executor='experience-design-001',checker='quality-engineering-003',
+                    inputs=[self.tone.DEFAULT_PATH],admitted_inputs=[],dependencies=['DIR'],outputs=OUT_D,practice_stage=entry)
+        arts,record,result,wrapper=materials(self.root,self.C,self.D)
+        state=self.state('design','D-4',[a for a in arts if a['path']!='design/assets/review.html'],
+            dict(asset_anchors={'board':record}),asset_comparison_receipts={'board':result['asset_comparison_receipt']})
+        path=self.put('design/omit-state.json',state)['path']
+        with self.assertRaisesRegex(ValueError,'artifacts must bind'):
+            self.call('human_attention',id='omit',task_id='D4-omit',kind='confirmation',review_purpose='stage_review',stage_state=path,
+                      display=wrapper['path'],scope=['board'],inputs=[a['path'] for a in state['artifacts']])
+
     def test_public_team_closes_d4_with_embedded_page(self):
         entry=dict(role='design',current='D-4',scope=['board'],tone_contract=self.C)
         completion='design/d4-state.json'
@@ -84,7 +182,7 @@ class TeamAsset(Team,unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'stage_state'):
             self.call('human_attention',id='anchor-missing',task_id='D4',kind='confirmation',review_purpose='asset_anchors',display=question['path'],scope=['board'])
         arts,record,result,wrapper=materials(self.root,self.C,self.D,'unmet')
-        self.put(completion,dict(entry,practice_evidence={'asset_anchors':{'board':record}},asset_comparison_receipts={'board':result['asset_comparison_receipt']}))
+        self.put(completion,dict(entry,artifacts=arts,practice_evidence={'asset_anchors':{'board':record}},asset_comparison_receipts={'board':result['asset_comparison_receipt']}))
         self.call('human_attention',id='unmet-anchor',task_id='D4',kind='confirmation',review_purpose='asset_anchors',stage_state=completion,
                   display=wrapper['path'],scope=['board'])
         self.assertFalse(result['release_ready'])

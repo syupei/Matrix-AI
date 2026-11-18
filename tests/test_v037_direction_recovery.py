@@ -114,9 +114,10 @@ class DirectionRecovery(Fixture, unittest.TestCase):
             self.call('human_attention',id='SIM-P1-return-'+did,task_id=did,kind='confirmation',scope='SIM complete P1',
                       display=self.put('first-display.md','SIM initial complete direction'))
             quote='SIM change the scene contour before approving the direction'
-            self.call('human_attention',id='SIM-P1-return-'+did,response=self.put('return.md',quote))
+            return_source='responses/'+did+'-return.md'
+            self.call('human_attention',id='SIM-P1-return-'+did,response=self.put(return_source,quote))
             self.mutate('human_review',did,'PM',outcome='changes_requested',person='SIM-owner',
-                        presented_ref='first-display.md',source='return.md',quote=quote,scope='SIM complete P1',attention_id='SIM-P1-return-'+did)
+                        presented_ref='first-display.md',source=return_source,quote=quote,scope='SIM complete P1',attention_id='SIM-P1-return-'+did)
             for suffix in ('fit','compose','scene'):
                 tid=did+'-'+suffix
                 self.mutate('transition',tid,self.t(tid)['manager'],state='planned',reason='SIM requested direction rework',
@@ -139,10 +140,11 @@ class DirectionRecovery(Fixture, unittest.TestCase):
         self.call('human_attention', id='SIM-P1-'+did, task_id=did, kind='confirmation', scope='SIM combined P1',
                   display=self.put('display.md', 'SIM complete draft presented'))
         quote='SIM approve this complete direction '+did
-        self.call('human_attention', id='SIM-P1-'+did, response=self.put('response.md', quote))
+        response_source='responses/'+did+'.md'
+        self.call('human_attention', id='SIM-P1-'+did, response=self.put(response_source, quote))
         result=self.mutate('human_review',did,'PM',outcome='approved',person='SIM-owner',presented_ref='display.md',
-                           source='response.md',quote=quote,scope='SIM combined P1',attention_id='SIM-P1-'+did)
-        data['confirmation']=dict(person='SIM-owner',quote=quote,source='response.md',
+                           source=response_source,quote=quote,scope='SIM combined P1',attention_id='SIM-P1-'+did)
+        data['confirmation']=dict(person='SIM-owner',quote=quote,source=response_source,
             direction_sha256=tone.direction_binding(tone.DEFAULT_PATH,data)['direction_sha256'],
             review_receipt=result['task']['human_review']['review_receipt'])
         draft(); self.close(did)
@@ -153,15 +155,24 @@ class DirectionRecovery(Fixture, unittest.TestCase):
         self.data=data
 
     def test_missing_profession_can_adopt_closed_gap_and_resume_composition(self):
+        self.adopt_gap_delivery('human')
+
+    def test_external_expert_delivery_is_recorded_by_pm_and_closes_p1(self):
+        self.adopt_gap_delivery('expert')
+
+    def adopt_gap_delivery(self, choice):
         brief, assigned = self.setup_direction(missing_content=True)
         result = self.call('direction_sample', id='DIR', brief=brief, admitted_inputs=['BRIEF'], profile='SIM game',
                            person='SIM-owner', combined_review_authorization='SIM single review', assigned=assigned)
         self.assertIn('content-design', result['direction_sample']['missing_roles'])
-        gap = self.call('gap_open', domain='content-design', kind='not_set_up', why='SIM need sample copy', qualification='SIM content', risk='F3')['record']
-        self.call('gap_decide', gap=gap['id'], expected_revision=gap['revision'], choice='human', person='SIM-owner', quote='SIM human will deliver')
+        gap = self.call('gap_open', domain='content-design', kind='not_set_up', why='SIM need sample copy', qualification='SIM content', risk='F3',task_ids=['DIR'])['record']
+        self.call('gap_decide', gap=gap['id'], expected_revision=gap['revision'], choice=choice, person='SIM-owner',
+                  quote='SIM designated external delivery',**({'expert':'SIM external copy specialist'} if choice=='expert' else {}))
         samples = self.put('content/方向样句.md', 'SIM actual delivered moment, text and consequence.')
         gap = pm.execute(self.root, {'op':'status'})['gaps'][gap['id']]
-        self.call('gap_close', gap=gap['id'], expected_revision=gap['revision'], source='SIM human result', evidence=[samples])
+        with self.assertRaisesRegex(ValueError,'only PM or front desk'):
+            self.call('gap_close','product-001',gap=gap['id'],expected_revision=gap['revision'],source='SIM self-attested result',evidence=[samples])
+        self.call('gap_close', gap=gap['id'], expected_revision=gap['revision'], source='SIM received '+choice+' result', evidence=[samples])
         self.call('intake_register', id='COPY', source_id='copy', new_family_reason='SIM separate content delivery', path=samples, version='1', source='SIM delivered copy', profession='product')
         self.call('intake_submit', id='COPY', master='product-001')
         self.call('intake_review', 'product-001', id='COPY', outcome='approved', conclusion='SIM adopted copy', resolved_risks=[], resolved_conflicts=[], open_items=[], human_required=False, coexists_with=['BRIEF'], conflicts_with=[])

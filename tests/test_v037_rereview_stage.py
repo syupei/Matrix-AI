@@ -396,7 +396,7 @@ class StageRegressions(unittest.TestCase):
         self.assertIn('asset_anchors',active['board'])
         contract=tone.practice.professional_contract(registry)
         definition=next(row['definition'] for row in contract['requirements'] if row['stage']=='D-4' and row['requirement']=='asset_anchors')
-        self.assertEqual(definition['version'],4)
+        self.assertEqual(definition['version'],5)
         self.assertIn('comparison',definition)
 
     def test_cross_root_sealing_requires_explicit_read_only_view(self):
@@ -408,10 +408,9 @@ class StageRegressions(unittest.TestCase):
             gate.check(view,frozen,registry_root=self.root)
         self.assertTrue(gate.check(view,frozen,registry_root=self.root,seal=False)['allowed'])
 
-    def test_old_reply_cannot_be_renamed_and_bound_to_a_new_direction(self):
+    def test_same_reply_source_cannot_be_bound_to_a_new_direction(self):
         _,manifest=tone.evidence.verify_bundle(self.root,self.data['confirmation']['review_receipt']);binding=manifest['context']
-        copy=self.put('copied-reply.json',(self.root/binding['response']['path']).read_bytes())
-        binding=dict(binding,response=dict(binding['response'],**copy),direction_sha256='changed')
+        binding=dict(binding,direction_sha256='changed')
         with self.assertRaisesRegex(ValueError,'already bound'):
             tone.evidence.review_receipt(self.root,binding)
 
@@ -483,6 +482,7 @@ class StageRegressions(unittest.TestCase):
         process=subprocess.run([sys.executable,str(BASE/'tone_contract.py'),'--project',str(self.root),'--draft'],capture_output=True,text=True)
         result=json.loads(process.stdout);self.assertNotEqual(process.returncode,0)
         self.assertIn('direction_reference',result);self.assertNotIn('delivery',result)
+        self.assertEqual(result['draft'],tone.evidence.ref(self.root,tone.DEFAULT_PATH))
         self.assertFalse((self.root/(tone.DEFAULT_PATH+'.delivery.json')).exists())
 
     def test_q2_playtest_binds_the_actual_tested_build_not_just_a_report(self):

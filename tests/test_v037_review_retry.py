@@ -41,6 +41,58 @@ class ConfirmationRetry(unittest.TestCase):
     def registrations(self):
         return set((self.root/'management/review-bindings').glob('*.json'))
 
+    def test_new_direction_can_use_same_words_from_a_distinct_real_reply_source(self):
+        self.assertEqual(0,self.invoke()[0])
+        data=tone.read(self.root,self.binding['direction_draft']['path'])
+        data['tone']='SIM revised direction shown in a new actual request'
+        self.binding['direction_draft']=put(self.root,tone.DEFAULT_PATH,'```tone-contract\n'+json.dumps(data)+'\n```\n')
+        self.binding['direction_sha256']=tone.direction_binding(tone.DEFAULT_PATH,data)['direction_sha256']
+        self.binding['display']=put(self.root,'shown-v2.md','SIM new displayed direction '+self.binding['direction_sha256'])
+        self.binding['request_id']='R2'
+        code,result=self.invoke()
+        self.assertEqual(1,code)
+        self.assertIn('already bound',result['error'])
+        self.binding['response']=dict(put(self.root,'answer-R2.md',self.binding['quote']),
+                                      message_sha256=tone.evidence.digest(self.binding['quote']))
+        code,result=self.invoke()
+        self.assertEqual(0,code,result)
+
+    def test_no_capture_draft_uses_one_display_and_reply_through_p1(self):
+        registrations_before=self.registrations()
+        data=tone.read(self.root,self.binding['direction_draft']['path'])
+        data['parts'].pop('screenshot');data.pop('capture_binding',None)
+        data['capture_unavailable']='SIM host has no capture channel; actual viewport is shown to the person'
+        data['parts']['manual_review']=put(self.root,'manual-viewport.md','SIM current actual viewport displayed at 1280x800')
+        put(self.root,tone.DEFAULT_PATH,'```tone-contract\n'+json.dumps(data)+'\n```\n')
+        draft=subprocess.run([sys.executable,'-B',str(KIT/'matrix/base/tools/tone_contract.py'),
+            '--project',str(self.root),'--draft'],text=True,capture_output=True)
+        result=json.loads(draft.stdout)
+        self.assertEqual('draft_incomplete',result['status'])
+        self.binding.update(direction_draft=result['draft'],direction_sha256=result['direction_reference']['direction_sha256'],
+            artifacts=list(data['parts'].values()))
+        self.binding['display']=put(self.root,'shown.md','SIM actual direction and viewport '+self.binding['direction_sha256'])
+        code,approved=self.invoke();self.assertEqual(0,code,approved)
+        data['confirmation']=dict(person='owner',quote=self.binding['quote'],source=self.binding['response']['path'],
+            direction_sha256=self.binding['direction_sha256'],review_receipt=approved['review_receipt'])
+        contract=dict(put(self.root,tone.DEFAULT_PATH,'```tone-contract\n'+json.dumps(data)+'\n```\n'),version=data['version'])
+        fit=put(self.root,'fit-manual.json',dict(tone_contract=result['direction_reference'],binding_mode='pre_confirmation_direction',
+            mode='human',producer='SIM-maker',checker='owner',outcome='passed',artifacts=list(data['parts'].values()),
+            viewport='1280x800',capture='SIM actual manual viewport observation',genre_fit='SIM activity remains clear',
+            application_drift='SIM checked controls in activity',copy_fit='SIM words match the moment',
+            manual_review=data['parts']['manual_review'],capture_unavailable=data['capture_unavailable'],human_review_receipt=approved['review_receipt']))
+        spec=importlib.util.spec_from_file_location('single_no_capture_gate',KIT/'matrix/base/tools/stage_gate.py')
+        gate=importlib.util.module_from_spec(spec);spec.loader.exec_module(gate)
+        digest=gate.artifact_digest(self.root,[contract]);display=self.binding['display']
+        request=put(self.root,'request.json',dict(request_id='R',role='product',stage='P-1',scope=['workspace'],artifact_sha256=digest,
+            display_evidence=display['path'],display_sha256=display['sha256']))
+        response=put(self.root,'response.json',dict(request_id='R',actor='user',choice='confirm',scope=['workspace'],artifact_sha256=digest,
+            source=self.binding['response']['path'],quote=self.binding['quote'],message_sha256=tone.evidence.digest(self.binding['quote']),display_sha256=display['sha256']))
+        state=put(self.root,'p1.json',dict(role='product',current='P-1',next='P-2',scope=['workspace'],blockers=[],artifacts=[contract],tone_contract=contract,
+            tone_fit_review=fit['path'],request=request['path'],response=response['path'],conversation_check=put(self.root,'conversation.md','P-1->P-2')['path']))
+        run=subprocess.run([sys.executable,'-B',str(KIT/'matrix/base/tools/stage_gate.py'),'--project',str(self.root),'--state',str(self.root/state['path'])],text=True,capture_output=True)
+        self.assertEqual(0,run.returncode,run.stdout+run.stderr)
+        self.assertEqual(1,len(self.registrations()-registrations_before))
+
     def test_stale_display_failure_leaves_no_binding_and_corrected_retry_succeeds(self):
         before = self.registrations()
         self.binding['display']['sha256'] = '0'*64

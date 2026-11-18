@@ -9,7 +9,10 @@ import re
 import struct
 import tempfile
 import os
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
 import zlib
 import contextvars
 import contextlib
@@ -68,6 +71,32 @@ def ref(root, name):
     return {'path': name, 'sha256': hashlib.sha256(file(root, name).read_bytes()).hexdigest()}
 
 
+@contextlib.contextmanager
+def publication_lock(guard):
+    """Keep publication serialized on POSIX and Windows; never fall back to no lock."""
+    if fcntl is not None:
+        fcntl.flock(guard.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(guard.fileno(), fcntl.LOCK_UN)
+    else:
+        try:
+            import msvcrt
+        except ImportError as error:
+            raise ValueError('immutable publication requires a supported file-lock backend') from error
+        # Windows byte-range locks may extend beyond EOF. Always lock the same byte,
+        # including for a newly created empty guard. LK_LOCK fails after its bounded
+        # retries; a timeout must not turn into an unprotected publication.
+        guard.seek(0)
+        msvcrt.locking(guard.fileno(), msvcrt.LK_LOCK, 1)
+        try:
+            yield
+        finally:
+            guard.seek(0)
+            msvcrt.locking(guard.fileno(), msvcrt.LK_UNLCK, 1)
+
+
 def publish_immutable(root, name, payload):
     """Atomically publish complete bytes; concurrent same-byte publishers never rewrite."""
     root=Path(root).resolve()
@@ -84,21 +113,21 @@ def publish_immutable(root, name, payload):
     descriptor=os.open(lock,os.O_CREAT|os.O_RDWR|getattr(os,'O_NOFOLLOW',0),0o600)
     with os.fdopen(descriptor,'r+b') as guard:
         require(os.fstat(guard.fileno()).st_nlink==1,'unsafe immutable publication lock')
-        fcntl.flock(guard.fileno(),fcntl.LOCK_EX)
-        if target.exists() or target.is_symlink():
-            require(file(root,name).read_bytes()==payload,'immutable file differs: '+name)
-            return ref(root,name)
-        temporary=None
-        try:
-            with tempfile.NamedTemporaryFile(prefix='.'+target.name+'-',suffix='.publish',dir=parent,delete=False) as stream:
-                temporary=Path(stream.name)
-                stream.write(payload);stream.flush();os.fsync(stream.fileno())
-            # The stable per-destination lock serializes all framework publishers.
-            # The target becomes visible only after its complete temporary file exists.
-            os.replace(temporary,target)
+        with publication_lock(guard):
+            if target.exists() or target.is_symlink():
+                require(file(root,name).read_bytes()==payload,'immutable file differs: '+name)
+                return ref(root,name)
             temporary=None
-        finally:
-            if temporary is not None:temporary.unlink(missing_ok=True)
+            try:
+                with tempfile.NamedTemporaryFile(prefix='.'+target.name+'-',suffix='.publish',dir=parent,delete=False) as stream:
+                    temporary=Path(stream.name)
+                    stream.write(payload);stream.flush();os.fsync(stream.fileno())
+                # The stable per-destination lock serializes all framework publishers.
+                # The target becomes visible only after its complete temporary file exists.
+                os.replace(temporary,target)
+                temporary=None
+            finally:
+                if temporary is not None:temporary.unlink(missing_ok=True)
     return ref(root,name)
 
 
@@ -267,15 +296,26 @@ def check_review_binding(binding, *, direction_sha256=None, scope=None, person=N
     return binding
 
 
+def response_identity(root, response):
+    """One captured source (and optional message within it) belongs to one display.
+
+    Identical text in distinct real reply files is normal. Files cannot authenticate
+    the capture; copying an old reply into a new source remains falsification.
+    """
+    source=Path(response['path'])
+    require(not source.is_absolute() and '..' not in source.parts,'project-relative response source required')
+    # Verification may replay a sealed response after the live source was archived.
+    # Registration already validates the file; identity needs only its stable name.
+    return {'source':source.as_posix(),'response_id':response.get('response_id')}
+
+
 def review_receipt(root, binding):
     check_review_binding(binding)
     response = binding['response']
     message = response_message(root, response['path'], response.get('response_id'))
     require(message == binding['quote'].strip(), 'confirmation quote must equal the complete response message')
     require(digest(message) == response['message_sha256'], 'response message changed')
-    # Stable message ids disambiguate separate replies with identical wording. With a raw
-    # text reply there is no such evidence, so renaming/copying it cannot create new authority.
-    identity = {'message': response['message_sha256'], 'id': response.get('response_id')}
+    identity = response_identity(root,response)
     registration = Path(root) / 'management/review-bindings' / (digest(identity) + '.json')
     authority = {key: binding.get(key) for key in ('display', 'scope', 'direction_sha256')}
     if registration.exists():
@@ -290,7 +330,7 @@ def review_receipt(root, binding):
 
 
 def verify_response_registration(root, binding):
-    identity = {'message': binding['response']['message_sha256'], 'id': binding['response'].get('response_id')}
+    identity = response_identity(root,binding['response'])
     name = 'management/review-bindings/' + digest(identity) + '.json'
     registered = json.loads(file(root, name).read_text())
     require(registered == {key: binding.get(key) for key in ('display', 'scope', 'direction_sha256')},
@@ -437,9 +477,9 @@ def main():
             data=tone.validate(args.project,draft['path'],confirmed=False,_pending_human=True)
             binding['scope']=tone.check_direction_scope(args.project,data,binding.get('scope'))
             expected=tone.direction_binding(tone.DEFAULT_PATH,data)['direction_sha256']
-            require(binding['direction_sha256']==expected,'direction digest differs from the current draft; correct the binding before retrying')
+            require(binding['direction_sha256']==expected,'direction_reference.direction_sha256 differs from the current draft; if the draft changed after display, display it again and obtain the actual reply; otherwise correct the binding before retrying')
             shown=verify_ref(args.project,binding['display']).read_text(encoding='utf-8')
-            require(expected in shown,'display record lacks this direction digest; if it was absent from the actual display, show the draft with its digest and obtain the actual reply; do not backfill an old display')
+            require(expected in shown,'display record lacks direction_reference.direction_sha256; if absent from the actual display, show that direction digest and obtain the actual reply; do not backfill an old display')
             binding['response']['message_sha256']=digest(response_message(args.project,binding['response']['path'],binding['response'].get('response_id')))
         result={'allowed':True,'review_receipt':review_receipt(args.project,binding),
                 'limitation':'Binds recorded bytes and scope; does not authenticate the human or establish professional quality.'}

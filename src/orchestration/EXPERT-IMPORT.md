@@ -32,7 +32,7 @@ expert.validate的evidence含runner/report/source_sha256（METHODS摘要），�
 
 首次通过封存management/expert-validations/<id>/<version>/<author-run-id>/。manifest.validation保存bundle、author_run_sha256、review_receipt；DB的expert_validation（id=<id>/<version>）锚定bundle与receipt_sha256，不能重封存替换。enable/bind/派发核快照、DB锚点和当前methods/package/mapping/contract；public演进可继续，改快照或receipt失效。
 
-D-4的asset_anchors映射含pre_review_check（definition.submission第4版：锚点审看前取回执、可嵌入回执页、unmet可审不可放行）。旧包重新适配，adapt与gate统一检查；字段及边界见[共同对照](../base/ASSET-COMPARISON.md)。
+D-4映射含pre_review_check（submission第5版：锚点审看前取回执，审看页及非方向材料列入阶段成果，unmet可审不可放行）。旧包重做适配；adapt与gate统一检查，见[共同对照](../base/ASSET-COMPARISON.md)。
 
 ## 迁移
 

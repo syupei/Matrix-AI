@@ -83,6 +83,17 @@ class PMStageRound2(Fixture,unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'parent producers'):
             self.create('SELF-REVIEW',parent='BUILD',actor='PM',review_for='BUILD',outputs=['design/check.json'])
 
+    def test_nested_review_cannot_claim_an_ancestor_business_output(self):
+        entry=self.build_entry();self.create('BUILD',practice_stage=entry,outputs=['src/'])
+        self.create('INC',parent='BUILD',actor='PM',owner='code-engineering-002',executor='code-engineering-002',
+                    checker='quality-engineering-001',outputs=['src/game.js'])
+        fields=dict(parent='INC',actor='PM',owner='quality-engineering-001',executor='quality-engineering-001',
+                    checker='quality-engineering-002',review_for='INC',practice_stage=dict(role='quality',current='Q-1',scope=['workspace']))
+        with self.assertRaisesRegex(ValueError,'separate inspection'):
+            self.create('ALIAS',outputs=['src/levels.json'],**fields)
+        self.create('REVIEW',outputs=['reviews/independent.json'],**fields)
+        self.assertEqual('INC',self.t('REVIEW')['review_for'])
+
     def test_first_actual_increment_cannot_close_without_receipt_or_start_later_sibling(self):
         entry=self.build_entry();self.create('BUILD',practice_stage=entry,outputs=['src/'])
         self.create('ONE',parent='BUILD',actor='PM',owner='code-engineering-002',executor='code-engineering-002',checker='quality-engineering-001',outputs=['src/one.js','pm-stage/one.json'])

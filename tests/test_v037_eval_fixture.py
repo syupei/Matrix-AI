@@ -27,5 +27,8 @@ class FixedPriorDirection(unittest.TestCase):
                 self.assertEqual(draft['confirmation']['person'],'synthetic-owner')
                 self.assertEqual((root/'design/direction/sample.png').read_bytes(),(late_game.INPUTS/'direction.png').read_bytes())
                 self.assertTrue(all('不宣称访问' in row['observed'] for row in draft['references']))
+                indexes=list((root/'management/review-bindings').glob('*.json'))
+                self.assertEqual(len(indexes),2)
+                self.assertEqual(indexes[0].read_bytes(),indexes[1].read_bytes())
 
 if __name__=='__main__':unittest.main()

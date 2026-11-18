@@ -69,6 +69,15 @@ def synthetic_approval(root, data):
                'direction_sha256': direction_hash, 'display': display, 'artifacts': list(data['parts'].values()),
                'response': dict(response, message_sha256=evidence.digest(approval['quote']))}
     approval.update(direction_sha256=direction_hash, review_receipt=evidence.review_receipt(root, binding))
+    # Preserve the frozen producer and its legacy index. Both kits receive the
+    # same additional source-keyed index required by the repaired protocol.
+    legacy = {'message': binding['response']['message_sha256'],
+              'id': binding['response'].get('response_id')}
+    source = {'source': Path(binding['response']['path']).as_posix(),
+              'response_id': binding['response'].get('response_id')}
+    registrations = root / 'management/review-bindings'
+    (registrations / (evidence.digest(source)+'.json')).write_bytes(
+        (registrations / (evidence.digest(legacy)+'.json')).read_bytes())
 
 
 def put(root, relative, data):
