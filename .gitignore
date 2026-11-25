@@ -1,8 +1,0 @@
-__pycache__/
-*.pyc
-.DS_Store
-/dist/
-/.env
-
-/build/
-/eval-results/

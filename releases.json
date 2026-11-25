@@ -1,6 +1,6 @@
 {
   "repository": "syupei/Matrix-AI",
-  "latest": "matrix-ai-v0.37",
+  "latest": "matrix-ai-v0.38",
   "releases": [
     {
       "tag": "product-agent-demo-kit-v0.1",
@@ -827,7 +827,7 @@
       "title": "matrix-ai-v0.37",
       "source": "src",
       "notes": "release-notes/matrix-ai-v0.37.md",
-      "latest": true,
+      "latest": false,
       "archive_origin": "build",
       "assets": [
         {
@@ -843,10 +843,24 @@
       },
       "source_ref": "matrix-ai-v0.37",
       "manifest": "release-manifests/matrix-ai-v0.37.json"
+    },
+    {
+      "tag": "matrix-ai-v0.38",
+      "title": "matrix-ai-v0.38",
+      "source": "products/matrix-ai-v0.38",
+      "source_ref": "matrix-ai-v0.38",
+      "manifest": "release-manifests/matrix-ai-v0.38.json",
+      "notes": "release-notes/matrix-ai-v0.38.md",
+      "latest": true,
+      "archive_origin": "build",
+      "assets": [
+        {
+          "name": "matrix-ai-v0.38.zip",
+          "sha256": "51399e4c5e15ba3f417bc7b2fff2e8fa4fea1e0e21ac068b838c0e9fa289e5cd",
+          "bytes": 1089595
+        }
+      ]
     }
-  ],
-  "unreleased": [
-    "archive/unreleased/professional-agents-kit-v0.4"
   ],
   "unavailable": [
     "product-design-agent-kit-v0.4"

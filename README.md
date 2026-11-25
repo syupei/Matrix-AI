@@ -1,47 +1,28 @@
 # Matrix-AI
 
-一系列专业 Agent 的基座，分三部分：所有 Agent 共同遵守的基础部分，项目管理与前台负责的调度部分，以及产品、内容设计与审读、交互与视觉设计、代码工程、质量工程等任务专家。每个专家以专业标识为岗位，可以换成项目自己的 Agent。0.30 及更早的版本名为 professional-agents-kit。
+一组中文专业工作方法与协作规则，包含共同基础、项目管理与前台，以及产品、内容设计、交互与视觉设计、代码工程和质量工程等专业。可在单个对话中使用，也可按项目需要配置多个专业实例；关键决定由人掌握。
 
-[最新完整包及下载](https://github.com/syupei/Matrix-AI/releases/latest) · [全部历史版本](https://github.com/syupei/Matrix-AI/releases) · [版本目录](releases.json) · [下载包 SHA256](SHA256SUMS)
+[下载 Matrix-AI 0.38](https://github.com/syupei/Matrix-AI/releases/tag/matrix-ai-v0.38) · [本版变化与已知限制](release-notes/matrix-ai-v0.38.md) · [版本目录](releases.json) · [下载核对](SHA256SUMS)
 
-目前推荐 **matrix-ai-v0.37**，使用说明见 [START](src/START.md)。安装不等于启动 Agent 或批准业务成果；具体能力、限制及实际验证以各版说明为准。
+## 安装与开始使用
 
-## 历史档案
+完整包与可阅读的规则、技能、模板及运行脚本位于 [products/matrix-ai-v0.38/](products/matrix-ai-v0.38/)。请先阅读 [START](products/matrix-ai-v0.38/START.md)。需要 Python 3.10 或更高版本；本版不提供 Windows 支持。
 
-- `packages/`：v0.15 及此前已发布版本的完整源码快照，含隐藏 `.agents/skills/`、公共规则、原始来源及各版清单。
-- GitHub Releases：对应版本标签、原 ZIP 或明确标注的重建 ZIP。早期误命名的 `product-design-agent-kit-v0.zip` 保留为 v0.1 的历史附件。
-- `archive/unreleased/`：未发布的完整包 v0.4 中间稿，保持原样并说明清单不一致，不作为可安装版。
-- 早期产品包 v0.1/v0.4、完整包 v0.5 的原 ZIP 缺失，已从哈希完整的原目录重建。重建不改变文件内容，但压缩文件哈希与原 ZIP 可能不同。
-- 曾被删除的产品/设计联合包 v0.4 已无现存文件，仅记录缺失；其已确认能力包含在后续版本中。
-
-本仓库于 2026-09-21 迁入历史发行物，标签和提交是迁移快照，不伪造过去的 Git 历史或原发布时间。原发布包保留原有来源与许可说明；没有为第三方材料重新授予许可。个人记忆、业务运行数据、临时研究和安装备份不在发布范围。
-
-## 修改与发布
-
-唯一可编辑源码在 `src/`，版本在 `package.json`。从 v0.16 开始，Git 标签和 `release-manifests/` 保存版本依据，不再逐版复制完整目录。维护测试、合成行为场景与运行器分别在 `tests/`、`evals/`；它们不进入使用方 ZIP。
+将完整包解压后，在包目录运行：
 
 ```sh
-python3 tools/production.py --build-dir build
-python3 evals/run.py --source /path/to/previous-source --output /path/to/baseline-results
-python3 evals/run.py --source build/matrix-ai-v0.31 --output /path/to/candidate-results
-python3 tools/production.py --build-dir build --publish --evidence /path/to/comparison.json --notes /path/to/release-notes.md
+python3 install.py --target "<新项目路径>"
+python3 install.py --target "<新项目路径>" --apply
 ```
 
-先完成实际行为比较与逐项审阅，报告格式见 [评测说明](evals/README.md)，维护约束见 [CONTRIBUTING](docs/CONTRIBUTING.md)。缺结果、源码/场景不匹配、测试未完成或发生退步均阻断发布。脚本检查不能认证人身份或代替专业判断。
+先预检再安装。已装有其它版本的项目会在写入前停止；本安装器不作跨版本升级或迁移。安装不会启动任务，也不代表批准业务成果。
 
-本地需要 Python 3.10+、Git、已登录的 GitHub CLI；行为运行器需要已登录的 Codex CLI。正式发布验证源码与 ZIP、执行测试、推送源代码和标签、上传 Release 并核对远端资产。上传失败保留未完成状态；同版本内容不可替换，网络失败可按原命令重试。发布不等于安装，也不批准待审提案。
+安装后，可先请项目前台按项目描述推荐专业组合，由你决定；小任务也可以在一个对话中按各专业要求完成。各专业保留自己的阶段、审阅点和交付要求。
 
-批量重试已登记历史版本：
+## 使用注意
 
-```sh
-python3 tools/release.py sync --assets /path/to/zip-directory
-```
+请阅读[本版说明中的使用注意和已知限制](release-notes/matrix-ai-v0.38.md)。通知完整性、已有确认的接续、专业边界、设计与实现的核对，以及关键风险与发布决定仍需要人工把关。本版不提供美术专业与图像生成接口。
 
-只读检查和发布工具测试：
+## 旧版本
 
-```sh
-python3 tools/release.py verify
-python3 -m unittest discover -s tools -p 'test_*.py' -v
-```
-
-这一机制由每次构建触发，不依赖后台轮询。发布包不会自动安装到任何实际项目。
+[已发布版本](https://github.com/syupei/Matrix-AI/releases)及 `packages/` 中已有的产品资料保留原样；下载对应版本时，请使用相应说明与核对信息。

@@ -1,0 +1,245 @@
+{
+  "candidate": {
+    "kind": "implementation",
+    "files": {
+      "填写候选源文件路径": "填写实际SHA-256"
+    }
+  },
+  "product_impact": {
+    "schema": "product_impact/1",
+    "scope": [
+      "填写活动ID"
+    ],
+    "candidate": {
+      "path": "填写项目相对路径",
+      "sha256": "填写实际SHA-256",
+      "kind": "plan"
+    },
+    "decisions": [
+      {
+        "id": "填写决定ID",
+        "selection": "填写所选或待选方案",
+        "source": {
+          "path": "填写项目相对路径",
+          "sha256": "填写实际SHA-256"
+        },
+        "screened_critical": false,
+        "product_effects": [],
+        "no_card_reason": "仅无成品影响时填写不写卡的理由",
+        "card": {
+          "default_choice": true,
+          "verification": "填写验证方法",
+          "limitations": "填写限制",
+          "reopen_when": "填写重开条件",
+          "effects": {
+            "channels": {
+              "conclusion": "填写成品影响或不适用理由",
+              "basis": "填写依据",
+              "level": "pending",
+              "evidence": []
+            },
+            "interaction": {
+              "conclusion": "填写成品影响或不适用理由",
+              "basis": "填写依据",
+              "level": "pending",
+              "evidence": []
+            },
+            "data": {
+              "conclusion": "填写成品影响或不适用理由",
+              "basis": "填写依据",
+              "level": "pending",
+              "evidence": []
+            },
+            "capacity_deployment": {
+              "conclusion": "填写成品影响或不适用理由",
+              "basis": "填写依据",
+              "level": "pending",
+              "evidence": []
+            },
+            "maintenance_cost": {
+              "conclusion": "填写成品影响或不适用理由",
+              "basis": "填写依据",
+              "level": "pending",
+              "evidence": []
+            },
+            "exit_migration": {
+              "conclusion": "填写成品影响或不适用理由",
+              "basis": "填写依据",
+              "level": "pending",
+              "evidence": []
+            }
+          }
+        }
+      }
+    ]
+  },
+  "impact_review": {
+    "schema": "impact_review/1",
+    "scope": [
+      "填写活动ID"
+    ],
+    "candidate": {
+      "path": "填写项目相对路径",
+      "sha256": "填写实际SHA-256",
+      "kind": "plan"
+    },
+    "product_impact": {
+      "path": "填写项目相对路径",
+      "sha256": "填写实际SHA-256"
+    },
+    "summary": [
+      {
+        "decision_id": "对应决定ID",
+        "selection": "与决定一致",
+        "main_impact": "填写最主要影响",
+        "verification_state": "填写已测或待验证"
+      }
+    ],
+    "excluded_decisions": [
+      {
+        "decision_id": "无卡的决定ID",
+        "reason": "填写理由"
+      }
+    ]
+  },
+  "inspection": {
+    "item_id": "填写验收条目ID",
+    "candidate_sha256": "填写本候选清单SHA-256",
+    "outcome": "untested",
+    "conclusion": "未执行",
+    "owner": "填写责任方",
+    "reason": "填写原因",
+    "next_action": "填写恢复办法",
+    "evidence": [],
+    "defects": []
+  },
+  "acceptance_package": {
+    "schema": "acceptance_package/1",
+    "scope": [
+      "填写活动ID"
+    ],
+    "stage": "Q-3",
+    "candidate": {
+      "path": "填写项目相对路径",
+      "sha256": "填写实际SHA-256",
+      "kind": "implementation"
+    },
+    "coverage": {
+      "path": "填写项目相对路径",
+      "sha256": "填写实际SHA-256"
+    },
+    "implementer": "填写实际实现者",
+    "entries": [
+      {
+        "id": "填写验收条目ID",
+        "source": {
+          "path": "填写项目相对路径",
+          "sha256": "填写实际SHA-256"
+        },
+        "section": "填写正文定位",
+        "inspection": {
+          "path": "填写项目相对路径",
+          "sha256": "填写实际SHA-256"
+        }
+      }
+    ],
+    "trial": {
+      "author": "填写实际QA作者",
+      "entry": "填写入口",
+      "environment": "填写环境",
+      "reset": "填写重置方法",
+      "limitations": "填写限制",
+      "steps": [
+        {
+          "action": "填写动作",
+          "expected": "填写预期",
+          "unacceptable": "填写不可接受的结果"
+        }
+      ]
+    },
+    "core_tasks": [
+      {
+        "id": "填写核心任务ID",
+        "entry": {
+          "item_id": "填写对应条目ID"
+        },
+        "main_action": {
+          "item_id": "填写对应条目ID"
+        },
+        "state_persistence": {
+          "item_id": "填写对应条目ID"
+        },
+        "failure_recovery": {
+          "item_id": "填写对应条目ID"
+        },
+        "observation": {
+          "item_id": "填写对应条目ID"
+        }
+      }
+    ]
+  },
+  "decision_packet": {
+    "candidate": {
+      "path": "填写项目相对路径",
+      "sha256": "填写实际SHA-256",
+      "kind": "implementation"
+    },
+    "product_impact": {
+      "path": "填写项目相对路径",
+      "sha256": "填写实际SHA-256"
+    },
+    "acceptance_package": {
+      "path": "填写项目相对路径",
+      "sha256": "填写实际SHA-256"
+    },
+    "unresolved_items": [
+      "来自验收检查结果的ID"
+    ],
+    "unverified_impacts": [
+      "决定ID:影响类别"
+    ],
+    "schema": "decision_packet/1"
+  },
+  "release_acceptance": {
+    "schema": "release_acceptance/1",
+    "scope": [
+      "填写活动ID"
+    ],
+    "candidate": {
+      "path": "填写项目相对路径",
+      "sha256": "填写实际SHA-256",
+      "kind": "implementation"
+    },
+    "product_impact": {
+      "path": "填写项目相对路径",
+      "sha256": "填写实际SHA-256"
+    },
+    "acceptance_package": {
+      "path": "填写项目相对路径",
+      "sha256": "填写实际SHA-256"
+    },
+    "decision_packet": {
+      "path": "填写项目相对路径",
+      "sha256": "填写实际SHA-256"
+    },
+    "qa_completion": {
+      "bundle": {
+        "path": "填写Q-4实际阶段回执的bundle路径",
+        "sha256": "填写实际SHA-256"
+      },
+      "state_path": "填写Q-4封存state_path"
+    }
+  },
+  "qa_gap": {
+    "gap_id": "填写实际缺口ID",
+    "choice": "self",
+    "qualification": "填写缺口资质",
+    "person": "填写原决定人",
+    "quote": "填写完整真实答复",
+    "source": {
+      "path": "填写项目相对路径",
+      "sha256": "填写实际SHA-256"
+    },
+    "non_specialist_label": "非质量工程专家产出，未经具备资质的人审定"
+  }
+}
